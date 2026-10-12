@@ -1,17 +1,66 @@
 # MathCloud
 
-A platform for running math contests end to end: registration, the roster,
-online tests or paper grading, scoring, results, certificates, prizes and
+Run a math contest end to end: registration, the roster, online tests on Zoom
+or paper grading in the room, scoring and rankings, results, certificates and
 email. Each organisation's contests are private to it. SFMO 2027 is the first
-contest it has to run.
+contest it runs.
 
-Nothing is built yet. Start here:
+## Try it
 
-- [`docs/PROPOSAL.md`](docs/PROPOSAL.md): what it does, how the pieces fit,
-  the SFMO connection, the design direction, the stack and the phases.
-- [`docs/RESEARCH.md`](docs/RESEARCH.md): ContestDojo taken apart, the tools
-  already built for SFMO and Cowconuts, and outside limits (email quotas,
-  what a browser can detect during a test).
-- [`docs/mockups/roster.html`](docs/mockups/roster.html): a clickable mockup
-  of the roster screen with invented data. Open it in a browser. "Why it
-  looks like this" explains each design choice.
+```bash
+npm install
+npm run dev          # http://localhost:5173
+```
+
+The app opens on a demo of SFMO 2027 with invented teams. Pick an account
+(every password is `demo`):
+
+| Account | What to try |
+| --- | --- |
+| **Director** Jordan Lee | Roster, rounds, proctoring, grading, results, certificates, email |
+| **Grader** Sam Ortega | Key a paper sheet: type `05A`, Enter, then the answers |
+| **Proctor** Priya Nand | Watch Zoom Room 1 live, answer questions, unlock a locked test |
+| **Coach** Megan Hughes | Add a student with a managed account, chase a waiver |
+| **Student** Carter Hughes | Take the Individual round online |
+| **Student** Hannah Kim | An in-person competitor signing in with a username |
+
+**Open two tabs** (student in one, director or proctor in the other): answers,
+flags and questions show up in both as they happen. The **Demo** button in the
+corner switches accounts and jumps between *contest morning* (tests open) and
+*after the contest* (grading and results).
+
+Everything runs in the browser; nothing is sent anywhere.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server |
+| `npm test` | Scoring and email-template tests |
+| `npm run build` | Type-check and build to `dist/` |
+| `npm run build:demo` | Self-contained build (relative paths, hash routes) in `dist-demo/` |
+| `./scripts/test-db.sh` | Runs the Supabase schema and its 37 rule checks on a throwaway Postgres |
+
+## Where things live
+
+```
+src/
+  lib/model.ts          the domain types; they mirror the SQL tables
+  lib/scoring/          scoring engine and answer grading, with tests
+  lib/actions.ts        every change the app makes, with the same rules as the SQL functions
+  lib/store.ts          the demo's in-browser database, synced across tabs
+  lib/demo/             SFMO 2027 demo data, problems, simulated competitors
+  lib/templates.ts      email templates: {{fields}}, {{#if}}, {{#each}}
+  pages/staff/          director, grader and proctor screens
+  pages/student/        student home and the test portal
+  pages/coach/          coach portal
+  styles/app.css        design tokens and every component style
+supabase/
+  migrations/           the real schema: tables, row level security, functions
+  tests/                rule checks for each role
+docs/
+  PROPOSAL.md           what it does, decisions, what is built and next
+  STACK.md              database, hosting and costs
+  RESEARCH.md           ContestDojo taken apart, your existing tools
+  mockups/roster.html   the first design mockup
+```

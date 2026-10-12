@@ -1,8 +1,19 @@
 # MathCloud: proposal
 
-**Status:** idea stage, nothing built. Research is in [`RESEARCH.md`](RESEARCH.md).
-A clickable mockup of the main screen is in
-[`mockups/roster.html`](mockups/roster.html).
+**Status:** a working demo of the core is built (see §6 and the README). Research
+is in [`RESEARCH.md`](RESEARCH.md); the database, hosting and costs are in
+[`STACK.md`](STACK.md).
+
+### Decided on 12 October
+
+- **Everyone has an account**: directors, staff, graders, proctors, coaches
+  and students. Students too young for email get a **managed account** (a
+  username their coach or guardian sets up).
+- **SFMO's online division sits every round at the same moment** as the room
+  in San Francisco, in the browser, **on Zoom with cameras on**.
+- **Stack:** a Vite + React single-page app on Cloudflare Pages, with
+  Supabase for the database, accounts, files and live updates.
+  `mathcloud.replit.app` was an earlier test portal; this replaces it.
 
 ---
 
@@ -26,18 +37,19 @@ automatically. SFMO 2027 is the first contest it has to run.
 | --- | --- | --- |
 | **Owner / Director** | account | Everything in their organisation's contests |
 | **Staff** | account | Roster, check-in, emails. Not the answer key unless granted. |
-| **Grader** | invite link, or contest code + name + grader password (as in Cowconuts) | Only the rounds and problems they are assigned. No contact details. |
-| **Proctor** | invite link | Live status and integrity flags for their assigned online rooms |
+| **Grader** | own account, from an invite | Only the rounds they are assigned. No contact details. |
+| **Proctor** | own account, from an invite | Live status, flags and questions for their Zoom room |
 | **Problem writer** | account | Problems and solve statistics. No names. |
-| **Coach** | account | Their own teams, invoices, score reports |
-| **Competitor** | personal link or access code. No password. | Their test, their results, their certificate |
-| **Guardian** | emailed link | One waiver to sign |
+| **Coach** | account | Their own teams: rosters, waivers, invoices, score reports |
+| **Competitor** | own account: email, or a managed username for under-13s | Their tests, results and certificates |
+| **Guardian** | emailed link, no account needed | One waiver to sign |
 
-**Competitors do not need accounts.** ContestDojo makes every student create
-one. For a contest with grades 3–12 that is friction, and it collects
-children's data that the contest has no need for. A competitor gets an ID
-(`07A`) and a six-character access code by email. That is enough to start a
-test and later to download their certificate.
+**Students have accounts, and the youngest have managed ones.** A student 13
+or older signs up with their own email or joins with a team code. For younger
+students, the coach or guardian creates the account (`sfmo-16c` and a
+password), so no email or other contact detail is collected from the child.
+One account follows a student from contest to contest, so their history and
+certificates stay in one place.
 
 **Three ways to register**, chosen per contest:
 
@@ -121,6 +133,12 @@ The screen organisers spend the most time on. The mockup shows it.
 
 ### 2.4 Online test portal
 
+**Same time as the room.** For SFMO the online division starts each round at
+the same moment as the paper room in San Francisco: the director opens the
+round and one clock starts for everyone. Online competitors see their Zoom
+room on their home page and in the test, and are asked to join 20 minutes
+early with cameras showing them and their desk.
+
 **Flow:** open the link → device check (browser, fullscreen, connection) →
 waiting room with countdown and round rules → test → submit → results when the
 director releases them.
@@ -173,8 +191,11 @@ So:
   same *rare wrong* answers are flagged. It is cheap, and it catches what
   browser events miss.
 - **Never an automatic disqualification.** The director reviews the evidence.
-- **Optional video proctoring:** a Zoom link and proctor per room or team.
-  Most online math contests require cameras on.
+- **Zoom proctoring** (SFMO uses it): teams are assigned to rooms of about
+  four teams each, every room has a proctor account, and the proctor's screen
+  lists exactly the students in their room with their flags and questions.
+  Meeting links are pasted in at first and created through the organiser's
+  own Zoom app later (`STACK.md`).
 
 ### 2.5 Grading portal (paper rounds)
 
@@ -331,6 +352,85 @@ One **Close the contest** checklist:
 - **Eligibility:** SFMO's 100-mile rule becomes a form rule: choosing *Online*
   requires the distance attestation. It already exists in `register_team()`.
 
+### 2.12 Making it easy for any contest to run on MathCloud
+
+What a small student-run contest is missing is usually not software but
+experience. These features turn what SFMO, BMT and SMT have learned into
+defaults.
+
+**Starting**
+
+- **Contest templates.** Start from a format: SFMO (Individual, Mystery, Guts),
+  BMT-style (Individual, Team, Guts, Power), HMMT-style, a Cowconuts-style two
+  division meet, a mini meet for grades 3–8, an Estimathon, an Integration
+  Bee, a proof contest. Rounds, scoring, awards and email templates arrive
+  filled in.
+- **A plan worked back from the date.** Enter the contest date and get a
+  timeline: open registration 10 weeks before, problems final 3 weeks before,
+  waiver reminders a week before, dress rehearsal 5 days before, results
+  within 48 hours. Each step links to the screen that does it.
+- **Duplicate last year** with one click.
+
+**Writing the contest**
+
+- **Write each problem once.** It becomes the online test, a printable test
+  booklet, answer sheets with competitor IDs printed on, and the graders' key.
+- **Problem bank** across years, with solve rates from every time a problem
+  was used, so writers can calibrate difficulty.
+- **Test-solver mode:** a writer sits the paper as a student would, timed, and
+  their answers check the key before the day.
+
+**People**
+
+- **Volunteer sign-up link** for graders and proctors, with roles assigned
+  on one screen and access that expires after the contest.
+- **Rehearsal sandbox:** a copy of the contest filled with simulated students
+  (like the demo), so proctors and graders practise on contest week without
+  touching real data.
+- **Grader practice** on last year's anonymised sheets.
+
+**Competitors and coaches**
+
+- **One account across contests**, with a history of results and every
+  certificate, and managed accounts for the youngest.
+- **Device check** students run days before: browser, fullscreen, connection,
+  clock, and a practice question.
+- **Local time everywhere** for international teams, and the test pages in
+  more than one language.
+- **Accommodations:** extra time or large print per student, set by the
+  director.
+- **Teammate matching** for solo registrants.
+
+**On the day**
+
+- **Staff alerts in Discord or Slack**: a locked test, a question waiting more
+  than a minute, a grader who has gone quiet.
+- **Projector boards** for Guts with a freeze before the end.
+- **Offline-tolerant answers:** saved locally and synced when the connection
+  returns, with the gap logged.
+
+**After**
+
+- **Appeals window:** students ask for a regrade within 48 hours, the director
+  rules, and results are re-versioned with the diff from §2.6.
+- **Public results and archive** page per contest, with problems and
+  solutions released once every division has finished.
+- **Sponsors** on registration, results and certificates, with their coupon
+  codes handed out as prizes.
+
+**Running it as a platform**
+
+- **Discover page:** an opt-in list of upcoming contests on MathCloud, so a new
+  contest can find competitors.
+- **Co-hosting:** two organisations run one contest together.
+- **Fees** through Stripe Connect into the organiser's own account, fee
+  waivers, refunds and a payout report. Donation pledges, as SFMO uses, for
+  free contests.
+- **API, webhooks, CSV in and out**, and an embeddable registration form for
+  organisers with their own site.
+- **Privacy controls:** export or delete a contest's personal data, and an
+  automatic clean-up of minors' details after a set number of months.
+
 ---
 
 ## 3. Connecting the SFMO registration
@@ -459,18 +559,16 @@ destroys: *"Delete team 07, Krill Seekers, and its 4 competitors."*
 
 ## 5. How to build it
 
-| Part | Choice | Why |
-| --- | --- | --- |
-| App | **Next.js** (App Router) + TypeScript | Server routes for API keys, webhooks and the ingest endpoint; you already use it for Mailerbot |
-| Data, auth, realtime, files | **Supabase**: Postgres + RLS, Auth, Realtime, Storage, Vault | SFMO and Cowconuts already enforce privacy with RLS; Realtime drives live boards and the proctor dashboard; Vault holds organisers' email keys |
-| Background jobs | **Supabase Queues + Cron**, with workers sending 100 at a time | Email and certificate runs take minutes and must not hang on a browser request (Mailerbot's `STACK.md`) |
-| UI behaviour | **Radix Primitives** (unstyled) | Accessible menus, dialogs and popovers with no look of their own, so nothing looks like a component library |
-| Styling | **Tailwind v4** with the tokens above as CSS variables | One source for colour, spacing and radius; you already use it in Mailerbot |
-| Tables | **TanStack Table** (+ virtualisation) | Sorting, column picking, selection, thousands of rows |
-| Motion | CSS transitions; **Motion** for layout animation (drawer, reordering, number roll) | Most of it is CSS; Motion only where layout changes |
-| Maths | **KaTeX** to render, **MathLive** as an optional answer input | Fast rendering, real maths input |
-| PDFs | **pdf-lib + fontkit** for certificates (from `certificatesending`); HTML print for score reports (from Cowconuts) | Both already proven |
-| Hosting | Vercel or Cloudflare | Vercel's free tier is for non-commercial use only; check before charging anyone |
+Decided and costed in [`STACK.md`](STACK.md): a Vite + React + TypeScript
+single-page app on Cloudflare Pages, Supabase for Postgres (with row level
+security), accounts, files, live updates, background jobs and encrypted
+secrets, and each organiser's own Resend, SMTP or Gmail for email. About
+$25 a month in contest season, close to nothing otherwise.
+
+The interface is plain CSS on the design tokens in §4, with hand-built
+components, so nothing looks like a component library. KaTeX renders maths.
+The scoring engine and the email template engine are pure TypeScript with
+tests; the database rules are SQL functions with their own test script.
 
 **Data model, first sketch:**
 
@@ -507,7 +605,43 @@ audit_log          org_id, actor, action, target, before, after, at
 
 ---
 
-## 6. Phases, against the real calendar
+## 6. What is built, and what is next
+
+**Built now** (try it: see the README):
+
+- Accounts and sign-in for every role, each seeing only what they should.
+- Director: overview with a readiness checklist, roster with drawer and bulk
+  actions, check-in, people and access, rounds with live answer-key editing,
+  proctoring, grading, results with an editable scoring recipe, certificates
+  with drag-to-place fields and verification codes, emails with templates,
+  live preview and daily-limit pacing.
+- Online test portal: honour code, fullscreen, one shared clock, autosave,
+  Guts sets that lock behind you, a shared team sheet, integrity logging
+  (tab, window, fullscreen, paste, split screen, connection, second device)
+  with warn and lock policies, proctor unlock, questions and announcements.
+- Grading: Cowconuts-style keypad entry with live green/red, and grading by
+  distinct answer, where a fraction or decimal with the wrong value is marked
+  wrong automatically and an equal value in another form waits for a ruling.
+- Scoring engine: best k of n, round weights, shared places, the
+  harder-problems tiebreak, award rules, problem statistics and
+  rare-shared-wrong-answer detection. 19 unit tests.
+- Coach portal: teams, managed student accounts, waiver reminders, results.
+- Guardian waiver page from an emailed link.
+- Database: `supabase/migrations/0001_core.sql`, with 37 rule checks in
+  `supabase/tests/rules.sql` that pass on Postgres 16.
+
+**Next, in order:**
+
+1. Wire the app to Supabase (the demo store's actions map one-to-one onto the
+   SQL functions), with Supabase Auth for sign-in and managed accounts.
+2. The SFMO sync from §3, as a Supabase Edge Function receiving the SFMO
+   database webhook.
+3. Sending email for real through the organiser's provider, from a queue.
+4. Certificate PDFs stamped server-side with pdf-lib, as in
+   `certificatesending`.
+5. A full dress rehearsal of SFMO 2027 in mid-December.
+
+## 7. Phases, against the real calendar
 
 | When | Phase | Target |
 | --- | --- | --- |
@@ -517,7 +651,7 @@ audit_log          org_id, actor, action, target, before, after, at
 
 ---
 
-## 7. Risks, plainly
+## 8. Risks, plainly
 
 - **Scope.** This is ContestDojo plus a small Gradescope plus a small Mailchimp
   plus a certificate service. ContestDojo is years of SMT volunteers' work.
@@ -526,9 +660,9 @@ audit_log          org_id, actor, action, target, before, after, at
   dashboard, so nobody treats a flag as a verdict.
 - **Children's data.** SF Mini Math Meet starts at grade 3. In the US,
   collecting personal information online from children under 13 falls under
-  COPPA. The design (a guardian or coach registers, no child accounts,
-  minimal fields, deletion after the contest) is built to keep MathCloud on
-  the right side of it. As with the SFMO waiver, have an adult with legal
+  COPPA. The design (a guardian or coach creates a managed account, no email
+  or contact details from the child, minimal fields, deletion after the
+  contest) is built to keep MathCloud on the right side of it. As with the SFMO waiver, have an adult with legal
   knowledge review it before it carries real data.
 - **Email limits are low on free plans.** 100 a day on both Resend free and
   the Gmail relay. The pacing in §2.8 handles this; organisers should still
@@ -538,19 +672,14 @@ audit_log          org_id, actor, action, target, before, after, at
 
 ---
 
-## 8. Questions for you
+## 9. Questions for you
 
-1. **Name.** The SFMO site links to `mathcloud.replit.app`. Is that this
-   project, or something else that already uses the name?
-2. **SFMO online division.** Does it sit the same three rounds as in person,
-   at the same time?
-3. **Video proctoring** for the online division: required, optional, or not
-   at all?
-4. **Graders:** individual accounts, or Cowconuts-style contest code + name +
-   shared password? (The proposal supports both. Which should be the
-   default?)
-5. **Other contests:** free forever, free for nonprofits, or paid? This
-   decides the hosting and payments choices.
-6. **Coach organisations:** needed for SFMO, or is captain registration
-   enough until other contests join?
-7. **Stack:** happy with Next.js + Supabase, given SFMO is Vite + Supabase?
+1. **Other contests:** free forever, free for nonprofits, or paid? This
+   decides whether Stripe Connect and a paid Supabase tier are needed year
+   round.
+2. **SFMO 2027 date and Zoom rooms:** how many proctors do you have? Rooms of
+   four teams need one proctor each.
+3. **A domain:** `mathcloud.org`, `mathcloud.app`, or under
+   `sfmathopen.org` for now?
+4. **Mystery Dive:** what format is it this year? The portal needs to support
+   it before the rehearsal.
