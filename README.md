@@ -17,17 +17,19 @@ The app opens on a demo of SFMO 2027 with invented teams. Pick an account
 
 | Account | What to try |
 | --- | --- |
-| **Director** Jordan Lee | Roster, rounds, proctoring, grading, results, certificates, email |
-| **Grader** Sam Ortega | Key a paper sheet: type `05A`, Enter, then the answers |
+| **Director** Jordan Lee | Live → *Show on projector* for the Guts board; roster, grading, results, certificates, email |
+| **Grader** Sam Ortega | Key a Guts set: Guts, type `05`, Enter, then the four answers. It lands on the board |
 | **Proctor** Priya Nand | Watch Zoom Room 1 live, answer questions, unlock a locked test |
 | **Coach** Megan Hughes | Add a student with a managed account, chase a waiver |
-| **Student** Carter Hughes | Take the Individual round online |
+| **Student** Carter Hughes | Take Guts online with the live scoreboard beside the questions |
 | **Student** Hannah Kim | An in-person competitor signing in with a username |
 
-**Open two tabs** (student in one, director or proctor in the other): answers,
-flags and questions show up in both as they happen. The **Demo** button in the
-corner switches accounts and jumps between *contest morning* (tests open) and
-*after the contest* (grading and results).
+The demo opens with **Guts under way**: the other teams hand in sets on their
+own, so the board moves while you watch. **Open two tabs** (student in one,
+the board or the proctor in the other): sets, flags and questions show up in
+both as they happen. The **Demo** menu switches accounts and jumps between
+three moments: *contest morning* (the Individual round just opened), *Guts is
+live*, and *after the contest* (grading and results).
 
 Everything runs in the browser; nothing is sent anywhere.
 
@@ -54,6 +56,7 @@ src/
   pages/staff/          director, grader and proctor screens
   pages/student/        student home and the test portal
   pages/coach/          coach portal
+  pages/BoardPage.tsx   the projector scoreboard
   styles/app.css        design tokens and every component style
 supabase/
   migrations/           the real schema: tables, row level security, functions

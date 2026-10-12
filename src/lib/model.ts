@@ -113,6 +113,8 @@ export type Contest = {
   recipe: ScoringRecipe;
   rooms: ZoomRoom[];
   resultsPublished: boolean;
+  /** The live Guts board: it freezes this many minutes before the end, until revealed. */
+  board: { freezeMinutes: number; revealed: boolean };
   registration: { open: boolean; closesLabel: string; teamMin: number; teamMax: number };
 };
 
@@ -184,6 +186,8 @@ export type Attempt = {
   submittedAt?: string;
   /** Guts: sets handed in, in order. */
   setsSubmitted?: number;
+  /** Guts: when each set was handed in (online) or keyed (paper). Drives the live board and its freeze. */
+  setTimes?: string[];
   responses: Record<string, Response>;
   events: IntegrityEvent[];
   locked?: boolean;
@@ -223,6 +227,9 @@ export type DB = {
   schema: number;
   /** Changes whenever the demo is reset or jumps to another moment. */
   gen: string;
+  /** Demo only: which moment of the contest day this copy starts from, and when it was made. */
+  moment: 'morning' | 'guts' | 'after';
+  seededAt: string;
   orgs: Org[];
   users: User[];
   contests: Contest[];

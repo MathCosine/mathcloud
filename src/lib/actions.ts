@@ -33,6 +33,7 @@ export function openRound(roundId: string) {
     const r = roundIn(db, roundId);
     r.status = 'open';
     r.openedAt = nowIso();
+    if (r.kind === 'guts') contestOf(db).board.revealed = false;
     // Reopening in the demo starts the round afresh.
     db.attempts = db.attempts.filter((a) => !(a.roundId === roundId && a.source === 'online'));
   });
@@ -67,7 +68,7 @@ export function startAttempt(roundId: string, entrantId: string, honorName: stri
       a = {
         id: `${roundId}:${entrantId}`, roundId, entrantId, source: 'online', startedAt: nowIso(),
         deadline: new Date(roundEnds(round)!).toISOString(), responses: {}, events: [], honorName,
-        ...(round.kind === 'guts' ? { setsSubmitted: 0 } : {}),
+        ...(round.kind === 'guts' ? { setsSubmitted: 0, setTimes: [] } : {}),
       };
       db.attempts.push(a);
     } else if (!a.startedAt) {
@@ -107,6 +108,7 @@ export function submitGutsSet(attemptId: string) {
     const round = roundIn(db, a.roundId);
     const sets = Math.max(...round.problems.map((p) => p.set ?? 1));
     a.setsSubmitted = Math.min(sets, (a.setsSubmitted ?? 0) + 1);
+    a.setTimes = [...(a.setTimes ?? []), nowIso()].slice(0, sets);
     if (a.setsSubmitted >= sets) a.submittedAt = nowIso();
   });
 }
@@ -205,6 +207,42 @@ export function savePaperSheet(roundId: string, entrantId: string, values: Recor
     a.responses = {};
     for (const [pid, v] of Object.entries(values)) if (v.trim()) a.responses[pid] = { value: v.trim(), savedAt: at, by };
     a.submittedAt = at;
+  });
+}
+
+/**
+ * Key one Guts set from a paper sheet. Sets come in one at a time during the
+ * round, and each keyed set goes on the live board at once.
+ */
+export function savePaperGutsSet(roundId: string, teamId: string, setNo: number, values: Record<string, string>, by: string) {
+  update((db) => {
+    const round = roundIn(db, roundId);
+    let a = db.attempts.find((x) => x.roundId === roundId && x.entrantId === teamId);
+    if (!a) {
+      a = { id: `${roundId}:${teamId}`, roundId, entrantId: teamId, source: 'paper', responses: {}, events: [], setsSubmitted: 0, setTimes: [] };
+      db.attempts.push(a);
+    }
+    const at = nowIso();
+    for (const p of round.problems.filter((x) => x.set === setNo)) {
+      const v = (values[p.id] ?? '').trim();
+      if (v) a.responses[p.id] = { value: v, savedAt: at, by };
+      else delete a.responses[p.id];
+    }
+    const times = a.setTimes ?? [];
+    // Re-keying a set keeps its original time; a new set is stamped now.
+    if (setNo > times.length) {
+      for (let s = times.length; s < setNo; s++) times[s] = at;
+    }
+    a.setTimes = times;
+    a.setsSubmitted = Math.max(a.setsSubmitted ?? 0, setNo);
+    const sets = Math.max(...round.problems.map((p) => p.set ?? 1));
+    if (a.setsSubmitted >= sets) a.submittedAt = a.submittedAt ?? at;
+  });
+}
+
+export function setBoard(patch: Partial<Contest['board']>) {
+  update((db) => {
+    Object.assign(contestOf(db).board, patch);
   });
 }
 

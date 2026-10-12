@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { askClarification, logEvent, saveResponse, startAttempt, submitAttempt, submitGutsSet } from '../../lib/actions';
-import { useContest } from '../../lib/hooks';
+import { ordinal, useBoard, useContest } from '../../lib/hooks';
 import type { Clarification, IntegrityKind, Problem, Round } from '../../lib/model';
 import { useStudent } from '../../lib/session';
 import { useDB } from '../../lib/store';
-import { clock, clockSec, duration, roundState } from '../../lib/time';
-import { AnswerPreview, MathText, Modal, Tick, toast, useNow } from '../../components/ui';
+import { clock, clockSec, duration, roundEnds, roundState } from '../../lib/time';
+import { ScoreList } from '../../components/Scoreboard';
+import { AnswerPreview, MathText, Modal, toast, useNow } from '../../components/ui';
 
 export function TestPortal() {
   const { roundId } = useParams();
@@ -15,8 +16,7 @@ export function TestPortal() {
   const db = useDB();
   const round = contest.rounds.find((r) => r.id === roundId);
   if (!me || !round) return <Navigate to="/me" replace />;
-  const division = contest.divisions.find((d) => d.id === me.team.divisionId)!;
-  if (division.mode !== 'online') return <Navigate to="/me" replace />;
+  if (contest.divisions.find((d) => d.id === me.team.divisionId)?.mode !== 'online') return <Navigate to="/me" replace />;
   const entrantId = round.kind === 'individual' ? me.competitor.id : me.team.id;
   const attempt = db.attempts.find((a) => a.roundId === round.id && a.entrantId === entrantId);
   if (!attempt?.startedAt) return <Intro round={round} entrantId={entrantId} name={me.competitor.name} />;
@@ -30,43 +30,43 @@ function Intro({ round, entrantId, name }: { round: Round; entrantId: string; na
   const now = useNow(1000);
   const [honor, setHonor] = useState('');
   const state = roundState(round, now);
+  const ends = roundEnds(round);
   const ok = honor.trim().toLowerCase().replace(/\s+/g, ' ') === name.toLowerCase();
-
   const begin = async () => {
     try {
       await document.documentElement.requestFullscreen?.();
     } catch {
-      /* fullscreen refused (iPhone, some embeds); the test still runs and logs focus changes */
+      /* Some browsers and phones refuse fullscreen. The test still runs and still notices leaving the tab. */
     }
     startAttempt(round.id, entrantId, honor.trim());
   };
-
   return (
-    <div className="test-shell">
-      <div className="test-bar">
-        <div className="left"><b>{round.name}</b><small>{contest.short}</small></div>
-        <div />
-        <div className="right"><Link to="/me" className="btn btn-sm">Back</Link></div>
+    <div className="exam">
+      <div className="exam-bar">
+        <div className="l"><b>{round.name}</b><span>{contest.short}</span></div>
+        <div className={`clock ${state === 'open' ? '' : 'muted'}`}>{state === 'open' && ends ? duration(ends - now) : '--:--'}</div>
+        <div className="r"><Link className="btn btn-sm" to="/me">Back</Link></div>
       </div>
-      <div style={{ maxWidth: 620, margin: '48px auto', padding: '0 20px' }} className="stack">
-        <div className="eyebrow">{round.kind === 'individual' ? 'On your own' : round.kind === 'guts' ? 'With your team, a set at a time' : 'With your team, one shared sheet'} · {round.minutes} minutes</div>
-        <h1>{round.name}</h1>
-        <p className="sub2" style={{ fontSize: 15 }}>{round.rules}</p>
-        <div className="panel panel-pad stack" style={{ gap: 10 }}>
-          <h3>Before you start</h3>
-          <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--ink-2)', fontSize: 13.5, lineHeight: 1.7 }}>
-            <li>Be in your Zoom room with your camera on.</li>
-            <li>The test goes fullscreen. Leaving the tab, the window or fullscreen is logged for your proctor{round.integrity.policy === 'lock' ? `, and after ${round.integrity.lockAfter} times the test locks` : round.integrity.policy === 'warn' ? ', and you will see a warning' : ''}.</li>
-            <li>Answers save as you type. If your connection drops, keep going; they save when it returns.</li>
-            <li>The clock is the same for everyone and ends at {roundState(round) === 'open' && round.openedAt ? clock(new Date(new Date(round.openedAt).getTime() + round.minutes * 60000)) : 'the scheduled time'}.</li>
-          </ul>
-          <label className="field" style={{ marginTop: 6 }}>
-            <span>Honour code: type your full name to promise the work is your {round.kind === 'individual' ? 'own' : 'team’s own'}</span>
-            <input className="input" value={honor} onChange={(e) => setHonor(e.target.value)} placeholder={name} onKeyDown={(e) => e.key === 'Enter' && ok && state === 'open' && begin()} />
+      <div style={{ maxWidth: 600, margin: '56px auto', padding: '0 20px' }} className="stack-lg">
+        <div className="stack" style={{ gap: 10 }}>
+          <span className="label">{round.kind === 'individual' ? 'On your own' : round.kind === 'guts' ? 'With your team, one set at a time' : 'With your team, one shared sheet'} · {round.minutes} minutes · {round.problems.length} problems</span>
+          <h1 className="page-title" style={{ fontSize: 32 }}>{round.name}</h1>
+          <p className="lede">{round.rules}</p>
+        </div>
+        <ul className="soft" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
+          <li>Stay in your Zoom room with your camera on.</li>
+          <li>The test goes fullscreen. Leaving it is recorded for your proctor{round.integrity.policy === 'warn' ? ', and you will see a warning' : round.integrity.policy === 'lock' ? `, and the test locks after ${round.integrity.lockAfter} times` : ''}.</li>
+          <li>Answers save as you type.</li>
+          {round.kind === 'guts' && <li>A live scoreboard sits beside the problems. It freezes {contest.board.freezeMinutes} minutes before the end.</li>}
+        </ul>
+        <div className="stack">
+          <label className="field">
+            <span>Type your full name to promise the work is {round.kind === 'individual' ? 'your own' : 'your team’s own'}</span>
+            <input className="input" style={{ height: 44 }} value={honor} onChange={(e) => setHonor(e.target.value)} placeholder={name} onKeyDown={(e) => e.key === 'Enter' && ok && state === 'open' && begin()} />
           </label>
-          <div className="row">
-            <button className="btn btn-primary btn-lg" type="button" disabled={!ok || state !== 'open'} onClick={begin}>Start {round.name}</button>
-            {state !== 'open' && <span className="sub">This round is not open right now.</span>}
+          <div className="row wrap">
+            <button className="btn btn-primary btn-lg" type="button" disabled={!ok || state !== 'open'} onClick={begin}>Start</button>
+            {state !== 'open' && <span className="muted">This round is not open.</span>}
           </div>
         </div>
       </div>
@@ -83,7 +83,7 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
   const attempt = db.attempts.find((a) => a.id === attemptId)!;
   const now = useNow(500);
   const deadline = new Date(attempt.deadline!).getTime();
-  const started = new Date(attempt.startedAt!).getTime();
+  const total = round.minutes * 60000;
   const left = deadline - now;
   const over = left <= -round.graceSeconds * 1000;
   const done = !!attempt.submittedAt || over;
@@ -93,15 +93,16 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
   const [pulse, setPulse] = useState(0);
   const [saving, setSaving] = useState(false);
   const [warn, setWarn] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<'set' | 'all' | null>(null);
+  const [confirm, setConfirm] = useState(false);
   const [notFull, setNotFull] = useState(false);
+  const [panel, setPanel] = useState<'board' | 'questions'>(round.kind === 'guts' ? 'board' : 'questions');
+  const [seen, setSeen] = useState<string | null>(null);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const board = useBoard(me.team.divisionId, now);
 
-  // Hand in automatically when time is up.
   useEffect(() => {
     if (over && !attempt.submittedAt) submitAttempt(attempt.id);
   }, [over, attempt.submittedAt, attempt.id]);
-
   useEffect(() => {
     if (done && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
   }, [done]);
@@ -114,8 +115,7 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
     },
     [attempt.id, done],
   );
-
-  useIntegrity(record, !done && !attempt.locked, setNotFull, attempt.id);
+  useIntegrity(record, !done && !attempt.locked, setNotFull, `${attempt.id}:${me.user.id}`);
 
   const save = (p: Problem, value: string) => {
     clearTimeout(timers.current[p.id]);
@@ -131,33 +131,38 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
         if (n[p.id] === value) delete n[p.id];
         return n;
       });
-    }, 450);
+    }, 400);
   };
 
-  const sets = Math.max(...round.problems.map((p) => p.set ?? 1));
+  const totalSets = Math.max(...round.problems.map((p) => p.set ?? 1));
   const currentSet = (attempt.setsSubmitted ?? 0) + 1;
   const shown = round.kind === 'guts' ? round.problems.filter((p) => p.set === currentSet) : round.problems;
   const valueOf = (p: Problem) => (p.id in drafts ? drafts[p.id] : attempt.responses[p.id]?.value ?? '');
   const answered = round.problems.filter((p) => valueOf(p).trim()).length;
-  const nameOf = (userId: string) => db.users.find((u) => u.id === userId)?.name ?? db.competitors.find((c) => `u-${c.id}` === userId)?.name ?? 'a teammate';
-  const total = deadline - started;
+  const blanks = shown.filter((p) => !valueOf(p).trim()).length;
+  const nameOf = (uid: string) => db.users.find((u) => u.id === uid)?.name ?? db.competitors.find((c) => `u-${c.id}` === uid)?.name ?? 'a teammate';
   const low = left < 5 * 60000;
-
   const clars = db.clarifications
     .filter((c) => c.roundId === round.id && (c.broadcast || c.fromCompetitorId === me.competitor.id))
     .sort((a, b) => (b.answeredAt ?? b.at).localeCompare(a.answeredAt ?? a.at));
-  const latestBroadcast = clars.find((c) => c.broadcast && c.answer && new Date(c.answeredAt ?? c.at).getTime() > started);
-  const [seenBroadcast, setSeenBroadcast] = useState<string | null>(null);
-  const room = contest.rooms.find((r) => r.teamIds.includes(me.team.id));
+  const fresh = clars.find((c) => c.broadcast && c.answer && new Date(c.answeredAt ?? c.at).getTime() > new Date(attempt.startedAt!).getTime());
+  const myRow = board?.rows.find((r) => r.team.id === me.team.id);
 
   if (done) {
     return (
-      <div className="test-shell">
-        <div className="test-bar"><div className="left"><b>{round.name}</b><small>{contest.short}</small></div><div /><div className="right" /></div>
-        <div style={{ maxWidth: 520, margin: '72px auto', padding: '0 20px', textAlign: 'center' }} className="stack">
-          <div className="lock-icon" style={{ background: 'var(--green-wash)', color: 'var(--green)' }}><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></div>
-          <h1>{over && !attempt.submittedAt ? 'Time’s up' : 'Handed in'}</h1>
-          <p className="sub2">Your {round.kind === 'individual' ? '' : 'team’s '}answers were handed in{attempt.submittedAt ? ` at ${clockSec(attempt.submittedAt)}` : ''}. {answered} of {round.problems.length} answered. Results come out when the director publishes them.</p>
+      <div className="exam">
+        <div className="exam-bar"><div className="l"><b>{round.name}</b><span>{contest.short}</span></div><div /><div className="r" /></div>
+        <div style={{ maxWidth: 560, margin: '80px auto', padding: '0 20px' }} className="stack-lg">
+          <div className="stack" style={{ gap: 8 }}>
+            <h1 className="page-title" style={{ fontSize: 32 }}>{over && !attempt.submittedAt ? 'Time’s up' : 'Handed in'}</h1>
+            <p className="lede">{answered} of {round.problems.length} answered{attempt.submittedAt ? `, handed in at ${clock(attempt.submittedAt)}` : ''}. Results come out when the director publishes them.</p>
+          </div>
+          {round.kind === 'guts' && board && (
+            <div>
+              <div className="section-head"><h2 style={{ fontSize: 15 }}>Scoreboard</h2><span className="label">{board.frozen ? 'Frozen' : 'Live'}</span></div>
+              <ScoreList board={board} mine={me.team.id} limit={8} />
+            </div>
+          )}
           <div><Link className="btn btn-primary" to="/me">Back to your rounds</Link></div>
         </div>
       </div>
@@ -165,57 +170,61 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
   }
 
   return (
-    <div className="test-shell">
-      <div className="test-bar">
-        <div className="left">
-          <b>{round.name}{round.kind === 'guts' ? ` · set ${currentSet} of ${sets}` : ''}</b>
-          <small>{me.competitor.publicId} {me.competitor.name}{round.kind !== 'individual' ? ` · ${me.team.name}` : ''}</small>
+    <div className="exam">
+      <div className="exam-bar">
+        <div className="l">
+          <b>{round.name}{round.kind === 'guts' ? `, set ${currentSet} of ${totalSets}` : ''}</b>
+          <span>{me.competitor.publicId} {me.competitor.name}{round.kind !== 'individual' ? ` · ${me.team.name}` : ''}</span>
         </div>
-        <div className={`timer ${low ? 'low' : ''} ${left <= 0 ? 'out' : ''}`} role="timer" aria-label={`${duration(left)} left`}>{duration(Math.max(0, left))}</div>
-        <div className="right">
-          <span key={pulse} className={`saved ${saving ? 'saving' : pulse ? 'pulse' : ''}`}><i />{saving ? 'Saving…' : savedAt ? `Saved ${clockSec(savedAt)}` : 'Answers save as you type'}</span>
-          <button className="btn btn-sm" type="button" onClick={() => setConfirm(round.kind === 'guts' ? 'set' : 'all')}>{round.kind === 'guts' ? `Hand in set ${currentSet}` : 'Hand in'}</button>
+        <div className={`clock ${low ? 'low' : ''} ${left <= 0 ? 'out' : ''}`} role="timer">{duration(Math.max(0, left))}</div>
+        <div className="r">
+          <span key={pulse} className={`saved ${saving ? 'busy' : pulse ? 'pulse' : ''}`}><i />{saving ? 'Saving' : savedAt ? `Saved ${clockSec(savedAt)}` : 'Saves as you type'}</span>
+          <button className="btn btn-primary btn-sm" type="button" onClick={() => setConfirm(true)}>{round.kind === 'guts' ? `Hand in set ${currentSet}` : 'Hand in'}</button>
         </div>
+        <div className={`track-time ${low ? 'low' : ''}`}><i style={{ width: `${Math.max(0, Math.min(100, (left / total) * 100))}%` }} /></div>
       </div>
-      <div className={`time-track ${low ? 'low' : ''}`}><i style={{ width: `${Math.max(0, Math.min(100, (left / total) * 100))}%` }} /></div>
 
-      {latestBroadcast && seenBroadcast !== latestBroadcast.id && (
-        <div className="callout blue" style={{ borderRadius: 0, borderLeft: 0, borderRight: 0, animation: 'swap-in 260ms var(--ease) both' }}>
-          <span style={{ flex: 1 }}><b>Announcement</b> · {latestBroadcast.question ? `${latestBroadcast.question} ` : ''}{latestBroadcast.answer}</span>
-          <button className="btn btn-sm" type="button" onClick={() => setSeenBroadcast(latestBroadcast.id)}>Got it</button>
+      {fresh && seen !== fresh.id && (
+        <div className="note blue row wrap" style={{ borderRadius: 0, justifyContent: 'center', gap: 16 }}>
+          <span><b>From the proctors:</b> {fresh.question ? `${fresh.question} ` : ''}{fresh.answer}</span>
+          <button className="btn btn-sm" type="button" onClick={() => setSeen(fresh.id)}>OK</button>
         </div>
       )}
       {notFull && (
-        <div className="callout amber" style={{ borderRadius: 0, borderLeft: 0, borderRight: 0 }}>
-          <span style={{ flex: 1 }}>You are out of fullscreen. Go back so nothing else is on screen.</span>
-          <button className="btn btn-sm" type="button" onClick={() => document.documentElement.requestFullscreen?.().catch(() => setNotFull(false))}>Return to fullscreen</button>
+        <div className="note amber row wrap" style={{ borderRadius: 0, justifyContent: 'center', gap: 16 }}>
+          <span>You left fullscreen.</span>
+          <button className="btn btn-sm" type="button" onClick={() => document.documentElement.requestFullscreen?.().then(() => setNotFull(false)).catch(() => setNotFull(false))}>Go back to fullscreen</button>
         </div>
       )}
 
-      <div className="test-body">
+      <div className="exam-body">
         <div>
           {round.kind === 'guts' && (
-            <div className="set-steps">
-              {Array.from({ length: sets }, (_, i) => i + 1).map((s) => (
-                <span key={s} className={`set-step ${s < currentSet ? 'done' : s === currentSet ? 'now' : ''}`}>{s < currentSet && <Tick />}Set {s}</span>
-              ))}
-            </div>
+            <>
+              <div className="sets" aria-label={`Set ${currentSet} of ${totalSets}`}>
+                {Array.from({ length: totalSets }, (_, i) => <span key={i} className={i + 1 < currentSet ? 'done' : i + 1 === currentSet ? 'now' : ''} />)}
+              </div>
+              <div className="row wrap" style={{ justifyContent: 'space-between', marginBottom: 6, rowGap: 2 }}>
+                <span className="label">Set {currentSet} · {shown[0]?.points} points each · you cannot come back to it</span>
+                {myRow && <span className="label">Your team: {myRow.score} points{myRow.place ? `, ${ordinal(myRow.place)}` : ''}</span>}
+              </div>
+            </>
           )}
-          <div className="problems" key={currentSet}>
+          <div key={currentSet}>
             {shown.map((p, i) => {
               const v = valueOf(p);
-              const editor = attempt.responses[p.id]?.by;
+              const by = attempt.responses[p.id]?.by;
               return (
-                <div key={p.id} className={`problem ${v.trim() ? 'answered' : ''}`} style={{ animation: `swap-in 240ms var(--ease) ${i * 30}ms both` }}>
-                  <span className="pnum">{round.kind === 'guts' ? `${p.set}.${((p.number - 1) % 4) + 1}` : p.number}</span>
-                  <div className="ptext">
-                    <MathText text={p.text} />
-                    {round.kind === 'guts' && <div className="sub mono" style={{ fontSize: 11.5, marginTop: 4 }}>{p.points} points</div>}
+                <div key={p.id} className={`q ${v.trim() ? 'answered' : ''}`} style={{ animation: `rise .28s var(--ease) ${i * 40}ms both` }}>
+                  <span className="q-num">{round.kind === 'guts' ? `${p.set}.${((p.number - 1) % 4) + 1}` : p.number}</span>
+                  <div>
+                    <MathText text={p.text} className="q-text" />
                   </div>
-                  <div className="pans">
+                  <div className="q-answer">
                     <input
                       aria-label={`Answer to problem ${p.number}`}
                       value={v}
+                      placeholder="Answer"
                       inputMode={p.answerType === 'integer' ? 'numeric' : 'text'}
                       autoComplete="off"
                       spellCheck={false}
@@ -225,66 +234,77 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
                       onChange={(e) => { setDrafts((d) => ({ ...d, [p.id]: e.target.value })); save(p, e.target.value); }}
                     />
                     <span className="preview"><AnswerPreview value={v} /></span>
-                    {round.kind !== 'individual' && editor && editor !== me.user.id && focused !== p.id && <span className="who-edit">Last typed by {nameOf(editor)}</span>}
+                    {round.kind !== 'individual' && by && by !== me.user.id && focused !== p.id && <span className="by">Typed by {nameOf(by)}</span>}
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="row" style={{ marginTop: 16, justifyContent: 'space-between' }}>
-            <span className="sub" style={{ fontSize: 12.5 }}>{answered} of {round.problems.length} answered</span>
-            <button className="btn btn-primary" type="button" onClick={() => setConfirm(round.kind === 'guts' ? 'set' : 'all')}>{round.kind === 'guts' ? `Hand in set ${currentSet}` : 'Hand in'}</button>
+          <div className="row wrap" style={{ justifyContent: 'space-between', paddingTop: 22, borderTop: '1px solid var(--line)' }}>
+            <span className="muted small">{answered} of {round.problems.length} answered</span>
+            <button className="btn btn-primary" type="button" onClick={() => setConfirm(true)}>{round.kind === 'guts' ? `Hand in set ${currentSet}` : 'Hand in'}</button>
           </div>
         </div>
 
-        <aside>
-          {room && (
-            <div className="side-card">
-              <h3>{room.name} on Zoom</h3>
-              <p className="sub" style={{ fontSize: 12.5 }}>Stay on camera for the whole round. Raise a hand there if something is wrong with your computer.</p>
+        <aside className="aside-sticky">
+          {round.kind === 'guts' && (
+            <div className="panel-tabs" role="group" aria-label="Side panel">
+              <button type="button" aria-pressed={panel === 'board'} onClick={() => setPanel('board')}>Scoreboard</button>
+              <button type="button" aria-pressed={panel === 'questions'} onClick={() => setPanel('questions')}>Questions{clars.length ? ` (${clars.length})` : ''}</button>
             </div>
           )}
-          <Clarifications roundId={round.id} competitorId={me.competitor.id} items={clars} />
+          {panel === 'board' && board ? (
+            <div>
+              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+                <span className="label">{contest.divisions.find((d) => d.id === me.team.divisionId)?.name} division</span>
+                <span className="label">{board.frozen ? 'Frozen' : 'Live'}</span>
+              </div>
+              <ScoreList board={board} mine={me.team.id} limit={10} />
+              {board.frozen && <p className="muted tiny" style={{ marginTop: 8 }}>Frozen for the last {contest.board.freezeMinutes} minutes. Final standings at the awards.</p>}
+            </div>
+          ) : (
+            <Questions roundId={round.id} competitorId={me.competitor.id} items={clars} />
+          )}
         </aside>
       </div>
 
       {warn && (
         <Modal title="That was recorded" onClose={() => setWarn(null)} actions={<button className="btn btn-primary" type="button" onClick={() => setWarn(null)}>Back to the test</button>}>
-          <p>{warn} Stay in this window until you hand in.{round.integrity.policy === 'lock' ? ` After ${round.integrity.lockAfter} times the test locks until your proctor unlocks it.` : ''}</p>
+          <p>{warn} Stay in this window until you hand in.</p>
         </Modal>
       )}
       {confirm && (
         <Modal
-          title={confirm === 'set' ? `Hand in set ${currentSet}?` : `Hand in ${round.name}?`}
-          onClose={() => setConfirm(null)}
+          title={round.kind === 'guts' ? `Hand in set ${currentSet}?` : `Hand in ${round.name}?`}
+          onClose={() => setConfirm(false)}
           actions={
             <>
-              <button className="btn" type="button" onClick={() => setConfirm(null)}>Keep working</button>
+              <button className="btn" type="button" onClick={() => setConfirm(false)}>Keep working</button>
               <button className="btn btn-primary" type="button" onClick={() => {
                 Object.values(timers.current).forEach(clearTimeout);
                 for (const p of shown) if (p.id in drafts) saveResponse(attempt.id, p.id, drafts[p.id], me.user.id);
-                if (confirm === 'set') submitGutsSet(attempt.id);
+                if (round.kind === 'guts') submitGutsSet(attempt.id);
                 else submitAttempt(attempt.id);
                 setDrafts({});
-                setConfirm(null);
-              }}>{confirm === 'set' ? 'Hand in and see the next set' : 'Hand in'}</button>
+                setConfirm(false);
+                if (round.kind === 'guts' && currentSet < totalSets) toast(`Set ${currentSet} handed in`, 'It is on the scoreboard now.', 'g');
+              }}>{round.kind === 'guts' && currentSet < totalSets ? 'Hand in, next set' : 'Hand in'}</button>
             </>
           }
         >
           <p>
-            {confirm === 'set'
-              ? `Once you move on you cannot come back to set ${currentSet}. ${shown.filter((p) => !valueOf(p).trim()).length ? `${shown.filter((p) => !valueOf(p).trim()).length} of its answers are blank.` : 'Every answer in it is filled in.'}`
-              : `${round.problems.length - answered ? `${round.problems.length - answered} answers are blank. ` : ''}You have ${duration(left)} left, and you cannot change anything after handing in.`}
+            {round.kind === 'guts'
+              ? `You cannot come back to set ${currentSet}.${blanks ? ` ${blanks} of its answers ${blanks === 1 ? 'is' : 'are'} blank.` : ''}`
+              : `${round.problems.length - answered ? `${round.problems.length - answered} answers are blank. ` : ''}You cannot change anything afterwards.`}
           </p>
         </Modal>
       )}
       {attempt.locked && (
-        <div className="lock-screen" role="alertdialog" aria-label="Test locked">
-          <div className="lock-card">
-            <div className="lock-icon"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></div>
+        <div className="lock" role="alertdialog" aria-label="Test locked">
+          <div className="stack">
             <h2>Your test is locked</h2>
-            <p>You left the test too many times. Your proctor has been told and can unlock it from the proctoring screen. Tell them on Zoom. Your answers are safe, and the clock keeps running.</p>
-            <p className="mono sub" style={{ marginTop: 12 }}>{duration(Math.max(0, left))} left</p>
+            <p className="soft">You left the test too many times. Tell your proctor on Zoom; they can unlock it. Your answers are safe and the clock keeps running.</p>
+            <p className="clock" style={{ marginTop: 8 }}>{duration(Math.max(0, left))}</p>
           </div>
         </div>
       )}
@@ -292,26 +312,26 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
   );
 }
 
-function Clarifications({ roundId, competitorId, items }: { roundId: string; competitorId: string; items: Clarification[] }) {
+function Questions({ roundId, competitorId, items }: { roundId: string; competitorId: string; items: Clarification[] }) {
   const [q, setQ] = useState('');
   const seen = useRef(new Set(items.map((c) => c.id)));
   useEffect(() => {
     items.forEach((c) => seen.current.add(c.id));
   });
   return (
-    <div className="side-card">
-      <h3>Questions and answers</h3>
-      {items.length === 0 && <p className="sub" style={{ fontSize: 12.5 }}>Nothing yet. Ask if a problem is unclear; answers that help everyone are shown to everyone.</p>}
+    <div>
+      <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Questions</h2>
+      {items.length === 0 && <p className="muted small">Ask if a problem is unclear. Answers that help everyone are shown to everyone.</p>}
       {items.map((c) => (
-        <div key={c.id} className={`clar ${seen.current.has(c.id) ? '' : 'new'}`}>
+        <div key={c.id} className={`qa ${seen.current.has(c.id) ? '' : 'new'}`}>
           <small>{clock(c.answeredAt ?? c.at)} · {c.broadcast ? 'to everyone' : 'to you'}</small>
-          {c.question && <div className="sub2">{c.question}</div>}
-          {c.answer ? <div>{c.answer}</div> : <div className="sub">Waiting for a proctor…</div>}
+          {c.question && <div className="soft">{c.question}</div>}
+          {c.answer ? <div>{c.answer}</div> : <div className="muted">Waiting for a proctor</div>}
         </div>
       ))}
-      <form className="stack" style={{ gap: 6, marginTop: 10 }} onSubmit={(e) => { e.preventDefault(); if (!q.trim()) return; askClarification(roundId, competitorId, q); setQ(''); toast('Question sent', 'A proctor will answer here.'); }}>
-        <textarea className="textarea" style={{ minHeight: 56 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about a problem" />
-        <button className="btn btn-sm" type="submit" disabled={!q.trim()}>Send question</button>
+      <form className="stack" style={{ gap: 8, marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); if (!q.trim()) return; askClarification(roundId, competitorId, q); setQ(''); toast('Question sent'); }}>
+        <textarea className="textarea" style={{ minHeight: 64 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about a problem" />
+        <button className="btn btn-sm" type="submit" disabled={!q.trim()}>Send</button>
       </form>
     </div>
   );
@@ -320,10 +340,10 @@ function Clarifications({ roundId, competitorId, items }: { roundId: string; com
 /**
  * What a browser can see during a test: the tab hidden, the window losing
  * focus, fullscreen ending, a paste, a shrunken window, a dropped connection,
- * and the same test open twice. Each becomes an event with its duration.
- * None of it sees a phone; that is what the Zoom camera is for.
+ * and the same person's test open twice. None of it sees a phone; the Zoom
+ * camera is for that.
  */
-function useIntegrity(record: (kind: IntegrityKind, ms?: number) => void, active: boolean, setNotFull: (v: boolean) => void, attemptId: string) {
+function useIntegrity(record: (kind: IntegrityKind, ms?: number) => void, active: boolean, setNotFull: (v: boolean) => void, presenceKey: string) {
   const recordRef = useRef(record);
   recordRef.current = record;
   const away = useRef<{ start: number; kind: IntegrityKind } | null>(null);
@@ -351,7 +371,9 @@ function useIntegrity(record: (kind: IntegrityKind, ms?: number) => void, active
       setNotFull(wasFull && !full);
       wasFull = full;
     };
-    const onPaste = () => recordRef.current('paste');
+    const onPaste = (e: ClipboardEvent) => {
+      if ((e.target as HTMLElement)?.closest?.('.q-answer')) recordRef.current('paste');
+    };
     let offlineAt = 0;
     const onOffline = () => (offlineAt = Date.now());
     const onOnline = () => offlineAt && recordRef.current('offline', Date.now() - offlineAt);
@@ -361,17 +383,18 @@ function useIntegrity(record: (kind: IntegrityKind, ms?: number) => void, active
       if (isNarrow && !narrow) recordRef.current('resize');
       narrow = isNarrow;
     };
-    // The same attempt open in two tabs or devices.
+    // The same person's test open in two tabs or on two devices.
     const presence = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('mathcloud-presence') : null;
     const me = Math.random().toString(36).slice(2);
-    presence?.postMessage({ attemptId, from: me, hello: true });
-    presence?.addEventListener('message', (e: MessageEvent<{ attemptId: string; from: string; hello?: boolean }>) => {
-      if (e.data.attemptId !== attemptId || e.data.from === me) return;
+    const onMsg = (e: MessageEvent<{ key: string; from: string; hello?: boolean }>) => {
+      if (e.data.key !== presenceKey || e.data.from === me) return;
       if (e.data.hello) {
-        presence.postMessage({ attemptId, from: me });
+        presence?.postMessage({ key: presenceKey, from: me });
         recordRef.current('second_session');
       }
-    });
+    };
+    presence?.addEventListener('message', onMsg);
+    presence?.postMessage({ key: presenceKey, from: me, hello: true });
 
     document.addEventListener('visibilitychange', onVis);
     window.addEventListener('blur', onBlur);
@@ -392,5 +415,5 @@ function useIntegrity(record: (kind: IntegrityKind, ms?: number) => void, active
       window.removeEventListener('resize', onResize);
       presence?.close();
     };
-  }, [active, attemptId, setNotFull]);
+  }, [active, presenceKey, setNotFull]);
 }

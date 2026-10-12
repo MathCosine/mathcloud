@@ -4,24 +4,18 @@ import katex from 'katex';
 // ------------------------------------------------------------------- Roll
 
 /** A number that rolls to its new value, so the eye goes to what changed. */
-export function Roll({ value, plain }: { value: number | string; plain?: boolean }) {
+export function Roll({ value }: { value: number | string }) {
   const s = String(value);
-  const digitsOnly = /^\d+$/.test(s);
-  const [mounted, setMounted] = useState(false);
+  const [ready, setReady] = useState(false);
   useEffect(() => {
-    const id = requestAnimationFrame(() => setMounted(true));
+    const id = requestAnimationFrame(() => setReady(true));
     return () => cancelAnimationFrame(id);
   }, []);
-  if (!digitsOnly) return <span>{s}</span>;
+  if (!/^\d+$/.test(s)) return <span>{s}</span>;
   return (
-    <span className={`roll ${plain ? 'plain' : ''}`} aria-label={s} role="text">
+    <span className="roll" aria-label={s} role="img">
       {s.split('').map((d, i) => (
-        <span
-          key={`${s.length}-${i}`}
-          className="col"
-          aria-hidden="true"
-          style={{ transform: `translateY(${-Number(d) * 1.2}em)`, transition: mounted ? undefined : 'none' }}
-        >
+        <span key={`${s.length}-${i}`} className="col" aria-hidden="true" style={{ transform: `translateY(${-Number(d) * 1.15}em)`, transition: ready ? undefined : 'none' }}>
           {'0123456789'.split('').map((n) => (
             <span key={n}>{n}</span>
           ))}
@@ -31,7 +25,7 @@ export function Roll({ value, plain }: { value: number | string; plain?: boolean
   );
 }
 
-// --------------------------------------------------------------- Checkbox
+// --------------------------------------------------------------- controls
 
 export function Checkbox({ checked, onChange, label }: { checked: boolean | 'mixed'; onChange: () => void; label: string }) {
   return (
@@ -54,61 +48,38 @@ export function Checkbox({ checked, onChange, label }: { checked: boolean | 'mix
   );
 }
 
-// ------------------------------------------------------------------ icons
-
-export const Tick = ({ draw }: { draw?: boolean }) => (
-  <svg viewBox="0 0 12 12" className={`tick-svg ${draw ? 'tick-draw' : ''}`} aria-hidden="true">
-    <path d="M2.5 6.3l2.2 2.2L9.5 3.7" />
-  </svg>
-);
-export const Ring = () => (
-  <svg viewBox="0 0 12 12" aria-hidden="true">
-    <circle cx="6" cy="6" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
-  </svg>
-);
-export const Dash = () => (
-  <svg viewBox="0 0 12 12" aria-hidden="true">
-    <path d="M3 6h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-  </svg>
-);
-export const Cross = () => (
-  <svg viewBox="0 0 12 12" className="tick-svg" aria-hidden="true">
-    <path d="M3.5 3.5l5 5M8.5 3.5l-5 5" />
-  </svg>
-);
 export const CloseIcon = () => (
   <svg viewBox="0 0 16 16" aria-hidden="true">
     <path d="M4 4l8 8M12 4l-8 8" />
   </svg>
 );
-export const Mark = () => (
-  <svg viewBox="0 0 12 12" aria-hidden="true">
-    <path d="M0 12L12 0V12Z" fill="#0E8A5F" />
-    <path d="M0 0H12L0 12Z" fill="#1D5BD6" />
-  </svg>
-);
 
-export type Tone = 'green' | 'amber' | 'grey' | 'blue' | 'red';
+export type Tone = 'ok' | 'wait' | 'bad' | 'go' | 'off';
 
-export function Status({ tone, children }: { tone: Tone; children: ReactNode }) {
-  const icon = tone === 'green' ? <Tick /> : tone === 'amber' ? <Ring /> : tone === 'red' ? <Cross /> : <Dash />;
+/** A dot and a word. */
+export function State({ tone, children }: { tone: Tone; children: ReactNode }) {
+  return <span className={`state ${tone}`}>{children}</span>;
+}
+
+/** Guts sets as a row of small bars: done, now, to come. */
+export function Track({ done, total, current }: { done: number; total: number; current: number | null }) {
   return (
-    <span className={`status ${tone}`}>
-      {icon}
-      {children}
+    <span className="track" aria-label={`${done} of ${total} sets handed in`}>
+      {Array.from({ length: total }, (_, i) => (
+        <i key={i} className={i < done ? 'done' : current === i + 1 ? 'now' : ''} />
+      ))}
     </span>
   );
 }
 
 // ------------------------------------------------------------------- Math
 
-/** Text with $…$ maths, rendered with KaTeX. */
 export function MathText({ text, className }: { text: string; className?: string }) {
   const parts = text.split(/(\$[^$]+\$)/g);
   return (
     <span className={className}>
       {parts.map((part, i) =>
-        part.startsWith('$') && part.endsWith('$') && part.length > 2 ? (
+        part.length > 2 && part.startsWith('$') && part.endsWith('$') ? (
           <span key={i} dangerouslySetInnerHTML={{ __html: katex.renderToString(part.slice(1, -1), { throwOnError: false }) }} />
         ) : (
           <span key={i}>{part}</span>
@@ -118,7 +89,7 @@ export function MathText({ text, className }: { text: string; className?: string
   );
 }
 
-/** A typed answer shown as maths when it looks like maths. */
+/** A typed answer shown as maths when it is more than a plain number. */
 export function AnswerPreview({ value }: { value: string }) {
   const v = value.trim();
   if (!v || /^-?\d+$/.test(v)) return null;
@@ -126,16 +97,15 @@ export function AnswerPreview({ value }: { value: string }) {
   return <span dangerouslySetInnerHTML={{ __html: katex.renderToString(`\\displaystyle ${tex}`, { throwOnError: false }) }} />;
 }
 
-// ------------------------------------------------- sliding indicator hooks
+// ---------------------------------------------------- sliding indicators
 
-/** Positions an underline / thumb under the selected child, and slides it. */
 export function useSlider<T extends HTMLElement>(selector: string, deps: unknown[]) {
   const ref = useRef<T>(null);
-  const [style, setStyle] = useState<{ width: number; x: number }>({ width: 0, x: 0 });
+  const [pos, setPos] = useState({ w: 0, x: 0 });
   useLayoutEffect(() => {
     const place = () => {
       const el = ref.current?.querySelector<HTMLElement>(selector);
-      if (el) setStyle({ width: el.offsetWidth, x: el.offsetLeft });
+      if (el) setPos({ w: el.offsetWidth, x: el.offsetLeft });
     };
     place();
     window.addEventListener('resize', place);
@@ -143,7 +113,7 @@ export function useSlider<T extends HTMLElement>(selector: string, deps: unknown
     return () => window.removeEventListener('resize', place);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
-  return { ref, style: { width: style.width, transform: `translateX(${style.x}px)` } };
+  return { ref, style: { width: pos.w, transform: `translateX(${pos.x}px)` } };
 }
 
 export function Tabs<K extends string>({ value, onChange, items }: { value: K; onChange: (k: K) => void; items: { key: K; label: ReactNode; count?: number }[] }) {
@@ -151,7 +121,7 @@ export function Tabs<K extends string>({ value, onChange, items }: { value: K; o
   return (
     <div className="tabs" role="tablist" ref={ref}>
       {items.map((it) => (
-        <button key={it.key} role="tab" type="button" aria-selected={it.key === value} onClick={() => onChange(it.key)}>
+        <button key={it.key} type="button" role="tab" aria-selected={it.key === value} onClick={() => onChange(it.key)}>
           {it.label}
           {it.count !== undefined && <span className="n">{it.count}</span>}
         </button>
@@ -190,11 +160,11 @@ export function toast(title: string, body?: string, tone: ToastItem['tone'] = ''
   setTimeout(() => {
     toasts = toasts.map((t) => (t.id === id ? { ...t, out: true } : t));
     emitToasts();
-  }, 4000);
+  }, 3800);
   setTimeout(() => {
     toasts = toasts.filter((t) => t.id !== id);
     emitToasts();
-  }, 4250);
+  }, 4050);
 }
 
 export function Toasts() {
@@ -212,7 +182,7 @@ export function Toasts() {
           <i />
           <div>
             <b>{t.title}</b>
-            {t.body && <span>{t.body}</span>}
+            {t.body && <span> {t.body}</span>}
           </div>
         </div>
       ))}
@@ -220,7 +190,7 @@ export function Toasts() {
   );
 }
 
-// ------------------------------------------------------------------ modal
+// ---------------------------------------------------------- modal, drawer
 
 export function Modal({ title, children, actions, onClose }: { title: string; children: ReactNode; actions: ReactNode; onClose?: () => void }) {
   useEffect(() => {
@@ -240,7 +210,33 @@ export function Modal({ title, children, actions, onClose }: { title: string; ch
   );
 }
 
-// ------------------------------------------------------------------ misc
+export function Drawer({ open, onClose, kicker, title, children, foot }: { open: boolean; onClose: () => void; kicker?: ReactNode; title?: ReactNode; children?: ReactNode; foot?: ReactNode }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+  return (
+    <aside className={`drawer ${open ? 'open' : ''}`} aria-hidden={!open}>
+      {open && (
+        <>
+          <div className="drawer-head">
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span className="label">{kicker}</span>
+              <button className="close" type="button" aria-label="Close" onClick={onClose}><CloseIcon /></button>
+            </div>
+            {title && <h2>{title}</h2>}
+          </div>
+          <div className="drawer-body">{children}</div>
+          {foot && <div className="drawer-foot">{foot}</div>}
+        </>
+      )}
+    </aside>
+  );
+}
+
+// -------------------------------------------------------------------- misc
 
 /** Re-render every `ms` (for clocks). */
 export function useNow(ms = 1000) {
@@ -252,15 +248,6 @@ export function useNow(ms = 1000) {
   return now;
 }
 
-export function Empty({ title, children }: { title: string; children?: ReactNode }) {
-  return (
-    <div className="panel panel-pad" style={{ textAlign: 'center', padding: '40px 20px' }}>
-      <h3>{title}</h3>
-      {children && <div className="sub" style={{ marginTop: 6 }}>{children}</div>}
-    </div>
-  );
-}
-
 export function SearchBox({ value, onChange, placeholder, inputRef }: { value: string; onChange: (v: string) => void; placeholder: string; inputRef?: React.RefObject<HTMLInputElement | null> }) {
   return (
     <label className="search">
@@ -269,8 +256,7 @@ export function SearchBox({ value, onChange, placeholder, inputRef }: { value: s
         <circle cx="7" cy="7" r="4.5" />
         <path d="M10.5 10.5L14 14" />
       </svg>
-      <input ref={inputRef} type="search" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} autoComplete="off" />
-      <span className="kbd">/</span>
+      <input ref={inputRef} className="input" type="search" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} autoComplete="off" />
     </label>
   );
 }
@@ -287,5 +273,5 @@ export function downloadCsv(filename: string, header: string[], rows: (string | 
   document.body.appendChild(a);
   a.click();
   a.remove();
-  toast('CSV ready', `${filename}, ${rows.length} rows.`);
+  toast(`Exported ${rows.length} rows`, filename);
 }

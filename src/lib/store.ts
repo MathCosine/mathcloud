@@ -34,12 +34,13 @@ function load(): DB {
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as DB;
-      if (parsed.schema === 2) return parsed;
+      if (parsed.schema === 3 && Date.now() - new Date(parsed.seededAt).getTime() < 4 * 3600 * 1000) return parsed;
+      if (parsed.schema === 3) return buildDemo(parsed.moment);
     } catch {
       /* fall through to a fresh demo */
     }
   }
-  return buildDemo('morning');
+  return buildDemo('guts');
 }
 
 let db: DB = load();
@@ -116,7 +117,10 @@ function mergeIncoming(local: DB, incoming: DB): DB {
     const seen = new Set(theirs.events.map((ev) => ev.at + ev.kind));
     for (const ev of mine.events) if (!seen.has(ev.at + ev.kind)) theirs.events.push(ev);
     theirs.events.sort((a, b) => a.at.localeCompare(b.at));
-    if ((mine.setsSubmitted ?? 0) > (theirs.setsSubmitted ?? 0)) theirs.setsSubmitted = mine.setsSubmitted;
+    if ((mine.setsSubmitted ?? 0) > (theirs.setsSubmitted ?? 0)) {
+      theirs.setsSubmitted = mine.setsSubmitted;
+      theirs.setTimes = mine.setTimes;
+    }
     if (mine.submittedAt && !theirs.submittedAt) theirs.submittedAt = mine.submittedAt;
   }
   const clar = new Set(incoming.clarifications.map((c) => c.id));
@@ -133,13 +137,8 @@ export function update(fn: (draft: DB) => void) {
 
 export function loadMoment(moment: Moment) {
   db = buildDemo(moment);
-  storageSet('mathcloud-demo-moment', moment);
   emit();
   persist();
-}
-
-export function currentMoment(): Moment {
-  return storageGet('mathcloud-demo-moment') === 'after' ? 'after' : 'morning';
 }
 
 // ---------------------------------------------------------------- session

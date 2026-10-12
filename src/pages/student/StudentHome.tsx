@@ -1,4 +1,4 @@
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { openRound } from '../../lib/actions';
 import { ordinal, useContest, useStandings } from '../../lib/hooks';
 import type { Round } from '../../lib/model';
@@ -6,7 +6,7 @@ import { useStudent } from '../../lib/session';
 import { useDB } from '../../lib/store';
 import { clock, clockIn, duration, roundEnds, roundState } from '../../lib/time';
 import { PortalLayout } from '../../layouts/PortalLayout';
-import { Status, Tick, toast, useNow } from '../../components/ui';
+import { State, toast, useNow } from '../../components/ui';
 import { verifyCode } from '../staff/Certificates';
 
 export function StudentHome() {
@@ -14,147 +14,147 @@ export function StudentHome() {
   const db = useDB();
   const contest = useContest();
   const standings = useStandings();
+  const navigate = useNavigate();
   const now = useNow(1000);
   if (!me) return <Navigate to="/sign-in" replace />;
   const { competitor, team } = me;
   const division = contest.divisions.find((d) => d.id === team.divisionId)!;
   const online = division.mode === 'online';
   const room = contest.rooms.find((r) => r.teamIds.includes(team.id));
-  const teammates = db.competitors.filter((c) => c.teamId === team.id);
-  const myRow = standings.individuals[division.id]?.find((r) => r.competitor.id === competitor.id);
+  const mates = db.competitors.filter((c) => c.teamId === team.id);
+  const entrant = (r: Round) => (r.kind === 'individual' ? competitor.id : team.id);
+  const attempt = (r: Round) => db.attempts.find((a) => a.roundId === r.id && a.entrantId === entrant(r));
+  const openRoundNow = contest.rounds.find((r) => roundState(r, now) === 'open');
+  const next = contest.rounds.find((r) => roundState(r, now) === 'scheduled');
+  const row = standings.individuals[division.id]?.find((r) => r.competitor.id === competitor.id);
   const teamRow = standings.teams[division.id]?.find((r) => r.team.id === team.id);
-  const dist = (standings.individuals[division.id] ?? []).map((r) => r.score);
-  const max = myRow?.max ?? 20;
+  const canStart = !!competitor.waiverSignedAt;
+
+  const hero = () => {
+    if (contest.resultsPublished) return null;
+    if (openRoundNow) {
+      const a = attempt(openRoundNow);
+      const ends = roundEnds(openRoundNow)!;
+      if (!online) {
+        return (
+          <div className="note blue" style={{ padding: '22px 24px' }}>
+            <div className="strong" style={{ fontSize: 18 }}>{openRoundNow.name} is under way in the room</div>
+            <p className="soft" style={{ marginTop: 4 }}>{duration(ends - now)} left. Write {competitor.publicId} on every sheet.</p>
+          </div>
+        );
+      }
+      return (
+        <div className="note blue" style={{ padding: '22px 24px' }}>
+          <div className="row wrap" style={{ justifyContent: 'space-between', gap: 16 }}>
+            <div>
+              <div className="strong" style={{ fontSize: 18 }}>{a?.submittedAt ? `${openRoundNow.name}: handed in` : `${openRoundNow.name} is open`}</div>
+              <p className="soft" style={{ marginTop: 4 }}>{duration(ends - now)} left{room ? ` · stay on camera in ${room.name}` : ''}</p>
+            </div>
+            {!a?.submittedAt && (
+              <button className="btn btn-primary btn-lg" type="button" disabled={!canStart} onClick={() => navigate(`/me/test/${openRoundNow.id}`)}>
+                {a?.startedAt ? 'Back to the test' : `Start ${openRoundNow.name}`}
+              </button>
+            )}
+          </div>
+          {!canStart && <p className="wait small" style={{ marginTop: 10 }}>Your waiver needs signing before you can start.</p>}
+        </div>
+      );
+    }
+    if (next) {
+      return (
+        <div className="note" style={{ padding: '22px 24px' }}>
+          <div className="row wrap" style={{ justifyContent: 'space-between', gap: 16 }}>
+            <div>
+              <div className="strong" style={{ fontSize: 18 }}>Next: {next.mystery ? 'the Mystery Dive' : next.name}</div>
+              <p className="soft" style={{ marginTop: 4 }}>{clockIn(next.startsAt, contest.timeZone)}, the same moment as the room in San Francisco.</p>
+            </div>
+            <button className="btn" type="button" onClick={() => { openRound(next.id); toast(`${next.name} is open`, 'In the demo you can open a round yourself.'); }}>Open it now (demo)</button>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <PortalLayout>
-      <div className="eyebrow">{contest.short} · {division.name} division</div>
-      <div className="page-head" style={{ marginTop: 4 }}>
+      <div className="stack-lg">
         <div>
-          <h1>Hi {competitor.name.split(' ')[0]}</h1>
-          <div className="meta">
-            <span>You are <b className="mono">{competitor.publicId}</b> on {team.name}</span>
-            <span className="dot-sep" />
-            <span>{contest.dateLabel}</span>
+          <h1 className="page-title">Hi {competitor.name.split(' ')[0]}</h1>
+          <p className="page-sub"><span className="mono">{competitor.publicId}</span> · {team.name} · {division.name} division</p>
+        </div>
+
+        {!competitor.waiverSignedAt && (
+          <div className="note amber row wrap" style={{ justifyContent: 'space-between' }}>
+            <span>Your waiver is not signed yet. We emailed {competitor.guardianName}.</span>
+            <Link to={`/waiver/${competitor.id}`} className="btn btn-sm">Open the waiver link</Link>
           </div>
-        </div>
-      </div>
+        )}
 
-      {!competitor.waiverSignedAt && (
-        <div className="callout amber" style={{ marginBottom: 16 }}>
-          <span style={{ flex: 1 }}><b>Your waiver is not signed yet.</b> We emailed {competitor.guardianName} a link. You cannot start a test until it is signed.</span>
-          <Link className="btn btn-sm" to={`/waiver/${competitor.id}`}>Open the guardian’s link</Link>
-        </div>
-      )}
+        {hero()}
 
-      {contest.resultsPublished && myRow && (
-        <div className="panel" style={{ marginBottom: 20 }}>
-          <div className="panel-head"><h3>Your results</h3><span className="tag green">Published</span></div>
-          <div className="panel-body grid-2" style={{ alignItems: 'center' }}>
-            <div>
-              <div className="score-big">{myRow.score}<span className="sub" style={{ fontSize: 20 }}> / {myRow.max}</span></div>
-              <p className="sub2" style={{ marginTop: 6 }}>
-                {ordinal(myRow.place)} of {dist.length} in the {division.name.toLowerCase()} division{myRow.tied ? `, tied with ${myRow.tied} other${myRow.tied > 1 ? 's' : ''}` : ''}.
-                {myRow.award && <> You earned <b>{myRow.award}</b>.</>}
-              </p>
-              {teamRow && <p className="sub" style={{ marginTop: 4 }}>{team.name}: {ordinal(teamRow.place)} of {standings.teams[division.id].length} teams, {teamRow.total} points.</p>}
-              <div className="marks" style={{ marginTop: 12 }}>
-                {myRow.results.map((r) => <span key={r.problemId} className={`mark ${r.status}`} title={`Problem ${r.number}: ${r.status}`}>{r.number}</span>)}
+        {contest.resultsPublished && row && (
+          <section className="section">
+            <div className="section-head"><h2>Your results</h2></div>
+            <div className="row wrap" style={{ gap: 40, alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 44, fontWeight: 700, lineHeight: 1, letterSpacing: '-.03em' }}>{row.score}<span className="muted" style={{ fontSize: 20 }}> / {row.max}</span></div>
+                <p className="soft" style={{ marginTop: 8 }}>{ordinal(row.place)} of {standings.individuals[division.id].length} in the {division.name.toLowerCase()} division{row.tied ? ', tied' : ''}.</p>
+                {row.award && <p className="strong" style={{ color: 'var(--blue)', marginTop: 2 }}>{row.award}</p>}
+              </div>
+              <div className="grow stack" style={{ gap: 10 }}>
+                <div className="marks">{row.results.map((x) => <span key={x.problemId} className={`mark ${x.status}`} title={`Problem ${x.number}: ${x.status}`}>{x.number}</span>)}</div>
+                {teamRow && <p className="soft small">{team.name}: {ordinal(teamRow.place)} of {standings.teams[division.id].length} teams, {teamRow.total} points.</p>}
+                <div><button className="btn btn-sm" type="button" onClick={() => toast('Certificate', `${row.award ?? 'Participation'}. Check code ${verifyCode(contest.slug, competitor.publicId)}.`)}>Certificate</button></div>
               </div>
             </div>
-            <div>
-              <div className="mini-bars" style={{ height: 70 }}>
-                {Array.from({ length: max + 1 }, (_, s) => {
-                  const n = dist.filter((x) => x === s).length;
-                  const top = Math.max(...Array.from({ length: max + 1 }, (_, k) => dist.filter((x) => x === k).length), 1);
-                  return <i key={s} className={s === myRow.score ? 'me' : ''} style={{ height: `${(n / top) * 100}%` }} title={`${n} scored ${s}`} />;
-                })}
+          </section>
+        )}
+
+        <section className="section">
+          <div className="section-head"><h2>Today</h2><span className="label">{contest.dateLabel}</span></div>
+          {contest.rounds.map((r) => {
+            const s = roundState(r, now);
+            const a = attempt(r);
+            return (
+              <div key={r.id} className="round-line">
+                <time>{clockIn(r.startsAt, contest.timeZone).replace(' PT', '')}</time>
+                <div>
+                  <b>{r.mystery && s === 'scheduled' ? 'Mystery Dive' : r.name}</b>
+                  <div className="muted small">{r.mystery && s === 'scheduled' ? 'Format revealed when it starts' : `${r.kind === 'individual' ? 'On your own' : 'With your team'}, ${r.minutes} minutes`}</div>
+                </div>
+                {online && a?.submittedAt ? <State tone="ok">Handed in</State> : s === 'open' ? <State tone="go">Open</State> : s === 'closed' ? <State tone="off">Finished</State> : <State tone="off">Later</State>}
               </div>
-              <p className="sub" style={{ fontSize: 12, marginTop: 4 }}>How the division scored. Your column is dark.</p>
-              <button className="btn btn-sm" style={{ marginTop: 10 }} type="button" onClick={() => toast('Certificate', `${competitor.name}, ${myRow.award ?? 'Participation'}. Verification code ${verifyCode(contest.slug, competitor.publicId)}.`)}>Download certificate</button>
-            </div>
-          </div>
-        </div>
-      )}
+            );
+          })}
+        </section>
 
-      <div className="grid-main-side">
-        <div className="panel">
-          <div className="panel-head"><h3>Your rounds</h3><span className="sub" style={{ fontSize: 12.5 }}>{online ? 'All online, at the same moment as the room in San Francisco' : 'On paper, at the venue'}</span></div>
-          {contest.rounds.map((r) => <RoundRow key={r.id} round={r} now={now} online={online} entrantId={r.kind === 'individual' ? competitor.id : team.id} canStart={!!competitor.waiverSignedAt} tz={contest.timeZone} />)}
-        </div>
-
-        <div className="stack">
-          {online && room && (
-            <div className="side-card">
-              <h3>Your Zoom room</h3>
-              <p style={{ fontSize: 13 }}>{room.name} · proctor {db.users.find((u) => u.id === room.proctorId)?.name}</p>
-              <p className="sub" style={{ fontSize: 12.5, margin: '4px 0 10px' }}>Join 20 minutes before the first round. Camera on, showing you and your desk. Keep Zoom on a phone or second device; the test stays in this browser.</p>
-              <button className="btn btn-primary" type="button" onClick={() => toast('Opens Zoom', 'In the demo the meeting link is not real.')}>Join Zoom</button>
-            </div>
-          )}
-          {!online && (
-            <div className="side-card" style={{ textAlign: 'center' }}>
-              <h3>Check-in</h3>
-              <div className="mono" style={{ fontSize: 40, fontWeight: 500, letterSpacing: '.04em', margin: '6px 0' }}>{competitor.publicId}</div>
-              <p className="sub" style={{ fontSize: 12.5 }}>Show this at the desk, or the code in your confirmation email. Write {competitor.publicId} on every answer sheet.</p>
-              {competitor.checkedInAt && <p className="ok-text row" style={{ justifyContent: 'center', marginTop: 6 }}><Tick /> Checked in at {clock(competitor.checkedInAt)}</p>}
-            </div>
-          )}
-          <div className="side-card">
-            <h3>Your team</h3>
-            {teammates.map((c) => (
-              <div key={c.id} className="row" style={{ justifyContent: 'space-between', fontSize: 13, padding: '3px 0' }}>
-                <span><span className="mono sub">{c.publicId}</span> {c.name}</span>
-                {c.waiverSignedAt ? <span className="ok-text"><Tick /></span> : <span className="warn-text" style={{ fontSize: 12 }}>waiver missing</span>}
+        <div className="split-wide">
+          <section className="section">
+            <div className="section-head"><h2>Your team</h2></div>
+            {mates.map((c) => (
+              <div key={c.id} className="row" style={{ justifyContent: 'space-between', padding: '6px 0' }}>
+                <span><span className="mono muted">{c.publicId}</span>&nbsp; {c.name}</span>
+                {c.waiverSignedAt ? <span className="muted small">Waiver signed</span> : <span className="wait small">Waiver missing</span>}
               </div>
             ))}
-          </div>
-          {online && (
-            <div className="side-card">
-              <h3>Before Saturday</h3>
-              <p className="sub" style={{ fontSize: 12.5 }}>Use a laptop or desktop with Chrome, Edge, Firefox or Safari. The test asks for fullscreen and notes when you leave it, so close other tabs first.</p>
-            </div>
+          </section>
+          {online && room ? (
+            <section className="section">
+              <div className="section-head"><h2>Zoom</h2></div>
+              <p>{room.name} · proctor {db.users.find((u) => u.id === room.proctorId)?.name}</p>
+              <p className="muted small" style={{ margin: '4px 0 12px' }}>Join 20 minutes before each round. Camera on, showing you and your desk.</p>
+              <button className="btn" type="button" onClick={() => toast('Opens Zoom', 'The demo meeting link is not real.')}>Join {room.name}</button>
+            </section>
+          ) : (
+            <section className="section">
+              <div className="section-head"><h2>Check-in</h2></div>
+              <div className="mono" style={{ fontSize: 36, fontWeight: 600 }}>{competitor.publicId}</div>
+              <p className="muted small">{competitor.checkedInAt ? `Checked in at ${clock(competitor.checkedInAt)}.` : 'Show this at the desk.'} Write it on every answer sheet.</p>
+            </section>
           )}
         </div>
       </div>
     </PortalLayout>
-  );
-}
-
-function RoundRow({ round, now, online, entrantId, canStart, tz }: { round: Round; now: number; online: boolean; entrantId: string; canStart: boolean; tz: string }) {
-  const db = useDB();
-  const state = roundState(round, now);
-  const ends = roundEnds(round);
-  const a = db.attempts.find((x) => x.roundId === round.id && x.entrantId === entrantId);
-  const label = round.mystery && state === 'scheduled' ? 'Format revealed when it starts' : `${round.kind === 'individual' ? 'On your own' : 'With your team'} · ${round.minutes} min · ${round.problems.length} problems`;
-  return (
-    <div className="round-card">
-      <div>
-        <b>{round.name}</b>
-        <div className="sub" style={{ fontSize: 12.5 }}>{label}</div>
-      </div>
-      <div className="row">
-        {!online ? (
-          state === 'closed' ? <Status tone="green">Done</Status> : <Status tone="grey">{clockIn(round.startsAt, tz)} at the venue</Status>
-        ) : a?.submittedAt ? (
-          <Status tone="green">Handed in</Status>
-        ) : state === 'open' ? (
-          <>
-            <span className="mono sub" style={{ fontSize: 12.5 }}>{ends ? `${duration(ends - now)} left` : ''}</span>
-            <Link className={`btn ${canStart ? 'btn-primary' : ''}`} to={canStart ? `/me/test/${round.id}` : '#'} aria-disabled={!canStart} onClick={(e) => !canStart && e.preventDefault()}>{a?.startedAt ? 'Resume' : 'Start'}</Link>
-          </>
-        ) : state === 'closed' ? (
-          <>
-            <Status tone="grey">Closed</Status>
-            <button className="btn btn-sm btn-ghost" type="button" onClick={() => openRound(round.id)} title="Demo only">Reopen (demo)</button>
-          </>
-        ) : (
-          <>
-            <Status tone="grey">Opens {clockIn(round.startsAt, tz)}</Status>
-            <button className="btn btn-sm" type="button" onClick={() => { openRound(round.id); toast(`${round.name} is open`, 'In the real contest the director opens it at the scheduled time.'); }} title="Demo only">Open now (demo)</button>
-          </>
-        )}
-      </div>
-    </div>
   );
 }

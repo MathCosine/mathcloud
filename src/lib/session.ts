@@ -34,7 +34,7 @@ export function homeFor(user: User | null): string {
     case 'grader':
       return '/staff/grading';
     case 'proctor':
-      return '/staff/proctoring';
+      return '/staff/live';
     case 'coach':
       return '/coach';
     case 'student':

@@ -494,28 +494,33 @@ Two accents, each with one job, so colour always means something:
 
 | Token | Hex | Job |
 | --- | --- | --- |
-| `--blue` | `#1D5BD6` | **Things you can act on:** buttons, links, selection, focus, where you are |
-| `--green` | `#0E8A5F` | **Things that are done:** confirmed, signed, correct, sent |
-| `--amber` | `#B4690E` | Waiting on someone: pending, waiver missing |
-| `--red` | `#C2362B` | Wrong or failed. Never decorative. |
-| Neutrals | blue-tinted greys | Text, lines, surfaces. A slight blue tint so the greys sit with the accents rather than against them |
+| `--blue` | `#2346C8` | **Things you can act on:** buttons, links, selection, focus, where you are |
+| `--green` | `#0E7C55` | **Things that are done:** confirmed, signed, correct, sent |
+| `--amber` | `#A15F00` | Waiting on someone: pending, waiver missing |
+| `--red` | `#BF3326` | Wrong or failed. Never decorative. |
+| Neutrals | near-neutral greys | Text, lines, surfaces. White pages; only the sidebar is tinted |
 
 - **Light mode first.** Organisers work in daylight at a desk or a check-in
   table, and print what they see.
 - **Status is never colour alone.** Every pip and chip has a word or a shape,
   for colour-blind graders and for black-and-white printouts.
+- **Only exceptions are loud.** "Signed", "Confirmed" and "Finished" are grey
+  text with a small dot; a missing waiver or a locked test is the thing in
+  colour. A screen where everything is green tells you nothing.
 - **No gradients, no glass, no glow.** Depth comes from 1 px hairlines and a
   single soft shadow on whatever floats (drawer, menu, dialog). Floating is the
   only thing a shadow means.
 
 ### Type
 
-- **Instrument Sans** for the interface. It is already the face of your
-  Cowconuts score reports, so the app and the PDFs it produces look like one
-  product, and it is not Inter, the default that makes interfaces look
-  generated.
-- **IBM Plex Mono** for anything that is an identifier or a number someone
-  copies: `07A`, scores, codes. Tabular figures, so columns of scores line up.
+- **Public Sans** for the interface. It was drawn for US government forms:
+  plain, sturdy, built for tables and labels, and not Inter, the default that
+  makes interfaces look generated. Tabular figures, so columns of scores line
+  up.
+- **Atkinson Hyperlegible Mono** for anything someone reads off paper or
+  types back: competitor IDs (`05A`), answers being keyed, codes, clocks. The
+  Braille Institute drew it so `0`/`O` and `1`/`l`/`I` cannot be confused,
+  which is exactly the mistake a grader keying a handwritten sheet makes.
 - One scale: 12 / 13 / 14 / 16 / 20 / 28. Tables are 13. Nothing is larger
   than it needs to be.
 
@@ -624,7 +629,14 @@ audit_log          org_id, actor, action, target, before, after, at
   wrong automatically and an equal value in another form waits for a ruling.
 - Scoring engine: best k of n, round weights, shared places, the
   harder-problems tiebreak, award rules, problem statistics and
-  rare-shared-wrong-answer detection. 19 unit tests.
+  rare-shared-wrong-answer detection, plus the Guts board with its freeze.
+  23 unit tests.
+- Live Guts scoreboard, in three places: beside the questions in the online
+  test, on the proctor's and director's Live page, and full screen for a
+  projector (`/board`: either division or both side by side, light or dark,
+  controls that fade while presenting). Rows glide to their new place when a
+  set is handed in online or keyed from paper, and the board freezes a set
+  number of minutes before the end until the director reveals it.
 - Coach portal: teams, managed student accounts, waiver reminders, results.
 - Guardian waiver page from an emailed link.
 - Database: `supabase/migrations/0001_core.sql`, with 37 rule checks in

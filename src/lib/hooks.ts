@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { contestOf } from './actions';
+import { buildBoard } from './scoring/board';
 import { computeStandings, type Standings } from './scoring/engine';
 import { useDB, useVersion } from './store';
 
@@ -35,3 +36,15 @@ export const ordinal = (n: number) => {
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 };
+
+/** The live Guts board for a division ('all' for both), recomputed as data and the clock move. */
+export function useBoard(divisionId: string | 'all', now: number) {
+  const db = useDB();
+  const v = useVersion();
+  const second = Math.floor(now / 1000);
+  return useMemo(
+    () => buildBoard({ contest: contestOf(db), teams: db.teams, attempts: db.attempts, rulings: db.rulings, divisionId, now }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [v, divisionId, second],
+  );
+}

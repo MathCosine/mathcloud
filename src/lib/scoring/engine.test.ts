@@ -122,7 +122,7 @@ function fixture() {
     problems: [p('g1', 1, ['5'], 'integer', 4, 1), p('g2', 2, ['6'], 'integer', 6, 2)],
   };
   const contest: Contest = {
-    id: 'c', orgId: 'o', name: 'Test', short: 'T', slug: 't', dateLabel: '', timeZone: 'UTC', rooms: [], resultsPublished: false,
+    id: 'c', orgId: 'o', name: 'Test', short: 'T', slug: 't', dateLabel: '', timeZone: 'UTC', rooms: [], resultsPublished: false, board: { freezeMinutes: 10, revealed: false },
     registration: { open: true, closesLabel: '', teamMin: 1, teamMax: 4 },
     divisions: [{ id: 'd', name: 'D', mode: 'in_person', detail: '' }],
     rounds: [ind, guts],

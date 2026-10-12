@@ -1,16 +1,19 @@
 /**
  * SFMO 2027 as a demo. Everything here is invented: teams, people, answers.
  *
- * Two moments of the contest day can be loaded:
+ * Three moments of the contest day can be loaded:
  *  - 'morning': the Individual round has just opened. Online competitors are
  *    partway through; in-person papers have not been collected yet.
+ *  - 'guts': Individual and Mystery Dive are done and keyed. Guts has been
+ *    running for 22 minutes; teams in both divisions are handing in sets and
+ *    the live board is moving.
  *  - 'after': every round is over, papers are keyed in, a few odd answers
  *    wait for a ruling, and results are ready to publish.
  */
 import type { Activity, Attempt, Competitor, Contest, DB, EmailTemplate, IntegrityEvent, Problem, Round, Team, User } from '../model';
 import { GUTS, GUTS_POINTS, INDIVIDUAL, MYSTERY, type DemoProblem } from './problems';
 
-export type Moment = 'morning' | 'after';
+export type Moment = 'morning' | 'guts' | 'after';
 
 // ------------------------------------------------------------------ random
 
@@ -138,6 +141,10 @@ function rounds(now: Date, moment: Moment): Round[] {
   if (moment === 'morning') {
     ind.status = 'open';
     ind.openedAt = iso(minutes(now, -8));
+  } else if (moment === 'guts') {
+    ind.status = 'closed'; ind.openedAt = iso(minutes(now, -190));
+    myst.status = 'closed'; myst.openedAt = iso(minutes(now, -112));
+    guts.status = 'open'; guts.openedAt = iso(minutes(now, -22));
   } else {
     ind.status = 'closed'; ind.openedAt = iso(minutes(now, -300));
     myst.status = 'closed'; myst.openedAt = iso(minutes(now, -215));
@@ -214,7 +221,7 @@ export function buildDemo(moment: Moment, now = new Date()): DB {
         id: `c${code}${slot}`, teamId: id, slot, publicId: `${code}${slot}`, name, grade,
         guardianName: guardian, guardianEmail: `${slug(guardian)}@example.com`,
         waiverSignedAt: signed ? iso(minutes(reg, 90 + i * 211)) : null,
-        checkedInAt: moment === 'after' && t.div === 'in_person' && t.status !== 'withdrawn' ? iso(minutes(now, -330)) : null,
+        checkedInAt: moment !== 'morning' && t.div === 'in_person' && t.status !== 'withdrawn' ? iso(minutes(now, moment === 'guts' ? -220 : -330)) : null,
       };
       competitors.push(c);
       const r = rng(c.publicId);
@@ -225,7 +232,7 @@ export function buildDemo(moment: Moment, now = new Date()): DB {
     });
   }
 
-  if (moment === 'after') {
+  if (moment !== 'morning') {
     // Anyone still missing a waiver signed it at check-in or before the first round.
     for (const c of competitors) {
       const t = teams.find((x) => x.id === c.teamId)!;
@@ -298,17 +305,31 @@ export function buildDemo(moment: Moment, now = new Date()): DB {
     for (const t of teams.filter(live)) {
       const r = rng(`team-${t.code}`);
       const online = t.divisionId === 'online';
-      for (const round of [myst, guts]) {
-        const start = new Date(round.openedAt!);
-        const a: Attempt = {
-          id: `${round.id}:${t.id}`, roundId: round.id, entrantId: t.id, source: online ? 'online' : 'paper', responses: {},
-          events: online ? events(r, start, Math.floor(r() * 2)) : [],
-          ...(online ? { startedAt: iso(start), deadline: iso(minutes(start, round.minutes)), submittedAt: iso(minutes(start, round.minutes - r() * 4)) } : { submittedAt: iso(minutes(start, round.minutes)) }),
-          ...(round.kind === 'guts' ? { setsSubmitted: 6 } : {}),
-        };
-        fill(a, round, teamSkill(t), r, online ? `u-c${t.code}A` : 'u-grader', minutes(start, 5));
-        attempts.push(a);
-      }
+      const start = new Date(myst.openedAt!);
+      const a: Attempt = {
+        id: `myst:${t.id}`, roundId: 'myst', entrantId: t.id, source: online ? 'online' : 'paper', responses: {},
+        events: online ? events(r, start, Math.floor(r() * 2)) : [],
+        ...(online ? { startedAt: iso(start), deadline: iso(minutes(start, myst.minutes)), submittedAt: iso(minutes(start, myst.minutes - r() * 4)) } : { submittedAt: iso(minutes(start, myst.minutes)) }),
+      };
+      fill(a, myst, teamSkill(t), r, online ? `u-c${t.code}A` : 'u-grader', minutes(start, 5));
+      attempts.push(a);
+
+      // Guts: every set handed in after the contest; partway through during it.
+      // The demo student's team has not started, so you can start it yourself.
+      if (moment === 'guts' && t.id === DEMO_TEAM) continue;
+      const opened = new Date(guts.openedAt!);
+      const sets = moment === 'after' ? 6 : 1 + Math.floor(r() * 3);
+      const gap = moment === 'after' ? 9.4 : 6.2;
+      const setTimes = Array.from({ length: sets }, (_, i) => iso(minutes(opened, (i + 1) * gap - r() * 2)));
+      const g: Attempt = {
+        id: `guts:${t.id}`, roundId: 'guts', entrantId: t.id, source: online ? 'online' : 'paper', responses: {},
+        events: online && moment === 'after' ? events(r, opened, Math.floor(r() * 2)) : [],
+        setsSubmitted: sets, setTimes,
+        ...(online ? { startedAt: iso(opened), deadline: iso(minutes(opened, guts.minutes)) } : {}),
+        ...(sets === 6 ? { submittedAt: setTimes[5] } : {}),
+      };
+      fill(g, guts, teamSkill(t), r, online ? `u-c${t.code}A` : 'u-grader', minutes(opened, 2), sets * 4);
+      attempts.push(g);
     }
   }
 
@@ -341,6 +362,7 @@ export function buildDemo(moment: Moment, now = new Date()): DB {
       { id: 'room-2', name: 'Room 2', url: 'https://zoom.us/j/85550105678', proctorId: 'u-director', teamIds: ['t18', 't19', 't20', 't21'] },
     ],
     resultsPublished: false,
+    board: { freezeMinutes: 10, revealed: false },
     registration: { open: false, closesLabel: '9 Jan', teamMin: 1, teamMax: 4 },
   };
 
@@ -413,8 +435,10 @@ SF Math Initiative`,
   ];
 
   return {
-    schema: 2,
+    schema: 3,
     gen: `${moment}-${now.getTime()}`,
+    moment,
+    seededAt: now.toISOString(),
     orgs: [{ id: 'sfmi', name: 'SF Math Initiative', short: 'SF', emailProvider: { kind: 'resend', from: 'SFMO 2027 <registration@sfmathopen.org>', dailyLimit: 100 } }],
     users,
     contests: [contest],
