@@ -1,0 +1,1359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MathCloud Roster</title>
+<meta name="description" content="Mockup of MathCloud's roster screen for SFMO 2027, with invented data.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   Tokens. Blue is for anything you can act on; green is for anything
+   that is done. Amber waits on someone, red is wrong. Greys carry a
+   slight blue so they sit with the accents rather than against them.
+   ------------------------------------------------------------------ */
+:root {
+  --canvas: #F5F7FA;
+  --surface: #FFFFFF;
+  --sunken: #F0F3F7;
+  --hover: #F8FAFC;
+
+  --ink: #0E1A2B;
+  --ink-2: #46566B;
+  --ink-3: #7B899B;
+  --ink-4: #A9B4C2;
+  --line: #E4E9EF;
+  --line-2: #D2D9E3;
+
+  --blue: #1D5BD6;
+  --blue-ink: #1645A6;
+  --blue-wash: #EEF3FD;
+  --blue-line: #C9D8F6;
+
+  --green: #0E8A5F;
+  --green-ink: #0A6B49;
+  --green-wash: #E8F5EF;
+  --green-line: #BFE3D2;
+
+  --amber: #B4690E;
+  --amber-wash: #FDF4E6;
+  --amber-line: #EED3A9;
+
+  --red: #C2362B;
+
+  --float: 0 1px 2px rgba(14, 26, 43, .06), 0 14px 36px -10px rgba(14, 26, 43, .22);
+  --r-ctl: 6px;
+  --r-panel: 10px;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --fast: 120ms;
+  --mid: 180ms;
+  --slow: 240ms;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font: 14px/1.45 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--ink);
+  background: var(--canvas);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum';
+}
+button, input { font: inherit; color: inherit; }
+.mono { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-feature-settings: 'tnum'; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------------------------------------------------------------- app */
+.app { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; }
+
+.sidebar {
+  position: sticky; top: 0; height: 100vh;
+  background: var(--surface); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 12px; padding: 14px 10px 12px;
+}
+.org {
+  all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px; border-radius: var(--r-ctl); transition: background var(--fast) var(--ease);
+}
+.org:hover { background: var(--sunken); }
+.org-mark {
+  width: 26px; height: 26px; border-radius: 7px; flex: none; display: grid; place-items: center;
+  background: #0E3B5C; color: #fff; font: 600 11px/1 'IBM Plex Mono', monospace; letter-spacing: .02em;
+}
+.org-name { font-weight: 600; font-size: 13.5px; line-height: 1.2; }
+.org-sub { font-size: 12px; color: var(--ink-3); }
+.contest-pick {
+  all: unset; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  border: 1px solid var(--line); border-radius: var(--r-ctl); padding: 8px 10px; margin: 0 2px;
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.contest-pick:hover { border-color: var(--line-2); background: var(--hover); }
+.contest-pick b { display: block; font-weight: 600; font-size: 13px; }
+.contest-pick small { font-size: 12px; color: var(--ink-3); }
+.chev { width: 14px; height: 14px; stroke: var(--ink-3); fill: none; stroke-width: 1.6; }
+
+.nav { position: relative; display: flex; flex-direction: column; }
+.nav-label {
+  font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-4); padding: 12px 10px 4px;
+}
+.nav a {
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between;
+  height: 30px; padding: 0 10px; border-radius: var(--r-ctl); text-decoration: none;
+  color: var(--ink-2); font-size: 13.5px; font-weight: 500;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.nav a:hover { color: var(--ink); background: rgba(240, 243, 247, .7); }
+.nav a.active { color: var(--blue-ink); background: transparent; }
+.nav a .count { font: 500 11.5px/1 'IBM Plex Mono', monospace; color: var(--ink-3); }
+.nav a.active .count { color: var(--blue); }
+.nav a .count.warn { color: var(--amber); }
+.nav-indicator {
+  position: absolute; left: 0; right: 0; top: 0; height: 30px; z-index: 0;
+  border-radius: var(--r-ctl); background: var(--blue-wash);
+  transition: transform var(--slow) var(--ease);
+}
+.nav-indicator::before {
+  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px;
+  border-radius: 2px; background: var(--blue);
+}
+.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 8px; }
+.me { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+.me i {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--sunken); border: 1px solid var(--line);
+  display: grid; place-items: center; font: 600 10px/1 'IBM Plex Mono', monospace; font-style: normal; color: var(--ink-2);
+}
+.platform { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-4); }
+.platform svg { width: 12px; height: 12px; }
+
+.main { min-width: 0; padding: 18px 32px 96px; max-width: 1360px; }
+.mobile-top { display: none; }
+
+.mock-note {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--ink-2); padding: 7px 12px; margin-bottom: 18px;
+  border: 1px dashed var(--line-2); border-radius: var(--r-ctl); background: var(--surface);
+}
+.linkish {
+  all: unset; cursor: pointer; color: var(--blue); font-weight: 500;
+  border-radius: 4px; transition: color var(--fast) var(--ease);
+}
+.linkish:hover { color: var(--blue-ink); text-decoration: underline; text-underline-offset: 3px; }
+.linkish:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* --------------------------------------------------------------- head */
+.crumbs { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-3); }
+.crumbs a { color: inherit; text-decoration: none; transition: color var(--fast) var(--ease); }
+.crumbs a:hover { color: var(--ink); }
+.head-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 6px; }
+h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 600; letter-spacing: -.015em; }
+.meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; font-size: 13px; color: var(--ink-2); }
+.dot-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-4); }
+.live { display: inline-flex; align-items: center; gap: 7px; color: var(--green-ink); font-weight: 500; }
+.live i { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+.live i::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid var(--green);
+  opacity: 0; animation: breathe 3s var(--ease) infinite;
+}
+@keyframes breathe { 0% { transform: scale(.5); opacity: .6; } 70%, 100% { transform: scale(1.5); opacity: 0; } }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface);
+  font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+  box-shadow: 0 1px 0 rgba(14, 26, 43, .04);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), color var(--fast) var(--ease), transform 80ms var(--ease);
+}
+.btn:hover { border-color: var(--ink-4); background: var(--hover); }
+.btn:active { transform: scale(.98); }
+.btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.btn-primary {
+  background: var(--blue); border-color: var(--blue); color: #fff;
+  box-shadow: 0 1px 0 rgba(22, 69, 166, .35), inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+.btn-primary:hover { background: var(--blue-ink); border-color: var(--blue-ink); }
+.btn-sm { height: 26px; padding: 0 9px; font-size: 12.5px; }
+.btn.done { color: var(--green-ink); border-color: var(--green-line); background: var(--green-wash); cursor: default; }
+.btn.done:active { transform: none; }
+.kbd {
+  font: 500 10.5px/1 'IBM Plex Mono', monospace; color: var(--ink-3);
+  border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 4px; padding: 2px 4px; background: var(--surface);
+}
+
+/* ------------------------------------------------------- shared bits */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); }
+.tick-svg path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Numbers that change roll to their new value. */
+.roll { display: inline-flex; height: 1.2em; line-height: 1.2em; overflow: hidden; vertical-align: -.22em; }
+.roll .col { display: flex; flex-direction: column; transition: transform 260ms var(--ease); }
+.roll .col span { height: 1.2em; text-align: center; }
+.no-anim .roll .col { transition: none; }
+
+/* -------------------------------------------------------------- stats */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 20px; }
+.stat { padding: 14px 18px 16px; border-left: 1px solid var(--line); }
+.stat:first-child { border-left: 0; }
+.stat-label { font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
+.stat-value { display: flex; align-items: baseline; gap: 5px; margin-top: 3px; font-size: 24px; font-weight: 600; letter-spacing: -.01em; }
+.stat-value .of { font-size: 14px; font-weight: 500; color: var(--ink-3); }
+.stat-sub { margin-top: 2px; font-size: 12.5px; color: var(--ink-3); }
+.stat-sub .warn { color: var(--amber); font-weight: 500; }
+.bar { height: 4px; margin-top: 10px; border-radius: 2px; background: var(--sunken); overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 2px; background: var(--green); transition: width 420ms var(--ease); }
+
+/* ----------------------------------------------------------- subtabs */
+.subtabs { position: relative; display: flex; gap: 24px; margin-top: 24px; border-bottom: 1px solid var(--line); }
+.subtabs button {
+  all: unset; cursor: pointer; display: flex; align-items: center; gap: 7px; padding: 10px 0 11px;
+  font-size: 14px; font-weight: 500; color: var(--ink-3); transition: color var(--fast) var(--ease);
+}
+.subtabs button:hover { color: var(--ink-2); }
+.subtabs button[aria-selected="true"] { color: var(--ink); }
+.subtabs button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+.subtabs .n { font: 500 11.5px/1 'IBM Plex Mono', monospace; color: var(--ink-3); }
+.subtab-line {
+  position: absolute; left: 0; bottom: -1px; height: 2px; width: 10px; border-radius: 2px; background: var(--blue);
+  transform-origin: left; transition: transform var(--slow) var(--ease), width var(--slow) var(--ease);
+}
+
+/* ----------------------------------------------------------- toolbar */
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 14px 0 10px; }
+.seg {
+  position: relative; display: inline-flex; padding: 3px; gap: 2px;
+  background: var(--sunken); border: 1px solid var(--line); border-radius: 8px;
+}
+.seg button {
+  all: unset; position: relative; z-index: 1; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  padding: 4px 11px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--ink-2);
+  transition: color var(--mid) var(--ease);
+}
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { color: var(--ink); }
+.seg button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.seg .n { font: 500 11.5px/1 'IBM Plex Mono', monospace; color: var(--ink-3); }
+.seg-thumb {
+  position: absolute; top: 3px; bottom: 3px; left: 0; width: 10px; border-radius: 6px;
+  background: var(--surface); box-shadow: 0 0 0 1px var(--line-2), 0 1px 2px rgba(14, 26, 43, .08);
+  transition: transform var(--slow) var(--ease), width var(--slow) var(--ease);
+}
+.search { position: relative; flex: 1 1 220px; max-width: 320px; }
+.search svg { position: absolute; left: 10px; top: 9px; width: 14px; height: 14px; stroke: var(--ink-3); fill: none; stroke-width: 1.7; stroke-linecap: round; }
+.search input {
+  width: 100%; height: 32px; padding: 0 34px 0 31px; border: 1px solid var(--line-2); border-radius: var(--r-ctl);
+  background: var(--surface); font-size: 13px; transition: border-color var(--fast) var(--ease), box-shadow var(--mid) var(--ease);
+}
+.search input::placeholder { color: var(--ink-4); }
+.search input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-wash); }
+.search .kbd { position: absolute; right: 8px; top: 8px; transition: opacity var(--fast); }
+.search input:focus + .kbd { opacity: 0; }
+.chip-toggle {
+  all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+  border: 1px dashed var(--line-2); border-radius: 999px; font-size: 12.5px; font-weight: 500; color: var(--ink-2);
+  transition: background var(--mid) var(--ease), border-color var(--mid) var(--ease), color var(--mid) var(--ease);
+}
+.chip-toggle:hover { border-color: var(--ink-4); color: var(--ink); }
+.chip-toggle[aria-pressed="true"] { border-style: solid; border-color: var(--amber-line); background: var(--amber-wash); color: var(--amber); }
+.chip-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.chip-toggle .n { font: 500 11.5px/1 'IBM Plex Mono', monospace; }
+.spacer { flex: 1; }
+.showing { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.showing b { color: var(--ink-2); font-weight: 500; }
+
+.pop-wrap { position: relative; }
+.popover {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 25; min-width: 210px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--float);
+  transform-origin: top right; transform: scale(.96) translateY(-2px); opacity: 0; pointer-events: none;
+  transition: opacity 140ms var(--ease), transform 180ms var(--ease);
+}
+.popover.open { transform: none; opacity: 1; pointer-events: auto; }
+.popover h4 { margin: 4px 8px 6px; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-4); }
+.pop-item {
+  all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  padding: 7px 8px; border-radius: var(--r-ctl); font-size: 13px; transition: background var(--fast) var(--ease);
+}
+.pop-item:hover, .pop-item:focus-visible { background: var(--sunken); outline: none; }
+
+/* ------------------------------------------------------------- table */
+.table-wrap { overflow: auto; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+thead th {
+  position: sticky; top: 0; z-index: 2; height: 36px; padding: 0 12px; text-align: left; white-space: nowrap;
+  background: var(--surface); border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 500; color: var(--ink-3);
+}
+thead th:first-child { border-top-left-radius: var(--r-panel); }
+thead th:last-child { border-top-right-radius: var(--r-panel); }
+.sort {
+  all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px;
+  transition: color var(--fast) var(--ease);
+}
+.sort:hover { color: var(--ink-2); }
+.sort:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.sort svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.8; opacity: 0; transition: transform var(--mid) var(--ease), opacity var(--fast); }
+.sort.on { color: var(--ink); }
+.sort.on svg { opacity: 1; }
+.sort.desc svg { transform: rotate(180deg); }
+
+tbody td { height: 41px; padding: 0 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tbody tr { cursor: pointer; transition: background var(--fast) var(--ease); }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--hover); }
+tbody tr.selected { background: var(--blue-wash); }
+tbody tr.focused td:first-child { box-shadow: inset 2px 0 0 var(--blue); }
+tbody tr.open td { background: rgba(238, 243, 253, .6); }
+tbody tr.muted td { color: var(--ink-3); }
+tr.enter td { animation: row-in 220ms var(--ease) both; animation-delay: calc(var(--i, 0) * 14ms); }
+@keyframes row-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.c-sel { width: 40px; padding-right: 0 !important; }
+.c-num, td.c-reg { color: var(--ink-3); }
+.tid { display: inline-block; min-width: 26px; color: var(--ink-3); font-size: 12.5px; }
+.tname { font-weight: 500; color: var(--ink); }
+tr.muted .tname { color: var(--ink-3); }
+.tag {
+  display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 4px;
+  font-size: 11px; font-weight: 500; color: var(--ink-2); background: var(--sunken); border: 1px solid var(--line);
+}
+.ellip { display: inline-block; max-width: 230px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.sub { color: var(--ink-3); }
+
+/* Checkbox: the tick draws itself in so you can see the click landed. */
+.cb {
+  all: unset; box-sizing: border-box; cursor: pointer; width: 16px; height: 16px; flex: none;
+  display: grid; place-items: center; border-radius: 4px; border: 1.5px solid var(--line-2); background: var(--surface);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.cb:hover { border-color: var(--ink-4); }
+.cb:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.cb svg { width: 12px; height: 12px; overflow: visible; }
+.cb path { fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cb .t { stroke-dasharray: 12; stroke-dashoffset: 12; transition: stroke-dashoffset 200ms var(--ease) 30ms; }
+.cb .d { opacity: 0; transition: opacity var(--fast); }
+.cb[aria-checked="true"], .cb[aria-checked="mixed"] { background: var(--blue); border-color: var(--blue); }
+.cb[aria-checked="true"] .t { stroke-dashoffset: 0; }
+.cb[aria-checked="mixed"] .d { opacity: 1; }
+
+/* Waiver pips: a letter per member, so they read in greyscale too.
+   Signed is quiet; missing is the exception and stands out. */
+.pips { display: inline-flex; gap: 3px; vertical-align: middle; }
+.pip {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 5px;
+  font: 500 11px/1 'IBM Plex Mono', monospace; border: 1px solid transparent;
+  transition: background var(--mid) var(--ease), color var(--mid) var(--ease), border-color var(--mid) var(--ease);
+}
+.pip.ok { background: var(--green-wash); color: var(--green-ink); }
+.pip.miss { background: var(--surface); color: var(--amber); border-color: var(--amber-line); }
+.pip.empty { border: 1px dashed var(--line-2); }
+.pip.pop { animation: pop 380ms var(--ease); }
+@keyframes pop { 0% { transform: scale(1); } 35% { transform: scale(1.28); } 100% { transform: scale(1); } }
+.pip-note { margin-left: 8px; font-size: 12px; color: var(--amber); font-weight: 500; }
+
+.status {
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px 0 7px; border-radius: 999px;
+  font-size: 12px; font-weight: 500; transition: background var(--mid) var(--ease), color var(--mid) var(--ease);
+}
+.status svg { width: 11px; height: 11px; }
+.status.confirmed { background: var(--green-wash); color: var(--green-ink); }
+.status.pending { background: var(--amber-wash); color: var(--amber); }
+.status.withdrawn { background: var(--sunken); color: var(--ink-3); }
+.status.signed { background: var(--green-wash); color: var(--green-ink); }
+.status.missing { background: var(--amber-wash); color: var(--amber); }
+
+.empty-row td { height: 120px; text-align: center; color: var(--ink-3); cursor: default; }
+.empty-row:hover { background: none; }
+.hints { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--ink-3); }
+.hints span { display: inline-flex; gap: 6px; align-items: center; }
+
+/* hidden columns */
+.hide-division .c-division, .hide-school .c-school, .hide-contact .c-contact, .hide-reg .c-reg { display: none; }
+
+/* ------------------------------------------------------------- drawer */
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 30; width: min(440px, 100vw);
+  display: flex; flex-direction: column; background: var(--surface);
+  border-left: 1px solid var(--line); box-shadow: var(--float);
+  transform: translateX(104%); transition: transform 260ms var(--ease);
+}
+.drawer.open { transform: none; }
+.drawer-head { padding: 18px 20px 16px; border-bottom: 1px solid var(--line); }
+.drawer-top { display: flex; align-items: center; justify-content: space-between; }
+.drawer-code { font: 500 13px/1 'IBM Plex Mono', monospace; color: var(--ink-3); }
+.x {
+  all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: var(--r-ctl);
+  color: var(--ink-3); font-size: 12px; transition: background var(--fast) var(--ease), color var(--fast);
+}
+.x:hover { background: var(--sunken); color: var(--ink); }
+.x:focus-visible { outline: 2px solid var(--blue); }
+.x svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.drawer h2 { margin: 8px 0 8px; font-size: 21px; font-weight: 600; letter-spacing: -.01em; }
+.drawer-chips { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); }
+.drawer-body { flex: 1; overflow: auto; padding: 4px 20px 24px; }
+.drawer section { padding: 16px 0 4px; opacity: 0; transform: translateY(6px); transition: opacity 220ms var(--ease), transform 220ms var(--ease); }
+.drawer.open section { opacity: 1; transform: none; }
+.drawer.open section:nth-child(1) { transition-delay: 60ms; }
+.drawer.open section:nth-child(2) { transition-delay: 90ms; }
+.drawer.open section:nth-child(3) { transition-delay: 120ms; }
+.drawer.swap section { animation: swap-in 200ms var(--ease) both; }
+@keyframes swap-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.drawer h3 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-4); }
+.mem { display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 8px; min-height: 44px; border-bottom: 1px solid var(--line); }
+.mem:last-child { border-bottom: 0; }
+.mem .id { font: 500 12.5px/1 'IBM Plex Mono', monospace; color: var(--ink-2); }
+.mem .who { font-weight: 500; }
+.mem .who small { display: block; font-weight: 400; font-size: 12px; color: var(--ink-3); }
+.mem .state { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.mem .signed { color: var(--green-ink); display: inline-flex; gap: 5px; align-items: center; }
+.mem .signed svg { width: 12px; height: 12px; }
+.btn .tick-svg { width: 12px; height: 12px; }
+.btn .tick-svg path { stroke-dasharray: 12; stroke-dashoffset: 12; animation: draw 260ms var(--ease) 60ms forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+dl.details { display: grid; grid-template-columns: 116px 1fr; gap: 8px 12px; margin: 0; font-size: 13px; }
+dl.details dt { color: var(--ink-3); }
+dl.details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.timeline { list-style: none; margin: 0; padding: 0; position: relative; }
+.timeline::before { content: ''; position: absolute; left: 3px; top: 8px; bottom: 8px; width: 1px; background: var(--line); }
+.timeline li { position: relative; padding: 0 0 12px 18px; font-size: 13px; }
+.timeline li::before {
+  content: ''; position: absolute; left: 0; top: 6px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--surface); border: 1.5px solid var(--ink-4);
+}
+.timeline li.g::before { border-color: var(--green); background: var(--green); }
+.timeline li.b::before { border-color: var(--blue); background: var(--surface); }
+.timeline li.a::before { border-color: var(--amber); background: var(--surface); }
+.timeline time { display: block; font: 400 11.5px/1.5 'IBM Plex Mono', monospace; color: var(--ink-3); }
+.timeline li.new { animation: swap-in 260ms var(--ease) both; }
+.drawer-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--line); background: var(--surface); }
+
+/* --------------------------------------------------------- bulk bar */
+.bulkbar {
+  position: fixed; left: 50%; bottom: 22px; z-index: 20; display: flex; align-items: center; gap: 2px;
+  padding: 6px 6px 6px 14px; border-radius: 10px; background: var(--ink); color: #fff; box-shadow: var(--float);
+  transform: translate(-50%, 160%); transition: transform 260ms var(--ease);
+}
+.bulkbar.show { transform: translate(-50%, 0); }
+.bulkbar .n { font-weight: 600; margin-right: 10px; font-size: 13px; white-space: nowrap; }
+.bb {
+  all: unset; cursor: pointer; padding: 6px 10px; border-radius: 6px; font-size: 13px; color: #DCE4EF; white-space: nowrap;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.bb:hover { background: rgba(255, 255, 255, .09); color: #fff; }
+.bb:active { transform: scale(.98); }
+.bb:focus-visible { outline: 2px solid #8FB0F2; }
+.bb-sep { width: 1px; height: 18px; background: rgba(255, 255, 255, .14); margin: 0 4px; }
+
+/* ------------------------------------------------------------- toast */
+.toast {
+  position: fixed; left: 264px; bottom: 22px; z-index: 40; max-width: 380px; display: flex; gap: 10px;
+  padding: 11px 14px; border-radius: var(--r-panel); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--float);
+  font-size: 13px; opacity: 0; transform: translateY(10px); pointer-events: none;
+  transition: opacity 200ms var(--ease), transform 220ms var(--ease);
+}
+.toast.show { opacity: 1; transform: none; pointer-events: auto; }
+body.has-bulk .toast { bottom: 76px; }
+.toast i { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--blue); }
+.toast.g i { background: var(--green); }
+.toast b { display: block; font-weight: 600; }
+.toast span { color: var(--ink-2); }
+
+/* --------------------------------------------------- design notes */
+.why {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 35; width: min(400px, 100vw); display: flex; flex-direction: column;
+  background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--float);
+  transform: translateX(104%); transition: transform 260ms var(--ease);
+}
+.why.open { transform: none; }
+.why header { padding: 18px 20px 12px; border-bottom: 1px solid var(--line); }
+.why header p { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-3); }
+.why ol { list-style: none; counter-reset: n; margin: 0; padding: 8px 12px 24px; overflow: auto; }
+.why li {
+  counter-increment: n; position: relative; padding: 10px 10px 10px 40px; border-radius: 8px; cursor: default;
+  transition: background var(--fast) var(--ease);
+}
+.why li:hover, .why li:focus-within { background: var(--sunken); }
+.why li::before {
+  content: counter(n); position: absolute; left: 10px; top: 11px; width: 20px; height: 20px; border-radius: 5px;
+  display: grid; place-items: center; font: 500 11px/1 'IBM Plex Mono', monospace; color: var(--blue); background: var(--blue-wash);
+}
+.why li b { display: block; font-size: 13.5px; font-weight: 600; }
+.why li span { font-size: 13px; color: var(--ink-2); }
+.hl { outline: 2px solid var(--blue) !important; outline-offset: 3px; border-radius: 8px; animation: hl-in 260ms var(--ease); }
+@keyframes hl-in { from { outline-offset: 9px; outline-color: transparent; } to { outline-offset: 3px; outline-color: var(--blue); } }
+
+/* ------------------------------------------------------- responsive */
+@media (max-width: 980px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { display: none; }
+  .main { padding: 12px 16px 96px; }
+  .mobile-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; font-weight: 600; }
+  .mobile-top small { font-weight: 400; color: var(--ink-3); }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat:nth-child(3) { border-left: 0; }
+  .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .toast { left: 16px; right: 16px; max-width: none; bottom: 84px; }
+  body.has-bulk .toast { bottom: 140px; }
+  .meta { gap: 2px 12px; }
+  .meta .dot-sep { display: none; }
+  .search { max-width: none; }
+  .bulkbar { max-width: calc(100vw - 32px); overflow-x: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important;
+    transition-duration: 1ms !important; transition-delay: 0ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" aria-label="Contest navigation">
+    <button class="org" type="button">
+      <span class="org-mark">SF</span>
+      <span><span class="org-name">SF Math Initiative</span><br><span class="org-sub">3 contests</span></span>
+    </button>
+    <button class="contest-pick" type="button">
+      <span><b>SFMO 2027</b><small>January · in person + online</small></span>
+      <svg class="chev" viewBox="0 0 16 16"><path d="M5 6l3 3 3-3"/></svg>
+    </button>
+    <nav class="nav" id="nav">
+      <span class="nav-indicator" id="navIndicator"></span>
+      <span class="nav-label">Before</span>
+      <a href="#" data-nav>Overview</a>
+      <a href="#" data-nav>Registration form</a>
+      <a href="#" data-nav class="active" aria-current="page">Roster <span class="count" id="navRoster"></span></a>
+      <a href="#" data-nav>Check-in</a>
+      <span class="nav-label">On the day</span>
+      <a href="#" data-nav>Rounds</a>
+      <a href="#" data-nav>Online portal</a>
+      <a href="#" data-nav>Grading</a>
+      <a href="#" data-nav>Live boards</a>
+      <span class="nav-label">After</span>
+      <a href="#" data-nav>Results</a>
+      <a href="#" data-nav>Certificates</a>
+      <a href="#" data-nav>Prizes</a>
+      <a href="#" data-nav>Emails <span class="count warn">42 queued</span></a>
+    </nav>
+    <div class="side-foot">
+      <a href="#" data-nav class="me" style="text-decoration:none"><i>DR</i> Director · Settings</a>
+      <span class="platform">
+        <svg viewBox="0 0 12 12"><path d="M0 12L12 0V12Z" fill="#0E8A5F"/><path d="M0 0H12L0 12Z" fill="#1D5BD6"/></svg>
+        MathCloud
+      </span>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="mobile-top"><span class="org-mark">SF</span> SFMO 2027 <small>· Roster</small></div>
+    <div class="mock-note">
+      <span>Mockup with invented data. Click rows, select with the boxes, press <span class="kbd">/</span> <span class="kbd">j</span> <span class="kbd">k</span> <span class="kbd">x</span>.</span>
+      <button class="linkish" id="whyOpen" type="button">Why it looks like this →</button>
+    </div>
+
+    <div class="crumbs"><a href="#">SFMO 2027</a><span>/</span><span>Roster</span></div>
+    <div class="head-row">
+      <div>
+        <h1 id="title">Roster</h1>
+        <div class="meta">
+          <span class="live" id="live"><i></i>Live</span>
+          <span class="dot-sep"></span>
+          <span>Registration open, closes 9 Jan</span>
+          <span class="dot-sep"></span>
+          <span id="lastReg">Last registration 14 min ago</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" type="button" id="exportAll">
+          <svg viewBox="0 0 16 16"><path d="M8 2.5v8M4.5 7.5L8 11l3.5-3.5M3 13.5h10"/></svg>Export CSV
+        </button>
+        <button class="btn" type="button" id="emailAll">Email…</button>
+        <button class="btn btn-primary" type="button" id="addTeam">
+          <svg viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></svg>Add team
+        </button>
+      </div>
+    </div>
+
+    <section class="stats panel no-anim" id="stats" aria-label="Summary">
+      <div class="stat">
+        <div class="stat-label">Teams</div>
+        <div class="stat-value"><span class="roll" data-roll="teams"></span></div>
+        <div class="stat-sub"><span data-text="split"></span></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Competitors</div>
+        <div class="stat-value"><span class="roll" data-roll="competitors"></span></div>
+        <div class="stat-sub"><span data-text="avg"></span></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Waivers signed</div>
+        <div class="stat-value"><span class="roll" data-roll="signed"></span><span class="of">/ <span data-text="signTotal"></span></span></div>
+        <div class="bar"><i data-bar="waivers"></i></div>
+        <div class="stat-sub"><span class="warn" data-text="missing"></span></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Confirmed</div>
+        <div class="stat-value"><span class="roll" data-roll="confirmed"></span><span class="of">/ <span data-text="confTotal"></span></span></div>
+        <div class="bar"><i data-bar="confirmed"></i></div>
+        <div class="stat-sub"><span data-text="pendingText"></span></div>
+      </div>
+    </section>
+
+    <div class="subtabs" role="tablist" id="subtabs">
+      <button role="tab" aria-selected="true" data-view="teams">Teams <span class="n" data-count="teams"></span></button>
+      <button role="tab" aria-selected="false" data-view="competitors">Competitors <span class="n" data-count="competitors"></span></button>
+      <button role="tab" aria-selected="false" data-view="guardians">Guardians <span class="n" data-count="guardians"></span></button>
+      <span class="subtab-line" id="subtabLine"></span>
+    </div>
+
+    <div class="toolbar">
+      <div class="seg" id="seg" role="group" aria-label="Division">
+        <span class="seg-thumb" id="segThumb"></span>
+        <button type="button" aria-pressed="true" data-div="all">All <span class="n" data-div-count="all"></span></button>
+        <button type="button" aria-pressed="false" data-div="in_person">In person <span class="n" data-div-count="in_person"></span></button>
+        <button type="button" aria-pressed="false" data-div="online">Online <span class="n" data-div-count="online"></span></button>
+      </div>
+      <label class="search">
+        <span class="sr">Search</span>
+        <svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+        <input id="q" type="search" placeholder="Search names, schools, IDs" autocomplete="off">
+        <span class="kbd">/</span>
+      </label>
+      <button class="chip-toggle" type="button" aria-pressed="false" data-filter="missing">Waiver missing <span class="n" data-filter-count="missing"></span></button>
+      <button class="chip-toggle" type="button" aria-pressed="false" data-filter="pending">Pending <span class="n" data-filter-count="pending"></span></button>
+      <span class="spacer"></span>
+      <span class="showing" id="showing"></span>
+      <div class="pop-wrap">
+        <button class="btn" type="button" id="colsBtn" aria-expanded="false" aria-controls="colsPop">
+          <svg viewBox="0 0 16 16"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11"/></svg>Columns
+        </button>
+        <div class="popover" id="colsPop" role="menu">
+          <h4>Shown columns</h4>
+          <button class="pop-item" type="button" role="menuitemcheckbox" data-col="division"><span class="cb" aria-checked="true"><svg viewBox="0 0 16 16"><path class="t" d="M4 8.5l2.5 2.5L12 5.5"/></svg></span>Division</button>
+          <button class="pop-item" type="button" role="menuitemcheckbox" data-col="school"><span class="cb" aria-checked="true"><svg viewBox="0 0 16 16"><path class="t" d="M4 8.5l2.5 2.5L12 5.5"/></svg></span>School · location</button>
+          <button class="pop-item" type="button" role="menuitemcheckbox" data-col="contact"><span class="cb" aria-checked="true"><svg viewBox="0 0 16 16"><path class="t" d="M4 8.5l2.5 2.5L12 5.5"/></svg></span>Contact</button>
+          <button class="pop-item" type="button" role="menuitemcheckbox" data-col="reg"><span class="cb" aria-checked="true"><svg viewBox="0 0 16 16"><path class="t" d="M4 8.5l2.5 2.5L12 5.5"/></svg></span>Registered</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel table-wrap" id="tableWrap">
+      <table id="table">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="hints" id="hints">
+      <span><span class="kbd">/</span> search</span>
+      <span><span class="kbd">j</span><span class="kbd">k</span> move</span>
+      <span><span class="kbd">x</span> select</span>
+      <span><span class="kbd">↵</span> open</span>
+      <span><span class="kbd">esc</span> close</span>
+    </div>
+  </main>
+</div>
+
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Team detail">
+  <div class="drawer-head">
+    <div class="drawer-top">
+      <span class="drawer-code" id="dCode"></span>
+      <button class="x" type="button" id="dClose"><span class="kbd">esc</span><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+    </div>
+    <h2 id="dName"></h2>
+    <div class="drawer-chips" id="dChips"></div>
+  </div>
+  <div class="drawer-body" id="dBody"></div>
+  <div class="drawer-foot">
+    <button class="btn" type="button" id="dResend">Resend confirmation</button>
+    <button class="btn btn-primary" type="button" id="dEdit">Edit team</button>
+  </div>
+</aside>
+
+<div class="bulkbar" id="bulk" role="toolbar" aria-label="Selected teams">
+  <span class="n"><span class="roll" data-roll="selected"></span> selected</span>
+  <button class="bb" type="button" data-bulk="confirm">Confirm</button>
+  <button class="bb" type="button" data-bulk="email">Email contacts</button>
+  <button class="bb" type="button" data-bulk="export">Export CSV</button>
+  <span class="bb-sep"></span>
+  <button class="bb" type="button" data-bulk="clear" aria-label="Clear selection">Clear</button>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><i></i><div><b id="toastTitle"></b><span id="toastBody"></span></div></div>
+
+<aside class="why" id="why" aria-hidden="true" aria-label="Design notes">
+  <header>
+    <div class="drawer-top">
+      <b style="font-size:15px">Why it looks like this</b>
+      <button class="x" type="button" id="whyClose"><span class="kbd">esc</span><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+    </div>
+    <p>Point at a note to see the part of the screen it explains.</p>
+  </header>
+  <ol id="whyList"></ol>
+</aside>
+
+<script>
+/* ==================================================================
+   Invented data. SFMO 2027 roster as it might look on 18 November.
+   ================================================================== */
+const NOW = new Date('2026-11-18T10:30:00');
+const SLOTS = 'ABCD';
+
+const TEAMS = [
+  { no: 1, name: 'Krill Seekers', div: 'in_person', school: 'Harborview High', city: 'San Francisco', contact: 'Grace Okafor', status: 'confirmed', reg: '2026-10-24T09:02', pledge: 40, method: 'Zelle',
+    members: [['Maya Okafor', 11, 'Grace Okafor', 1], ['Daniel Reyes', 11, 'Ana Reyes', 1], ['Ishaan Mehta', 10, 'Priya Mehta', 1], ['Lena Fischer', 10, 'Jonas Fischer', 1]] },
+  { no: 2, name: 'Tidepool Theorems', div: 'in_person', school: 'Sunset Prep', city: 'San Francisco', contact: 'Owen Park', status: 'confirmed', reg: '2026-10-24T09:41', pledge: 40, method: 'Online',
+    members: [['Owen Park', 12, 'Min-ji Park', 1], ['Sofia Marín', 12, 'Lucía Marín', 1], ['Kai Nakamura', 11, 'Hiro Nakamura', 1], ['Ruth Abebe', 11, 'Selam Abebe', 1]] },
+  { no: 3, name: 'Blue Tangents', div: 'in_person', school: 'Fogline Academy', city: 'Daly City', contact: 'Claire Laurent', status: 'pending', reg: '2026-10-26T18:20', pledge: null, method: null,
+    members: [['Theo Laurent', 9, 'Claire Laurent', 1], ['Amara Diallo', 9, 'Fatou Diallo', 1], ['Ben Cohen', 8, 'Rachel Cohen', 0]] },
+  { no: 4, name: 'The Benthics', div: 'in_person', school: 'Ocean Ave Middle', city: 'San Francisco', contact: 'Nora Lindqvist', status: 'confirmed', reg: '2026-10-27T16:05', pledge: 20, method: 'At check-in',
+    members: [['Nora Lindqvist', 8, 'Erik Lindqvist', 1], ['Arjun Rao', 8, 'Meera Rao', 1], ['Chloe Tran', 7, 'Linh Tran', 1], ['Felix Wong', 7, 'Karen Wong', 1]] },
+  { no: 5, name: 'Coral Lemma', div: 'in_person', school: 'Twin Peaks High', city: 'San Francisco', contact: 'Hannah Kim', status: 'confirmed', reg: '2026-10-29T20:47', pledge: 40, method: 'Zelle',
+    members: [['Hannah Kim', 10, 'Joon Kim', 1], ['Mateo Silva', 10, 'Paula Silva', 1], ['Mei Lin', 9, 'Wei Lin', 0], ['Sam Whitaker', 9, 'Dana Whitaker', 1]] },
+  { no: 6, name: 'Moon Jellies', div: 'in_person', school: 'Mission Bay High', city: 'San Francisco', contact: 'Zoe Adler', status: 'pending', reg: '2026-11-02T12:13', pledge: null, method: null,
+    members: [['Zoe Adler', 11, 'Miriam Adler', 1], ['Rafael Costa', 11, 'Bruno Costa', 0]] },
+  { no: 7, name: 'Bioluminati', div: 'in_person', school: 'Peninsula Math Circle', city: 'San Mateo', contact: 'Elena Petrova', status: 'confirmed', reg: '2026-11-03T08:30', pledge: 40, method: 'Online',
+    members: [['Elena Petrova', 12, 'Irina Petrova', 1], ['Jun-ho Choi', 12, 'Sun Choi', 1], ['Aisha Bello', 11, 'Tunde Bello', 1], ["Liam O'Brien", 11, "Siobhan O'Brien", 1]] },
+  { no: 8, name: 'Pressure Drop', div: 'in_person', school: 'Homeschool', city: 'Oakland', contact: 'Ruth Feldman', status: 'confirmed', reg: '2026-11-04T19:55', pledge: 10, method: 'Zelle', solo: true,
+    members: [['Noah Feldman', 10, 'Ruth Feldman', 1]] },
+  { no: 9, name: 'Rip Current', div: 'in_person', school: 'Stevens Creek High', city: 'Cupertino', contact: 'Ananya Iyer', status: 'confirmed', reg: '2026-11-05T21:10', pledge: 40, method: 'Online',
+    members: [['Ananya Iyer', 11, 'Lakshmi Iyer', 1], ['Lucas Moreau', 11, 'Anne Moreau', 1], ['Grace Liu', 10, 'Tao Liu', 0], ['Ethan Brooks', 10, 'Kim Brooks', 1]] },
+  { no: 10, name: 'Abyssal Plain', div: 'in_person', school: 'Lakeview Prep', city: 'San Jose', contact: 'Diego Herrera', status: 'pending', reg: '2026-11-07T10:02', pledge: null, method: null,
+    members: [['Diego Herrera', 9, 'Carmen Herrera', 1], ['Mira Shah', 9, 'Nikhil Shah', 0], ['Tom Becker', 9, 'Anja Becker', 0], ['Yuki Sato', 8, 'Emi Sato', 1]] },
+  { no: 11, name: 'Hydrothermal', div: 'in_person', school: 'East Bay Math Club', city: 'Fremont', contact: 'Ravi Nair', status: 'confirmed', reg: '2026-11-08T14:44', pledge: 40, method: 'Zelle',
+    members: [['Ravi Nair', 12, 'Anil Nair', 1], ['Isabel Ortiz', 12, 'Marta Ortiz', 1], ['Henry Zhou', 11, 'Lei Zhou', 1], ['Leila Haddad', 11, 'Omar Haddad', 1]] },
+  { no: 12, name: 'Siphonophores', div: 'in_person', school: 'Redwood Middle', city: 'Palo Alto', contact: 'Ari Goldberg', status: 'withdrawn', reg: '2026-11-09T17:26', pledge: null, method: null,
+    members: [['Ari Goldberg', 8, 'Dina Goldberg', 1], ['Sana Qureshi', 8, 'Farah Qureshi', 1], ['Max Novak', 7, 'Petra Novak', 0]] },
+  { no: 13, name: 'Mariana Trench Coats', div: 'in_person', school: 'Capitol Math Circle', city: 'Sacramento', contact: 'Caleb Morgan', status: 'confirmed', reg: '2026-11-11T09:18', pledge: 40, method: 'Online',
+    members: [['Caleb Morgan', 11, 'Jill Morgan', 1], ['Divya Pillai', 11, 'Rekha Pillai', 1], ['Oscar Lund', 10, 'Mats Lund', 1], ['Nina Hoffmann', 10, 'Uwe Hoffmann', 1]] },
+  { no: 14, name: 'Polar Gyre', div: 'online', school: 'Northshore High', city: 'Seattle, WA', contact: 'Erik Johansson', status: 'confirmed', reg: '2026-11-12T22:40', pledge: 20, method: 'Online',
+    members: [['Erik Johansson', 12, 'Sara Johansson', 1], ['Maya Patel', 11, 'Raj Patel', 1], ['Leo Martin', 11, 'Julie Martin', 1], ['Ivy Chen', 10, 'Hong Chen', 1]] },
+  { no: 15, name: 'Deep Field', div: 'online', school: 'Independent', city: 'Tashkent, Uzbekistan', contact: 'Timur Rakhimov', status: 'confirmed', reg: '2026-11-14T06:12', pledge: null, method: null,
+    members: [['Timur Rakhimov', 11, 'Rustam Rakhimov', 1], ['Dilnoza Karimova', 11, 'Gulnora Karimova', 1], ['Aziz Yusupov', 10, 'Bekzod Yusupov', 1]] },
+  { no: 16, name: 'Sea Urchin Sums', div: 'online', school: 'Barton Creek Middle', city: 'Austin, TX', contact: 'Carter Hughes', status: 'pending', reg: '2026-11-15T15:31', pledge: 40, method: 'Online',
+    members: [['Carter Hughes', 9, 'Megan Hughes', 1], ['Valeria Ruiz', 9, 'Andrea Ruiz', 1], ['Jacob Klein', 9, 'Miriam Klein', 0], ['Priya Das', 8, 'Sunil Das', 1]] },
+  { no: 17, name: 'Thermocline', div: 'online', school: 'Colegiul Sf. Sava', city: 'Bucharest, Romania', contact: 'Andrei Popescu', status: 'confirmed', reg: '2026-11-16T11:03', pledge: null, method: null,
+    members: [['Andrei Popescu', 12, 'Elena Popescu', 1], ['Ioana Ionescu', 12, 'Mihai Ionescu', 1], ['Mihai Stan', 11, 'Cristina Stan', 1], ['Ana Dumitru', 11, 'Victor Dumitru', 1]] },
+  { no: 18, name: 'Kelp Vectors', div: 'online', school: 'Bloor Collegiate', city: 'Toronto, Canada', contact: 'Ethan Lam', status: 'pending', reg: '2026-11-18T10:16', pledge: null, method: null,
+    members: [['Ethan Lam', 10, 'Wendy Lam', 1], ['Clara Dubois', 10, 'Luc Dubois', 1]] },
+].map((t) => {
+  const code = String(t.no).padStart(2, '0');
+  const reg = new Date(t.reg);
+  return {
+    ...t, code, reg,
+    email: slug(t.contact) + '@example.com',
+    members: t.members.map(([name, grade, guardian, signed], i) => ({
+      id: code + SLOTS[i], name, grade, guardian, signed: !!signed,
+      guardianEmail: slug(guardian) + '@example.com',
+      signedAt: signed ? addMinutes(reg, 90 + i * 211) : null,
+      reminded: false,
+    })),
+    log: [],
+  };
+});
+
+// Activity history, derived so the drawer has something true to say.
+for (const t of TEAMS) {
+  t.log.push({ at: t.reg, kind: 'b', text: `Registered by ${t.contact}` });
+  t.log.push({ at: addMinutes(t.reg, 1), kind: 'g', text: `Confirmation emailed to ${t.email}` });
+  for (const m of t.members) {
+    if (m.signed) t.log.push({ at: m.signedAt, kind: 'g', text: `Waiver for ${m.id} signed by ${m.guardian}` });
+    else if (t.status !== 'withdrawn') t.log.push({ at: new Date('2026-11-12T09:00'), kind: 'a', text: `Waiver reminder sent to ${m.guardian}` });
+  }
+  if (t.status === 'confirmed') t.log.push({ at: addMinutes(t.reg, 60 * 26), kind: 'g', text: 'Confirmed by Director' });
+  if (t.status === 'withdrawn') t.log.push({ at: new Date('2026-11-15T13:22'), kind: '', text: 'Withdrawn at the contact’s request' });
+}
+
+function slug(s) {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, '.').replace(/^\.|\.$/g, '');
+}
+function addMinutes(d, m) { return new Date(d.getTime() + m * 60000); }
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function day(d) { return `${d.getDate()} ${MONTHS[d.getMonth()]}`; }
+function stamp(d) { return `${day(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+const DIV_LABEL = { in_person: 'In person', online: 'Online' };
+const STATUS_LABEL = { confirmed: 'Confirmed', pending: 'Pending', withdrawn: 'Withdrawn' };
+const STATUS_ORDER = { pending: 0, confirmed: 1, withdrawn: 2 };
+const live = (t) => t.status !== 'withdrawn';
+const missingOf = (t) => t.members.filter((m) => !m.signed).length;
+
+const ICON = {
+  check: '<svg viewBox="0 0 12 12" class="tick-svg" aria-hidden="true"><path d="M2.5 6.3l2.2 2.2L9.5 3.7" style="stroke-dasharray:none"/></svg>',
+  ring: '<svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+  dash: '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 6h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  sort: '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 6.2L5 3.7l2.5 2.5"/></svg>',
+  cb: '<svg viewBox="0 0 16 16" aria-hidden="true"><path class="t" d="M4 8.5l2.5 2.5L12 5.5"/><path class="d" d="M4.5 8h7"/></svg>',
+};
+
+/* ==================================================================
+   State
+   ================================================================== */
+const state = {
+  view: 'teams', div: 'all', q: '', filters: { missing: false, pending: false },
+  sort: { key: 'team', dir: 1 }, selected: new Set(), focus: -1, open: null,
+  hidden: new Set(), rowsKey: '',
+};
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* ==================================================================
+   Rolling numbers
+   ================================================================== */
+function roll(el, value) {
+  const s = String(value);
+  if (el.dataset.len !== String(s.length)) {
+    el.innerHTML = [...s].map(() => `<span class="col" aria-hidden="true">${'0123456789'.split('').map((d) => `<span>${d}</span>`).join('')}</span>`).join('');
+    el.dataset.len = s.length;
+    void el.offsetWidth;
+  }
+  [...el.children].forEach((col, i) => { col.style.transform = `translateY(${-Number(s[i]) * 1.2}em)`; });
+  el.setAttribute('aria-label', s);
+}
+function rollAll(name, value) { $$(`[data-roll="${name}"]`).forEach((el) => roll(el, value)); }
+
+/* ==================================================================
+   Rows per view
+   ================================================================== */
+function competitorRows() {
+  return TEAMS.flatMap((t) => t.members.map((m) => ({ ...m, team: t })));
+}
+function matches(text) { return !state.q || text.toLowerCase().includes(state.q.toLowerCase()); }
+
+function rowsFor(view, { ignoreDiv = false, ignoreFilters = false } = {}) {
+  const divOk = (t) => ignoreDiv || state.div === 'all' || t.div === state.div;
+  if (view === 'teams') {
+    let rows = TEAMS.filter((t) => divOk(t) && matches([t.code, t.name, t.school, t.city, t.contact, ...t.members.map((m) => m.id + ' ' + m.name)].join(' ')));
+    if (!ignoreFilters && state.filters.missing) rows = rows.filter((t) => live(t) && missingOf(t) > 0);
+    if (!ignoreFilters && state.filters.pending) rows = rows.filter((t) => t.status === 'pending');
+    const cols = { team: (t) => t.no, members: (t) => -missingOf(t) * 10 + t.members.length, status: (t) => STATUS_ORDER[t.status], reg: (t) => t.reg.getTime(), school: (t) => t.school, contact: (t) => t.contact, division: (t) => t.div };
+    const key = cols[state.sort.key] || cols.team;
+    return rows.slice().sort((a, b) => (key(a) > key(b) ? 1 : key(a) < key(b) ? -1 : a.no - b.no) * state.sort.dir);
+  }
+  let rows = competitorRows().filter((c) => divOk(c.team) && matches([c.id, c.name, c.guardian, c.team.name, c.team.school].join(' ')));
+  if (!ignoreFilters && state.filters.missing) rows = rows.filter((c) => !c.signed && live(c.team));
+  if (!ignoreFilters && state.filters.pending) rows = rows.filter((c) => c.team.status === 'pending');
+  return rows;
+}
+
+/* ==================================================================
+   Rendering
+   ================================================================== */
+function head(view) {
+  const s = (key, label) => {
+    const on = state.sort.key === key;
+    return `<button class="sort ${on ? 'on' : ''} ${on && state.sort.dir < 0 ? 'desc' : ''}" data-sort="${key}" type="button">${label}${ICON.sort}</button>`;
+  };
+  if (view === 'teams') {
+    const vis = rowsFor('teams').filter(live);
+    const n = vis.filter((t) => state.selected.has(t.no)).length;
+    const all = n > 0 && n === vis.length ? 'true' : n > 0 ? 'mixed' : 'false';
+    return `<tr>
+      <th class="c-sel"><button class="cb" role="checkbox" aria-checked="${all}" aria-label="Select all shown" id="cbAll" type="button">${ICON.cb}</button></th>
+      <th>${s('team', 'Team')}</th>
+      <th class="c-division">${s('division', 'Division')}</th>
+      <th>${s('members', 'Members · waivers')}</th>
+      <th class="c-school">${s('school', 'School · location')}</th>
+      <th class="c-contact">${s('contact', 'Contact')}</th>
+      <th>${s('status', 'Status')}</th>
+      <th class="c-reg">${s('reg', 'Registered')}</th>
+    </tr>`;
+  }
+  if (view === 'competitors') {
+    return `<tr><th class="c-sel"></th><th>ID</th><th>Name</th><th>Grade</th><th>Team</th><th class="c-division">Division</th><th>Guardian</th><th>Waiver</th></tr>`;
+  }
+  return `<tr><th class="c-sel"></th><th>Guardian</th><th class="c-contact">Email</th><th>Signs for</th><th class="c-division">Division</th><th>Waiver</th><th class="c-reg">Last contact</th></tr>`;
+}
+
+function statusChip(s) {
+  const icon = s === 'confirmed' ? ICON.check : s === 'pending' ? ICON.ring : ICON.dash;
+  return `<span class="status ${s}">${icon}${STATUS_LABEL[s]}</span>`;
+}
+function waiverChip(signed) {
+  return signed ? `<span class="status signed">${ICON.check}Signed</span>` : `<span class="status missing">${ICON.ring}Missing</span>`;
+}
+function pips(t) {
+  const cells = [];
+  for (let i = 0; i < 4; i++) {
+    const m = t.members[i];
+    if (!m) cells.push('<span class="pip empty" aria-hidden="true"></span>');
+    else cells.push(`<span class="pip ${m.signed ? 'ok' : 'miss'}" data-pip="${m.id}" title="${esc(m.id)} · ${esc(m.name)} · waiver ${m.signed ? 'signed' : 'missing'}">${SLOTS[i]}</span>`);
+  }
+  const miss = live(t) ? missingOf(t) : 0;
+  return `<span class="pips">${cells.join('')}</span>${miss ? `<span class="pip-note">${miss} missing</span>` : ''}`;
+}
+
+function bodyRows(view, rows) {
+  if (!rows.length) {
+    return `<tr class="empty-row"><td colspan="8">Nothing matches. <button class="linkish" type="button" id="resetFilters">Clear search and filters</button></td></tr>`;
+  }
+  if (view === 'teams') {
+    return rows.map((t, i) => `
+      <tr data-team="${t.no}" style="--i:${Math.min(i, 14)}" class="${state.selected.has(t.no) ? 'selected' : ''} ${t.status === 'withdrawn' ? 'muted' : ''} ${state.open === t.no ? 'open' : ''}">
+        <td class="c-sel">${live(t) ? `<button class="cb" role="checkbox" aria-checked="${state.selected.has(t.no)}" aria-label="Select team ${t.code}" data-cb="${t.no}" type="button">${ICON.cb}</button>` : ''}</td>
+        <td><span class="tid mono">${t.code}</span><span class="tname">${esc(t.name)}</span>${t.solo ? '<span class="tag">Wants teammates</span>' : ''}</td>
+        <td class="c-division">${DIV_LABEL[t.div]}</td>
+        <td>${pips(t)}</td>
+        <td class="c-school"><span class="ellip">${esc(t.school)} <span class="sub">· ${esc(t.city)}</span></span></td>
+        <td class="c-contact">${esc(t.contact)}</td>
+        <td>${statusChip(t.status)}</td>
+        <td class="c-reg mono">${day(t.reg)}</td>
+      </tr>`).join('');
+  }
+  if (view === 'competitors') {
+    return rows.map((c, i) => `
+      <tr data-team="${c.team.no}" style="--i:${Math.min(i, 14)}" class="${c.team.status === 'withdrawn' ? 'muted' : ''}">
+        <td class="c-sel"></td>
+        <td class="mono">${c.id}</td>
+        <td class="tname">${esc(c.name)}</td>
+        <td class="mono sub">${c.grade}</td>
+        <td><span class="ellip">${esc(c.team.name)}</span></td>
+        <td class="c-division">${DIV_LABEL[c.team.div]}</td>
+        <td>${esc(c.guardian)}</td>
+        <td>${waiverChip(c.signed)}</td>
+      </tr>`).join('');
+  }
+  return rows.map((c, i) => `
+    <tr data-team="${c.team.no}" style="--i:${Math.min(i, 14)}" class="${c.team.status === 'withdrawn' ? 'muted' : ''}">
+      <td class="c-sel"></td>
+      <td class="tname">${esc(c.guardian)}</td>
+      <td class="c-contact sub">${esc(c.guardianEmail)}</td>
+      <td><span class="mono">${c.id}</span> <span class="sub">${esc(c.name)}</span></td>
+      <td class="c-division">${DIV_LABEL[c.team.div]}</td>
+      <td>${waiverChip(c.signed)}</td>
+      <td class="c-reg mono sub">${c.signed ? day(c.signedAt) : c.reminded ? day(NOW) : '12 Nov'}</td>
+    </tr>`).join('');
+}
+
+function renderStats() {
+  const liveTeams = TEAMS.filter(live);
+  const comps = liveTeams.flatMap((t) => t.members);
+  const signed = comps.filter((m) => m.signed).length;
+  const conf = liveTeams.filter((t) => t.status === 'confirmed').length;
+  const ip = liveTeams.filter((t) => t.div === 'in_person').length;
+  rollAll('teams', liveTeams.length);
+  rollAll('competitors', comps.length);
+  rollAll('signed', signed);
+  rollAll('confirmed', conf);
+  const text = {
+    split: `${ip} in person · ${liveTeams.length - ip} online · ${TEAMS.length - liveTeams.length} withdrawn`,
+    avg: `${(comps.length / liveTeams.length).toFixed(1)} per team, withdrawn excluded`,
+    signTotal: comps.length,
+    missing: `${comps.length - signed} missing`,
+    confTotal: liveTeams.length,
+    pendingText: `${liveTeams.length - conf} pending`,
+  };
+  for (const [k, v] of Object.entries(text)) $$(`[data-text="${k}"]`).forEach((el) => { el.textContent = v; });
+  $('[data-bar="waivers"]').style.width = `${(signed / comps.length) * 100}%`;
+  $('[data-bar="confirmed"]').style.width = `${(conf / liveTeams.length) * 100}%`;
+  $('#navRoster').textContent = liveTeams.length;
+}
+
+function renderCounts() {
+  const all = { teams: TEAMS.length, competitors: competitorRows().length, guardians: competitorRows().length };
+  for (const [k, v] of Object.entries(all)) $(`[data-count="${k}"]`).textContent = v;
+  const base = (div) => {
+    const saved = state.div; state.div = div;
+    const n = rowsFor(state.view, { ignoreFilters: true }).length;
+    state.div = saved; return n;
+  };
+  for (const d of ['all', 'in_person', 'online']) $(`[data-div-count="${d}"]`).textContent = base(d);
+  const pool = rowsFor(state.view, { ignoreFilters: true });
+  const isTeams = state.view === 'teams';
+  $('[data-filter-count="missing"]').textContent = isTeams ? pool.filter((t) => live(t) && missingOf(t) > 0).length : pool.filter((c) => !c.signed && live(c.team)).length;
+  $('[data-filter-count="pending"]').textContent = isTeams ? pool.filter((t) => t.status === 'pending').length : pool.filter((c) => c.team.status === 'pending').length;
+}
+
+function render({ animateRows = true } = {}) {
+  const rows = rowsFor(state.view);
+  const table = $('#table');
+  table.className = [...state.hidden].map((c) => `hide-${c}`).join(' ');
+  $('#thead').innerHTML = head(state.view);
+  const key = state.view + '|' + rows.map((r) => r.id || r.no).join(',');
+  $('#tbody').innerHTML = bodyRows(state.view, rows);
+  if (animateRows && key !== state.rowsKey) $$('#tbody tr').forEach((tr) => tr.classList.add('enter'));
+  state.rowsKey = key;
+  const total = state.view === 'teams' ? TEAMS.length : competitorRows().length;
+  const noun = state.view === 'teams' ? 'teams' : state.view === 'competitors' ? 'competitors' : 'guardians';
+  $('#showing').innerHTML = `Showing <b>${rows.length}</b> of ${total} ${noun}`;
+  if (state.focus >= rows.length) state.focus = rows.length - 1;
+  paintFocus();
+  renderCounts();
+  renderBulk();
+}
+
+function paintFocus() {
+  $$('#tbody tr').forEach((tr, i) => tr.classList.toggle('focused', i === state.focus));
+}
+
+function renderBulk() {
+  const n = state.selected.size;
+  $('#bulk').classList.toggle('show', n > 0 && state.view === 'teams');
+  document.body.classList.toggle('has-bulk', n > 0 && state.view === 'teams');
+  if (n > 0) rollAll('selected', n);
+}
+
+/* ==================================================================
+   Sliding indicators
+   ================================================================== */
+function placeNav() {
+  const a = $('.nav a.active');
+  $('#navIndicator').style.transform = `translateY(${a.offsetTop}px)`;
+}
+function placeSubtab() {
+  const b = $('#subtabs [aria-selected="true"]');
+  const line = $('#subtabLine');
+  line.style.width = b.offsetWidth + 'px';
+  line.style.transform = `translateX(${b.offsetLeft}px)`;
+}
+function placeSeg() {
+  const b = $('#seg [aria-pressed="true"]');
+  const th = $('#segThumb');
+  th.style.width = b.offsetWidth + 'px';
+  th.style.transform = `translateX(${b.offsetLeft}px)`;
+}
+function placeAll() { placeNav(); placeSubtab(); placeSeg(); }
+
+/* ==================================================================
+   Drawer
+   ================================================================== */
+function openDrawer(no, { swap = false } = {}) {
+  const t = TEAMS.find((x) => x.no === no);
+  if (!t) return;
+  closeWhy();
+  state.open = no;
+  const d = $('#drawer');
+  $('#dCode').textContent = `Team ${t.code}`;
+  $('#dName').textContent = t.name;
+  $('#dChips').innerHTML = `${statusChip(t.status)}<span>${DIV_LABEL[t.div]}</span><span class="dot-sep"></span><span>${t.members.length} of 4</span>`;
+  $('#dBody').innerHTML = `
+    <section>
+      <h3>Members</h3>
+      ${t.members.map((m) => `
+        <div class="mem">
+          <span class="id">${m.id}</span>
+          <span class="who">${esc(m.name)}<small>Grade ${m.grade} · guardian ${esc(m.guardian)}</small></span>
+          <span class="state">${m.signed
+            ? `<span class="signed">${ICON.check}Signed ${day(m.signedAt)}</span>`
+            : t.status === 'withdrawn' ? '<span class="sub">Not needed</span>'
+            : m.reminded ? `<button class="btn btn-sm done" type="button" disabled><svg viewBox="0 0 12 12" class="tick-svg"><path d="M2.5 6.3l2.2 2.2L9.5 3.7"/></svg>Reminder sent</button>`
+            : `<button class="btn btn-sm" type="button" data-remind="${m.id}">Send reminder</button>`}</span>
+        </div>`).join('')}
+    </section>
+    <section>
+      <h3>Registration</h3>
+      <dl class="details">
+        <dt>School</dt><dd>${esc(t.school)}</dd>
+        <dt>Location</dt><dd>${esc(t.city)}</dd>
+        <dt>Contact</dt><dd>${esc(t.contact)}<br><span class="sub">${esc(t.email)}</span></dd>
+        <dt>Media release</dt><dd>Signed by ${esc(t.members[0].name)}</dd>
+        ${t.div === 'online' ? '<dt>Distance</dt><dd>More than 100 miles, attested</dd>' : ''}
+        <dt>Donation</dt><dd>${t.pledge ? `$${t.pledge} pledged · ${t.method}` : '<span class="sub">None pledged</span>'}</dd>
+      </dl>
+    </section>
+    <section>
+      <h3>Activity</h3>
+      <ul class="timeline" id="dLog">${logItems(t)}</ul>
+    </section>`;
+  const wasOpen = d.classList.contains('open');
+  d.classList.remove('swap');
+  if (swap && wasOpen) { void d.offsetWidth; d.classList.add('swap'); }
+  d.classList.add('open');
+  d.setAttribute('aria-hidden', 'false');
+  const resend = $('#dResend');
+  resend.className = 'btn'; resend.disabled = t.status === 'withdrawn'; resend.textContent = 'Resend confirmation';
+  $$('#tbody tr').forEach((tr) => tr.classList.toggle('open', Number(tr.dataset.team) === no));
+}
+function logItems(t, fresh = 0) {
+  return t.log.slice().sort((a, b) => b.at - a.at)
+    .map((e, i) => `<li class="${e.kind} ${i < fresh ? 'new' : ''}">${esc(e.text)}<time>${stamp(e.at)}</time></li>`).join('');
+}
+function closeDrawer() {
+  state.open = null;
+  $('#drawer').classList.remove('open', 'swap');
+  $('#drawer').setAttribute('aria-hidden', 'true');
+  $$('#tbody tr.open').forEach((tr) => tr.classList.remove('open'));
+}
+
+/* ==================================================================
+   Toast
+   ================================================================== */
+let toastTimer;
+function toast(title, body, kind = '') {
+  const el = $('#toast');
+  el.className = `toast ${kind}`;
+  $('#toastTitle').textContent = title;
+  $('#toastBody').textContent = body;
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 4200);
+}
+
+/* ==================================================================
+   Events
+   ================================================================== */
+$('#subtabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-view]');
+  if (!b) return;
+  $$('#subtabs [data-view]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+  state.view = b.dataset.view;
+  state.focus = -1;
+  closeDrawer();
+  placeSubtab();
+  render();
+});
+
+$('#seg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-div]');
+  if (!b) return;
+  $$('#seg [data-div]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  state.div = b.dataset.div;
+  state.focus = -1;
+  placeSeg();
+  render();
+});
+
+$$('[data-filter]').forEach((b) => b.addEventListener('click', () => {
+  const k = b.dataset.filter;
+  state.filters[k] = !state.filters[k];
+  b.setAttribute('aria-pressed', String(state.filters[k]));
+  state.focus = -1;
+  render();
+}));
+
+$('#q').addEventListener('input', (e) => { state.q = e.target.value.trim(); state.focus = -1; render(); });
+
+$('#thead').addEventListener('click', (e) => {
+  const sort = e.target.closest('[data-sort]');
+  if (sort) {
+    const k = sort.dataset.sort;
+    state.sort = state.sort.key === k ? { key: k, dir: -state.sort.dir } : { key: k, dir: k === 'reg' ? -1 : 1 };
+    render();
+    return;
+  }
+  if (e.target.closest('#cbAll')) {
+    const vis = rowsFor('teams').filter(live);
+    const allOn = vis.every((t) => state.selected.has(t.no));
+    vis.forEach((t) => (allOn ? state.selected.delete(t.no) : state.selected.add(t.no)));
+    render({ animateRows: false });
+  }
+});
+
+$('#tbody').addEventListener('click', (e) => {
+  if (e.target.closest('#resetFilters')) { resetFilters(); return; }
+  const cb = e.target.closest('[data-cb]');
+  if (cb) {
+    e.stopPropagation();
+    toggleSelect(Number(cb.dataset.cb));
+    return;
+  }
+  const tr = e.target.closest('tr[data-team]');
+  if (!tr) return;
+  state.focus = $$('#tbody tr').indexOf(tr);
+  paintFocus();
+  openDrawer(Number(tr.dataset.team), { swap: true });
+});
+
+function toggleSelect(no) {
+  const t = TEAMS.find((x) => x.no === no);
+  if (!t || !live(t)) return;
+  state.selected.has(no) ? state.selected.delete(no) : state.selected.add(no);
+  const tr = $(`#tbody tr[data-team="${no}"]`);
+  if (tr) {
+    tr.classList.toggle('selected', state.selected.has(no));
+    $('[data-cb]', tr).setAttribute('aria-checked', String(state.selected.has(no)));
+  }
+  const vis = rowsFor('teams').filter(live);
+  const n = vis.filter((x) => state.selected.has(x.no)).length;
+  const all = $('#cbAll');
+  if (all) all.setAttribute('aria-checked', n > 0 && n === vis.length ? 'true' : n > 0 ? 'mixed' : 'false');
+  renderBulk();
+}
+
+function resetFilters() {
+  state.q = ''; $('#q').value = '';
+  state.filters = { missing: false, pending: false };
+  $$('[data-filter]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+  render();
+}
+
+$('#dClose').addEventListener('click', closeDrawer);
+$('#dBody').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-remind]');
+  if (!b) return;
+  const t = TEAMS.find((x) => x.no === state.open);
+  const m = t.members.find((x) => x.id === b.dataset.remind);
+  m.reminded = true;
+  t.log.push({ at: NOW, kind: 'a', text: `Waiver reminder sent to ${m.guardian}` });
+  b.outerHTML = `<button class="btn btn-sm done" type="button" disabled><svg viewBox="0 0 12 12" class="tick-svg"><path d="M2.5 6.3l2.2 2.2L9.5 3.7"/></svg>Reminder sent</button>`;
+  $('#dLog').innerHTML = logItems(t, 1);
+  toast('Reminder sent', `${m.guardian} will get the waiver link for ${m.id} again.`);
+});
+$('#dResend').addEventListener('click', () => {
+  const t = TEAMS.find((x) => x.no === state.open);
+  if (!t) return;
+  t.log.push({ at: NOW, kind: 'g', text: `Confirmation re-sent to ${t.email}` });
+  $('#dLog').innerHTML = logItems(t, 1);
+  const btn = $('#dResend');
+  btn.className = 'btn done'; btn.disabled = true;
+  btn.innerHTML = `<svg viewBox="0 0 12 12" class="tick-svg"><path d="M2.5 6.3l2.2 2.2L9.5 3.7"/></svg>Sent`;
+});
+$('#dEdit').addEventListener('click', () => toast('Not in this mockup', 'Editing opens the same form the team registered with.'));
+
+$('#bulk').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-bulk]');
+  if (!b) return;
+  const picked = TEAMS.filter((t) => state.selected.has(t.no));
+  const act = b.dataset.bulk;
+  if (act === 'clear') { state.selected.clear(); render({ animateRows: false }); return; }
+  if (act === 'export') { downloadCsv(picked, `sfmo-2027-teams-selected.csv`); return; }
+  if (act === 'email') { toast('Email composer', `Would open with ${picked.length} contact${picked.length === 1 ? '' : 's'} and a template picker.`); return; }
+  if (act === 'confirm') {
+    const toConfirm = picked.filter((t) => t.status === 'pending');
+    if (!toConfirm.length) { toast('Nothing to confirm', 'Every selected team is already confirmed.'); return; }
+    toConfirm.forEach((t) => { t.status = 'confirmed'; t.log.push({ at: NOW, kind: 'g', text: 'Confirmed by you' }); });
+    render({ animateRows: false });
+    renderStats();
+    if (state.open && toConfirm.some((t) => t.no === state.open)) openDrawer(state.open);
+    toast(`Confirmed ${toConfirm.length} team${toConfirm.length === 1 ? '' : 's'}`, 'Their confirmation emails are queued.', 'g');
+  }
+});
+
+$('#exportAll').addEventListener('click', () => downloadCsv(TEAMS, 'sfmo-2027-teams.csv'));
+$('#emailAll').addEventListener('click', () => toast('Email composer', 'Pick a template and who gets it: all contacts, guardians with a missing waiver, or a saved filter.'));
+$('#addTeam').addEventListener('click', () => toast('Not in this mockup', 'Adds a team by hand, with the same fields as the public form.'));
+
+function downloadCsv(teams, name) {
+  const cell = (v) => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+  const lines = [['competitor_id', 'name', 'grade', 'team_code', 'team_name', 'division', 'waiver', 'guardian', 'status'].join(',')];
+  for (const t of teams) for (const m of t.members) {
+    lines.push([m.id, m.name, m.grade, t.code, t.name, t.div, m.signed ? 'signed' : 'missing', m.guardian, t.status].map(cell).join(','));
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('CSV ready', `${name} · one row per competitor.`);
+}
+
+// Columns popover
+const pop = $('#colsPop');
+$('#colsBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const open = !pop.classList.contains('open');
+  pop.classList.toggle('open', open);
+  $('#colsBtn').setAttribute('aria-expanded', String(open));
+});
+pop.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const item = e.target.closest('[data-col]');
+  if (!item) return;
+  const c = item.dataset.col;
+  state.hidden.has(c) ? state.hidden.delete(c) : state.hidden.add(c);
+  $('.cb', item).setAttribute('aria-checked', String(!state.hidden.has(c)));
+  $('#table').className = [...state.hidden].map((x) => `hide-${x}`).join(' ');
+});
+document.addEventListener('click', () => { pop.classList.remove('open'); $('#colsBtn').setAttribute('aria-expanded', 'false'); });
+
+// Nav: only Roster exists here, but the indicator shows how moving feels.
+$('#nav').addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-nav]');
+  if (!a) return;
+  e.preventDefault();
+  $$('.nav a').forEach((x) => { x.classList.toggle('active', x === a); x.removeAttribute('aria-current'); });
+  a.setAttribute('aria-current', 'page');
+  placeNav();
+  if (!a.textContent.startsWith('Roster')) toast('Only the roster is mocked up', `${a.childNodes[0].textContent.trim()} is described in PROPOSAL.md.`);
+});
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  const typing = e.target.matches('input, textarea');
+  if (typing) {
+    if (e.key === 'Escape') e.target.blur();
+    if (e.key === 'Enter' && e.target.id === 'q') { e.target.blur(); state.focus = 0; paintFocus(); }
+    return;
+  }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const rows = $$('#tbody tr[data-team]');
+  if (e.key === '/') { e.preventDefault(); $('#q').focus(); return; }
+  if (e.key === 'j' || e.key === 'k') {
+    if (!rows.length) return;
+    state.focus = Math.max(0, Math.min(rows.length - 1, state.focus + (e.key === 'j' ? 1 : -1)));
+    paintFocus();
+    rows[state.focus].scrollIntoView({ block: 'nearest' });
+    if (state.open !== null) openDrawer(Number(rows[state.focus].dataset.team), { swap: true });
+    return;
+  }
+  if (e.key === 'x' && state.view === 'teams' && rows[state.focus]) { toggleSelect(Number(rows[state.focus].dataset.team)); return; }
+  if (e.key === 'Enter' && rows[state.focus] && !e.target.closest('button')) { openDrawer(Number(rows[state.focus].dataset.team), { swap: true }); return; }
+  if (e.key === 'Escape') {
+    if ($('#why').classList.contains('open')) closeWhy();
+    else if (state.open !== null) closeDrawer();
+    else if (state.selected.size) { state.selected.clear(); render({ animateRows: false }); }
+  }
+});
+
+/* ==================================================================
+   Design notes
+   ================================================================== */
+const NOTES = [
+  ['#addTeam', 'Blue acts, green confirms', 'Blue is only on things you can click or have selected. Green is only on things that are finished: confirmed, signed, sent. So colour always tells you something.'],
+  ['#nav', 'The sidebar follows the contest', 'Before, On the day, After. Navigation is laid out in the order you will need it, not alphabetically.'],
+  ['#stats', 'Numbers roll when they change', 'Counts roll to their new value instead of jumping, so your eye goes to what moved. Four numbers that matter, in one strip of hairlines rather than four floating cards.'],
+  ['#tableWrap', 'The table is the page', '41 px rows, sticky header, IBM Plex Mono for IDs and dates so columns line up. Most of a director’s time is spent here, so it gets most of the room.'],
+  ['.pips', 'Waivers are letters, not dots', 'One pip per member, labelled A–D, so it reads in greyscale and on a printout. Signed is quiet; missing is outlined in amber, because the exceptions are what you came to find.'],
+  ['#seg', 'Indicators slide', 'The division thumb and the tab underline slide from where they were, so you see where you came from as well as where you are.'],
+  ['[data-filter="missing"]', 'Filters wear the colour of what they find', 'Both quick filters find teams waiting on someone, so when on they turn amber, the colour of “waiting”.'],
+  ['#cbAll', 'Selection draws itself', 'The tick draws in, and a dark bar rises from the bottom with bulk actions. The bar only exists while something is selected, and it is the one dark thing on the page because it acts on everything you picked.'],
+  ['#tbody tr', 'Detail opens beside the table', 'Click a row: a drawer slides in and the table stays where it was. j and k move the drawer through teams without closing it.'],
+  ['#live', 'The only thing that moves by itself', 'The live dot breathes while the page is connected. Changes made by other staff, or a guardian signing a waiver, arrive without a refresh. Watch Coral Lemma’s C.'],
+  ['#title', 'Two typefaces, each with a job', 'Instrument Sans for reading, and it matches the Cowconuts score-report PDFs. IBM Plex Mono for anything you might copy: 05C, dates, counts.'],
+  ['#hints', 'Keyboard first', '/ to search, j k to move, x to select, Enter to open, Esc to back out. Graders and check-in desks work fastest without a mouse.'],
+];
+$('#whyList').innerHTML = NOTES.map(([sel, t, b], i) => `<li tabindex="0" data-note="${i}"><b>${esc(t)}</b><span>${esc(b)}</span></li>`).join('');
+let hlEl = null;
+function hl(i) {
+  if (hlEl) hlEl.classList.remove('hl');
+  if (i != null && !$(NOTES[i][0]) && state.view !== 'teams') $('[data-view="teams"]').click();
+  hlEl = i == null ? null : $(NOTES[i][0]);
+  if (hlEl) { hlEl.classList.add('hl'); hlEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+}
+$('#whyList').addEventListener('mouseover', (e) => { const li = e.target.closest('[data-note]'); if (li) hl(Number(li.dataset.note)); });
+$('#whyList').addEventListener('focusin', (e) => { const li = e.target.closest('[data-note]'); if (li) hl(Number(li.dataset.note)); });
+$('#whyList').addEventListener('mouseleave', () => hl(null));
+function closeWhy() { $('#why').classList.remove('open'); $('#why').setAttribute('aria-hidden', 'true'); hl(null); }
+$('#whyOpen').addEventListener('click', () => { closeDrawer(); $('#why').classList.add('open'); $('#why').setAttribute('aria-hidden', 'false'); });
+$('#whyClose').addEventListener('click', closeWhy);
+
+/* ==================================================================
+   Start
+   ================================================================== */
+render({ animateRows: true });
+renderStats();
+requestAnimationFrame(() => { $('#stats').classList.remove('no-anim'); });
+placeAll();
+if (document.fonts) document.fonts.ready.then(placeAll);
+window.addEventListener('resize', placeAll);
+
+// A guardian signs while you watch.
+setTimeout(() => {
+  const t = TEAMS.find((x) => x.no === 5);
+  const m = t.members[2];
+  if (m.signed) return;
+  m.signed = true;
+  m.signedAt = addMinutes(NOW, 1);
+  t.log.push({ at: m.signedAt, kind: 'g', text: `Waiver for ${m.id} signed by ${m.guardian}` });
+  render({ animateRows: false });
+  renderStats();
+  const pip = $(`[data-pip="${m.id}"]`);
+  if (pip) pip.classList.add('pop');
+  if (state.open === 5) { openDrawer(5); $('#dLog').innerHTML = logItems(t, 1); }
+  $('#lastReg').textContent = 'Last change just now';
+  toast('Waiver signed', `${m.id} ${m.name}, signed by ${m.guardian}.`, 'g');
+}, 6000);
+</script>
+</body>
+</html>
