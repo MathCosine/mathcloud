@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import katex from 'katex';
+import type { DivisionMode } from '../lib/model';
+import { Icon, type IconName } from './icons';
 
 // ------------------------------------------------------------------- Roll
 
@@ -69,6 +71,49 @@ export function Track({ done, total, current }: { done: number; total: number; c
         <i key={i} className={i < done ? 'done' : current === i + 1 ? 'now' : ''} />
       ))}
     </span>
+  );
+}
+
+// ------------------------------------------------- in person and online
+
+export const MODE_ICON: Record<DivisionMode, IconName> = { in_person: 'pin', online: 'screen' };
+const MODE_WORD: Record<DivisionMode, string> = { in_person: 'In person', online: 'Online' };
+
+/** In person or online, always as colour, icon and word together. */
+export function ModeChip({ mode, children, lg }: { mode: DivisionMode; children?: ReactNode; lg?: boolean }) {
+  return (
+    <span className={`mode ${mode} ${lg ? 'lg' : ''}`}>
+      <Icon name={MODE_ICON[mode]} size={lg ? 15 : 13} />
+      {children ?? MODE_WORD[mode]}
+    </span>
+  );
+}
+
+/** One big option in a choice that changes what comes after it. */
+export function Choice({
+  checked, onSelect, tone, icon, title, children, points, disabled, compact,
+}: {
+  checked: boolean; onSelect: () => void; tone: DivisionMode | 'both'; icon: IconName; title: ReactNode;
+  children?: ReactNode; points?: { icon: IconName; text: ReactNode }[]; disabled?: boolean; compact?: boolean;
+}) {
+  return (
+    <button
+      type="button" role="radio" aria-checked={checked} aria-disabled={disabled || undefined}
+      className={`choice ${tone} ${compact ? 'compact' : ''}`}
+      onClick={() => !disabled && onSelect()}
+    >
+      <span className="ic"><Icon name={icon} size={20} /></span>
+      <span className="stack" style={{ gap: 4 }}>
+        <h3>{title}</h3>
+        {children && <p>{children}</p>}
+      </span>
+      {points && (
+        <ul>
+          {points.map((p, i) => <li key={i}><Icon name={p.icon} size={14} /><span>{p.text}</span></li>)}
+        </ul>
+      )}
+      <span className="tick"><Icon name="check" size={13} /></span>
+    </button>
   );
 }
 

@@ -4,14 +4,15 @@
  * demo behaves like the real thing: a save after the deadline is refused, a
  * locked test stays locked until a proctor unlocks it.
  */
-import type { Attempt, Contest, DB, EmailTemplate, IntegrityEvent, Round, TeamStatus, User } from './model';
-import { getDB, update } from './store';
+import type { AgendaItem, Attempt, Contest, DB, Division, DivisionMode, EmailTemplate, IntegrityEvent, Problem, Round, Team, TeamStatus, User } from './model';
+import { activeContestId, getDB, setActiveContest, update } from './store';
 import { roundEnds, roundState } from './time';
 
 const nowIso = () => new Date().toISOString();
 const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 9)}`;
 
-export function contestOf(db: DB, id = 'sfmo-2027'): Contest {
+/** The contest this tab is working on, or a named one. */
+export function contestOf(db: DB, id = activeContestId()): Contest {
   return db.contests.find((c) => c.id === id) ?? db.contests[0];
 }
 
@@ -346,3 +347,292 @@ export function queueSends(templateId: string, recipients: string[]): [number, n
   });
   return counts;
 }
+
+// ---------------------------------------------------- how people take part
+
+export const MODE_LABEL: Record<DivisionMode, string> = { in_person: 'In person', online: 'Online' };
+
+export const offers = (c: Contest, mode: DivisionMode) => c.divisions.some((d) => d.mode === mode);
+export const divisionFor = (c: Contest, mode: DivisionMode) => c.divisions.find((d) => d.mode === mode);
+export const modeOf = (c: Contest, team: Pick<Team, 'divisionId'>): DivisionMode => c.divisions.find((d) => d.id === team.divisionId)?.mode ?? 'in_person';
+
+const DEFAULT_DIVISION: Record<DivisionMode, Division> = {
+  in_person: { id: 'in_person', name: 'In person', mode: 'in_person', detail: 'At the venue, on paper, with proctors in the room' },
+  online: { id: 'online', name: 'Online', mode: 'online', detail: 'From anywhere, in the browser, proctored on Zoom' },
+};
+
+/**
+ * Offer or stop offering a way to take part. Turning one off is refused while
+ * teams are registered in it: they have to be moved or withdrawn first, so
+ * nobody silently loses their place.
+ */
+export function setMode(mode: DivisionMode, on: boolean): string | null {
+  const c = contestOf(getDB());
+  if (on === offers(c, mode)) return null;
+  if (!on) {
+    const d = divisionFor(c, mode)!;
+    const n = getDB().teams.filter((t) => t.contestId === c.id && t.divisionId === d.id && t.status !== 'withdrawn').length;
+    if (n) return `${n} ${n === 1 ? 'team is' : 'teams are'} registered ${mode === 'online' ? 'online' : 'in person'}. Move or withdraw ${n === 1 ? 'it' : 'them'} first.`;
+    if (c.divisions.length === 1) return 'A contest needs at least one way to take part.';
+  }
+  update((db) => {
+    const k = contestOf(db, c.id);
+    if (on) {
+      k.divisions.push({ ...DEFAULT_DIVISION[mode] });
+      k.divisions.sort((a, b) => (a.mode === 'in_person' ? -1 : 1) - (b.mode === 'in_person' ? -1 : 1));
+      if (mode === 'in_person' && !k.venue) k.venue = { name: '', address: '', hall: 'Main hall', rooms: [{ id: uid('v'), name: 'Room 1', teamIds: [] }], bring: ['Pencils and an eraser'] };
+    } else {
+      k.divisions = k.divisions.filter((d) => d.mode !== mode);
+    }
+  });
+  return null;
+}
+
+export function saveDivision(id: string, patch: Partial<Division>) {
+  update((db) => {
+    const d = contestOf(db).divisions.find((x) => x.id === id);
+    if (d) Object.assign(d, patch);
+  });
+}
+
+export function saveVenue(patch: Partial<NonNullable<Contest['venue']>>) {
+  update((db) => {
+    const c = contestOf(db);
+    if (c.venue) Object.assign(c.venue, patch);
+  });
+}
+
+export function addVenueRoom() {
+  update((db) => {
+    const v = contestOf(db).venue;
+    if (v) v.rooms.push({ id: uid('v'), name: `Room ${v.rooms.length + 1}`, teamIds: [] });
+  });
+}
+
+export function addZoomRoom() {
+  update((db) => {
+    const c = contestOf(db);
+    c.rooms.push({ id: uid('room'), name: `Room ${c.rooms.length + 1}`, url: `https://zoom.us/j/8555${Math.floor(1e6 + Math.random() * 9e6)}`, teamIds: [] });
+  });
+}
+
+export function removeRoom(kind: 'venue' | 'zoom', id: string) {
+  update((db) => {
+    const c = contestOf(db);
+    if (kind === 'zoom') {
+      const gone = c.rooms.find((r) => r.id === id);
+      c.rooms = c.rooms.filter((r) => r.id !== id);
+      for (const t of gone?.teamIds ?? []) placeTeam(c, db.teams.find((x) => x.id === t)!);
+    } else if (c.venue) {
+      const gone = c.venue.rooms.find((r) => r.id === id);
+      c.venue.rooms = c.venue.rooms.filter((r) => r.id !== id);
+      for (const t of gone?.teamIds ?? []) placeTeam(c, db.teams.find((x) => x.id === t)!);
+    }
+  });
+}
+
+export function setRoomProctor(roomId: string, proctorId: string | undefined) {
+  update((db) => {
+    const r = contestOf(db).rooms.find((x) => x.id === roomId);
+    if (r) r.proctorId = proctorId;
+  });
+}
+
+export function setRegistration(patch: Partial<Contest['registration']>) {
+  update((db) => {
+    Object.assign(contestOf(db).registration, patch);
+  });
+}
+
+/** Put a team in the emptiest room for how it takes part, and out of every other. */
+function placeTeam(c: Contest, team: Team) {
+  for (const r of c.rooms) r.teamIds = r.teamIds.filter((x) => x !== team.id);
+  for (const r of c.venue?.rooms ?? []) r.teamIds = r.teamIds.filter((x) => x !== team.id);
+  if (team.status === 'withdrawn') return;
+  const pool = modeOf(c, team) === 'online' ? c.rooms : c.venue?.rooms ?? [];
+  const room = [...pool].sort((a, b) => a.teamIds.length - b.teamIds.length)[0];
+  room?.teamIds.push(team.id);
+}
+
+/** A coach moves a team between in person and online while registration is open. */
+export function setTeamMode(teamId: string, mode: DivisionMode, by: string): string | null {
+  const c = contestOf(getDB(), getDB().teams.find((t) => t.id === teamId)?.contestId);
+  const d = divisionFor(c, mode);
+  if (!d) return `${c.short} is not offering ${MODE_LABEL[mode].toLowerCase()} places.`;
+  if (!c.registration.open) return `Registration closed on ${c.registration.closesLabel}. Ask the organisers to move the team.`;
+  update((db) => {
+    const k = contestOf(db, c.id);
+    const t = db.teams.find((x) => x.id === teamId);
+    if (!t) return;
+    t.divisionId = d.id;
+    placeTeam(k, t);
+    db.activity.push({ id: uid('a'), teamId, at: nowIso(), text: `Moved to ${MODE_LABEL[mode].toLowerCase()} by ${by}`, tone: 'b' });
+  });
+  return null;
+}
+
+// ------------------------------------------------------------ registering
+
+export type NewStudent = { name: string; grade: number | null; guardianName: string; guardianEmail: string };
+export type NewTeam = {
+  mode: DivisionMode;
+  name: string;
+  school: string;
+  city: string;
+  timeZone?: string;
+  notes?: string;
+  contactName: string;
+  contactEmail: string;
+  students: NewStudent[];
+};
+
+function addTeam(db: DB, c: Contest, input: NewTeam, status: TeamStatus, how: string, coachId?: string): Team {
+  const codes = db.teams.filter((t) => t.contestId === c.id).map((t) => Number(t.code) || 0);
+  const code = String(Math.max(0, ...codes) + 1).padStart(2, '0');
+  const prefix = c.slug.split('-')[0];
+  const team: Team = {
+    id: `${c.id}:t${code}`, contestId: c.id, code, name: input.name.trim(), divisionId: divisionFor(c, input.mode)!.id,
+    school: input.school.trim(), city: input.city.trim(), contactName: input.contactName.trim(), contactEmail: input.contactEmail.trim(),
+    coachId, status, registeredAt: nowIso(), joinCode: `${prefix.slice(0, 2).toUpperCase()}${code}${Math.random().toString(36).slice(2, 4).toUpperCase()}`,
+    timeZone: input.mode === 'online' ? input.timeZone : undefined, notes: input.notes?.trim() || undefined, pledge: null,
+  };
+  if (c.id === 'sfmo-2027') team.id = `t${code}`;
+  db.teams.push(team);
+  input.students.forEach((s, i) => {
+    const slot = 'ABCDEFGH'[i];
+    const id = `c-${team.id}-${slot}`;
+    db.competitors.push({
+      id, teamId: team.id, slot, publicId: `${code}${slot}`, name: s.name.trim(), grade: s.grade ?? 0,
+      guardianName: s.guardianName.trim() || 'Parent or guardian', guardianEmail: s.guardianEmail.trim(), waiverSignedAt: null,
+    });
+    db.users.push({ id: `u-${id}`, email: `${prefix}-${code}${slot}`.toLowerCase(), name: s.name.trim(), role: 'student', password: 'demo', competitorId: id, managed: true });
+  });
+  placeTeam(c, team);
+  if (coachId) {
+    const coach = db.users.find((u) => u.id === coachId);
+    if (coach) coach.teamIds = [...(coach.teamIds ?? []), team.id];
+  }
+  db.activity.push({ id: uid('a'), teamId: team.id, at: nowIso(), text: `${how}, ${MODE_LABEL[input.mode].toLowerCase()}`, tone: 'b' });
+  return team;
+}
+
+/** A coach's registration from the contest's own form. */
+export function registerTeam(contestId: string, input: NewTeam, coachId?: string): Team | null {
+  let made: Team | null = null;
+  update((db) => {
+    const c = contestOf(db, contestId);
+    if (!divisionFor(c, input.mode)) return;
+    made = addTeam(db, c, input, 'pending', `Registered by ${input.contactName.trim()}`, coachId);
+  });
+  return made;
+}
+
+/** Teams that signed up somewhere else: a spreadsheet, a Google Form, another site. */
+export function importTeams(teams: NewTeam[], status: TeamStatus, by: string): number {
+  let n = 0;
+  update((db) => {
+    const c = contestOf(db);
+    for (const t of teams) {
+      if (!divisionFor(c, t.mode)) continue;
+      addTeam(db, c, t, status, `Imported from a spreadsheet by ${by}`);
+      n++;
+    }
+  });
+  return n;
+}
+
+export function markDeviceCheck(competitorId: string) {
+  update((db) => {
+    const c = db.competitors.find((x) => x.id === competitorId);
+    if (c) c.deviceCheckedAt = nowIso();
+  });
+}
+
+// ------------------------------------------------------------- new contest
+
+export type RoundPlan = 'individual' | 'team' | 'guts';
+export type NewContest = {
+  name: string;
+  short: string;
+  date: string;
+  timeZone: string;
+  modes: DivisionMode[];
+  venueName: string;
+  venueAddress: string;
+  onlineDetail: string;
+  rounds: RoundPlan[];
+};
+
+const ROUND_PLANS: Record<RoundPlan, { name: string; kind: Round['kind']; minutes: number; count: number; points: (i: number) => number; set?: (i: number) => number; rules: string }> = {
+  individual: { name: 'Individual', kind: 'individual', minutes: 60, count: 20, points: () => 1, rules: 'Short-answer problems, climbing in difficulty. Work alone.' },
+  team: { name: 'Team', kind: 'team', minutes: 45, count: 10, points: () => 5, rules: 'One answer sheet for the whole team.' },
+  guts: { name: 'Guts', kind: 'guts', minutes: 60, count: 24, points: (i) => 4 + Math.floor(i / 4), set: (i) => Math.floor(i / 4) + 1, rules: 'Six sets of four. Hand in a set to get the next; later sets are worth more.' },
+};
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** "2027-03-14" → "Sunday 14 March 2027" */
+export function longDate(ymd: string) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return `${WEEKDAYS[date.getUTCDay()]} ${d} ${MONTH_NAMES[m - 1]} ${y}`;
+}
+
+/** Local wall-clock time on the contest day, as an ISO instant in the contest's zone. */
+function wallClock(ymd: string, hhmm: string, timeZone: string) {
+  const guess = new Date(`${ymd}T${hhmm}:00Z`);
+  const shown = new Date(guess.toLocaleString('en-US', { timeZone }));
+  const utc = new Date(guess.toLocaleString('en-US', { timeZone: 'UTC' }));
+  return new Date(guess.getTime() - (shown.getTime() - utc.getTime())).toISOString();
+}
+
+export function createContest(input: NewContest): string {
+  const slug = `${input.short.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'contest'}-${Math.random().toString(36).slice(2, 5)}`;
+  const times = ['09:30', '11:00', '13:00'];
+  const rounds: Round[] = input.rounds.map((plan, k) => {
+    const p = ROUND_PLANS[plan];
+    const problems: Problem[] = Array.from({ length: p.count }, (_, i) => ({
+      id: `${slug}-${plan}-${i + 1}`, number: i + 1, set: p.set?.(i), text: `Problem ${i + 1}`, answers: [''], answerType: 'integer', points: p.points(i),
+    }));
+    return {
+      id: `${slug}-${plan}`, name: p.name, short: p.name, kind: p.kind, minutes: p.minutes, startsAt: wallClock(input.date, times[k] ?? '14:00', input.timeZone),
+      status: 'scheduled', graceSeconds: 30, integrity: { policy: plan === 'guts' ? 'log' : 'warn', lockAfter: 4 }, problems, rules: p.rules,
+    };
+  });
+  const agenda: AgendaItem[] = [
+    ...(input.modes.includes('in_person') ? [{ id: uid('ag'), at: wallClock(input.date, '09:00', input.timeZone), title: 'Check-in', modes: ['in_person' as const], where: 'Front desk' }] : []),
+    ...(input.modes.includes('online') ? [{ id: uid('ag'), at: wallClock(input.date, '09:00', input.timeZone), title: 'Join your Zoom room', modes: ['online' as const] }] : []),
+    ...rounds.map((r) => ({ id: uid('ag'), at: r.startsAt, title: r.name, roundId: r.id, modes: input.modes, where: r.kind === 'guts' ? 'hall' : 'room' })),
+    { id: uid('ag'), at: wallClock(input.date, '15:00', input.timeZone), title: 'Awards', modes: input.modes, where: 'hall' },
+  ];
+  const weights = Object.fromEntries(rounds.map((r) => [r.id, 1]));
+  const contest: Contest = {
+    id: slug, orgId: 'sfmi', name: input.name.trim(), short: input.short.trim(), slug, dateLabel: longDate(input.date), timeZone: input.timeZone,
+    divisions: input.modes.map((m) => ({ ...DEFAULT_DIVISION[m], detail: m === 'online' && input.onlineDetail.trim() ? input.onlineDetail.trim() : DEFAULT_DIVISION[m].detail })),
+    rounds,
+    recipe: {
+      teamIndividual: { method: 'best', best: 3, fillMissingTo: 0 }, weights, harderFirst: true,
+      awards: [
+        { id: uid('aw'), scope: 'individual', label: '1st', rule: 'top_n', value: 1 },
+        { id: uid('aw'), scope: 'individual', label: '2nd', rule: 'top_n', value: 2 },
+        { id: uid('aw'), scope: 'individual', label: '3rd', rule: 'top_n', value: 3 },
+        { id: uid('aw'), scope: 'team', label: '1st', rule: 'top_n', value: 1 },
+      ],
+    },
+    rooms: [],
+    venue: input.modes.includes('in_person')
+      ? { name: input.venueName.trim(), address: input.venueAddress.trim(), hall: 'Main hall', rooms: [{ id: uid('v'), name: 'Room 1', teamIds: [] }], bring: ['Pencils and an eraser'] }
+      : null,
+    agenda,
+    resultsPublished: false,
+    board: { freezeMinutes: 10, revealed: false },
+    registration: { open: true, closesLabel: 'a week before', teamMin: 1, teamMax: 4 },
+  };
+  update((db) => {
+    db.contests.push(contest);
+  });
+  setActiveContest(slug);
+  return slug;
+}
+

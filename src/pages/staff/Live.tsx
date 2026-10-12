@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { answerClarification, broadcast, closeRound, lockAttempt, openRound, setBoard, unlockAttempt } from '../../lib/actions';
+import { answerClarification, broadcast, closeRound, lockAttempt, offers, openRound, setBoard, unlockAttempt } from '../../lib/actions';
 import { useBoard, useContest, useLookups } from '../../lib/hooks';
 import type { Attempt, IntegrityEvent, Round } from '../../lib/model';
 import { rareWrongCollisions } from '../../lib/scoring/engine';
@@ -8,7 +8,8 @@ import { useUser } from '../../lib/session';
 import { useDB } from '../../lib/store';
 import { ago, clockSec, duration, roundEnds, roundState } from '../../lib/time';
 import { ScoreList } from '../../components/Scoreboard';
-import { Drawer, Modal, Segmented, State, toast, useNow } from '../../components/ui';
+import { Icon } from '../../components/icons';
+import { Drawer, Modal, ModeChip, Segmented, State, toast, useNow } from '../../components/ui';
 
 const EVENT: Record<IntegrityEvent['kind'], string> = {
   hidden: 'Left the test tab',
@@ -59,10 +60,13 @@ export function Live() {
 
       <div className="stack-lg">
         {round.kind === 'guts' && <BoardSection now={now} director={director} proctorId={director ? undefined : me.id} />}
-        <div className="split">
-          <Rooms round={round} now={now} />
-          <Questions round={round} />
-        </div>
+        {director && offers(contest, 'in_person') && <VenueRooms round={round} />}
+        {offers(contest, 'online') && (
+          <div className="split">
+            <Rooms round={round} now={now} />
+            <Questions round={round} />
+          </div>
+        )}
       </div>
 
       {confirm && (
@@ -81,7 +85,7 @@ export function Live() {
             </>
           }
         >
-          <p>{confirm === 'open' ? `The ${round.minutes}-minute clock starts for both divisions at once.` : 'Every online test still open is handed in as it is.'}</p>
+          <p>{confirm === 'open' ? `The ${round.minutes}-minute clock starts${contest.divisions.length > 1 ? ' for both divisions at once' : ''}.` : offers(contest, 'online') ? 'Every online test still open is handed in as it is.' : 'Collect the papers; graders key them under Grading.'}</p>
         </Modal>
       )}
     </>
@@ -142,6 +146,43 @@ function BoardSection({ now, director, proctorId }: { now: number; director: boo
   );
 }
 
+/** The venue's rooms during a round: who is here, and how many papers are keyed. */
+function VenueRooms({ round }: { round: Round }) {
+  const db = useDB();
+  const contest = useContest();
+  const navigate = useNavigate();
+  const rooms = contest.venue?.rooms ?? [];
+  return (
+    <section className="card flush">
+      <div className="card-head">
+        <span className="row" style={{ gap: 10 }}><ModeChip mode="in_person" /><h2>{round.kind === 'guts' ? `In the ${contest.venue?.hall ?? 'hall'}` : 'In the rooms'}</h2></span>
+        <button className="btn btn-sm" type="button" onClick={() => navigate('/staff/grading')}><Icon name="grading" />Key papers</button>
+      </div>
+      <table className="t">
+        <thead><tr><th>Room</th><th>Teams</th><th className="num">Checked in</th><th className="num">{round.kind === 'individual' ? 'Sheets keyed' : round.kind === 'guts' ? 'Sets keyed' : 'Team sheets keyed'}</th></tr></thead>
+        <tbody>
+          {rooms.map((r) => {
+            const teams = db.teams.filter((t) => r.teamIds.includes(t.id) && t.status !== 'withdrawn');
+            const people = db.competitors.filter((c) => teams.some((t) => t.id === c.teamId));
+            const ids = round.kind === 'individual' ? people.map((c) => c.id) : teams.map((t) => t.id);
+            const atts = db.attempts.filter((a) => a.roundId === round.id && a.source === 'paper' && ids.includes(a.entrantId));
+            const keyed = round.kind === 'guts' ? atts.reduce((n, a) => n + (a.setsSubmitted ?? 0), 0) : atts.filter((a) => Object.keys(a.responses).length).length;
+            const of = round.kind === 'guts' ? teams.length * 6 : ids.length;
+            return (
+              <tr key={r.id}>
+                <td className="name">{round.kind === 'guts' ? `Teams from ${r.name}` : r.name}</td>
+                <td className="soft">{teams.map((t) => t.code).join(', ') || <span className="muted">Empty</span>}</td>
+                <td className="num">{people.filter((c) => c.checkedInAt).length} of {people.length}</td>
+                <td className="num">{keyed} of {of}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
 function Rooms({ round, now }: { round: Round; now: number }) {
   const db = useDB();
   const contest = useContest();
@@ -169,7 +210,7 @@ function Rooms({ round, now }: { round: Round; now: number }) {
   return (
     <section className="section" style={{ minWidth: 0 }}>
       <div className="section-head">
-        <h2>Online, on Zoom</h2>
+        <span className="row" style={{ gap: 10 }}><ModeChip mode="online" /><h2>On Zoom</h2></span>
         {rooms.length > 1 && <Segmented label="Room" value={room?.id ?? ''} onChange={setRoomId} items={rooms.map((r) => ({ key: r.id, label: r.name }))} />}
       </div>
       {room && (

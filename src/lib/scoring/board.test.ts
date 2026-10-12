@@ -7,7 +7,7 @@ const at = (min: number) => new Date(T0 + min * 60000).toISOString();
 
 function fixture() {
   const contest: Contest = {
-    id: 'c', orgId: 'o', name: 'Test', short: 'T', slug: 't', dateLabel: '', timeZone: 'UTC', rooms: [],
+    id: 'c', orgId: 'o', name: 'Test', short: 'T', slug: 't', dateLabel: '', timeZone: 'UTC', rooms: [], venue: null, agenda: [],
     resultsPublished: false, registration: { open: false, closesLabel: '', teamMin: 1, teamMax: 4 },
     board: { freezeMinutes: 10, revealed: false },
     divisions: [{ id: 'd', name: 'D', mode: 'in_person', detail: '' }],

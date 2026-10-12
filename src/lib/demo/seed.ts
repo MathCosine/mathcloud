@@ -1,7 +1,10 @@
 /**
  * SFMO 2027 as a demo. Everything here is invented: teams, people, answers.
  *
- * Three moments of the contest day can be loaded:
+ * Four moments can be loaded:
+ *  - 'before': the week before. Registration is open, some waivers are
+ *    missing, nobody has checked in, online students still have a device
+ *    check to run.
  *  - 'morning': the Individual round has just opened. Online competitors are
  *    partway through; in-person papers have not been collected yet.
  *  - 'guts': Individual and Mystery Dive are done and keyed. Guts has been
@@ -10,10 +13,10 @@
  *  - 'after': every round is over, papers are keyed in, a few odd answers
  *    wait for a ruling, and results are ready to publish.
  */
-import type { Activity, Attempt, Competitor, Contest, DB, EmailTemplate, IntegrityEvent, Problem, Round, Team, User } from '../model';
+import type { Activity, AgendaItem, Attempt, Competitor, Contest, DB, EmailTemplate, IntegrityEvent, Problem, Round, Team, User, Venue } from '../model';
 import { GUTS, GUTS_POINTS, INDIVIDUAL, MYSTERY, type DemoProblem } from './problems';
 
-export type Moment = 'morning' | 'guts' | 'after';
+export type Moment = 'before' | 'morning' | 'guts' | 'after';
 
 // ------------------------------------------------------------------ random
 
@@ -39,6 +42,12 @@ const iso = (d: Date) => d.toISOString();
 const minutes = (d: Date, m: number) => new Date(d.getTime() + m * 60000);
 
 // -------------------------------------------------------------------- teams
+
+/** Where each online team sits, so their portal shows their own clock. */
+const ZONES: Record<number, string> = {
+  14: 'America/Los_Angeles', 15: 'Asia/Tashkent', 16: 'America/Chicago', 17: 'Europe/Bucharest',
+  18: 'America/Toronto', 19: 'Asia/Singapore', 20: 'Asia/Almaty', 21: 'America/New_York',
+};
 
 type Seat = [name: string, grade: number, guardian: string, signed: 0 | 1];
 type TeamSeed = {
@@ -138,7 +147,9 @@ function rounds(now: Date, moment: Moment): Round[] {
     rules: 'Six sets of four. Hand in a set to get the next one; you cannot go back. Later sets are worth more.',
     problems: toProblems(GUTS.flat(), 'guts', (i) => GUTS_POINTS[Math.floor(i / 4)], (i) => Math.floor(i / 4) + 1),
   };
-  if (moment === 'morning') {
+  if (moment === 'before') {
+    // Everything still scheduled.
+  } else if (moment === 'morning') {
     ind.status = 'open';
     ind.openedAt = iso(minutes(now, -8));
   } else if (moment === 'guts') {
@@ -190,6 +201,38 @@ function events(r: () => number, start: Date, count: number): IntegrityEvent[] {
   return out.sort((a, b) => a.at.localeCompare(b.at));
 }
 
+// ------------------------------------------------------------- the venue
+
+/** In-person teams sit four to a room for the Individual and Mystery rounds. */
+function VENUE(teams: Team[]): Venue {
+  const here = teams.filter((t) => t.divisionId === 'in_person').map((t) => t.id);
+  return {
+    name: 'Embarcadero Learning Center',
+    address: '500 Embarcadero, San Francisco',
+    hall: 'Main Hall',
+    rooms: [
+      { id: 'v204', name: 'Room 204', teamIds: here.slice(0, 4) },
+      { id: 'v205', name: 'Room 205', teamIds: here.slice(4, 8) },
+      { id: 'v206', name: 'Room 206', teamIds: here.slice(8) },
+    ],
+    bring: ['Pencils and an eraser', 'A water bottle', 'Nothing else: no calculators, and phones stay in bags during rounds'],
+  };
+}
+
+const at = (hhmm: string) => `2027-01-23T${hhmm}:00-08:00`;
+const AGENDA: AgendaItem[] = [
+  { id: 'ag-checkin', at: at('08:30'), title: 'Check-in', modes: ['in_person'], where: 'Lobby', note: 'Give your competitor ID at the desk and pick up your badge.' },
+  { id: 'ag-zoom', at: at('09:00'), title: 'Join your Zoom room', modes: ['online'], note: 'Camera on, showing you and your desk. Your proctor checks everyone in.' },
+  { id: 'ag-open', at: at('09:00'), title: 'Opening', modes: ['in_person'], where: 'hall' },
+  { id: 'ag-ind', at: at('09:20'), title: 'Individual', roundId: 'ind', modes: ['in_person', 'online'], where: 'room' },
+  { id: 'ag-myst', at: at('10:35'), title: 'Mystery Dive', roundId: 'myst', modes: ['in_person', 'online'], where: 'room' },
+  { id: 'ag-lunch', at: at('11:20'), title: 'Lunch', modes: ['in_person'], where: 'hall', note: 'Provided. Allergies go on the registration form.' },
+  { id: 'ag-break', at: at('11:20'), title: 'Break', modes: ['online'], note: 'Back on Zoom by 11:50 San Francisco time.' },
+  { id: 'ag-guts', at: at('12:00'), title: 'Guts', roundId: 'guts', modes: ['in_person', 'online'], where: 'hall', note: 'The live scoreboard is on the big screen, and beside your questions online.' },
+  { id: 'ag-awards', at: at('14:00'), title: 'Awards', modes: ['in_person'], where: 'hall' },
+  { id: 'ag-awards-online', at: at('14:00'), title: 'Awards', modes: ['online'], note: 'Streamed into every Zoom room.' },
+];
+
 // ------------------------------------------------------------------ build
 
 export function buildDemo(moment: Moment, now = new Date()): DB {
@@ -206,7 +249,7 @@ export function buildDemo(moment: Moment, now = new Date()): DB {
       id, contestId, code, name: t.name, divisionId: t.div, school: t.school, city: t.city,
       contactName: t.contact, contactEmail: `${slug(t.contact)}@example.com`, status: t.status,
       registeredAt: new Date(t.reg).toISOString(), joinCode: `SF${code}${'QRTVXZ'[t.no % 6]}${(t.no * 7) % 10}`,
-      pledge: t.pledge, wantsTeammates: t.solo,
+      pledge: t.pledge, wantsTeammates: t.solo, timeZone: ZONES[t.no],
       coachId: t.no === 16 || t.no === 21 ? 'u-coach' : undefined,
     };
     teams.push(team);
@@ -221,7 +264,9 @@ export function buildDemo(moment: Moment, now = new Date()): DB {
         id: `c${code}${slot}`, teamId: id, slot, publicId: `${code}${slot}`, name, grade,
         guardianName: guardian, guardianEmail: `${slug(guardian)}@example.com`,
         waiverSignedAt: signed ? iso(minutes(reg, 90 + i * 211)) : null,
-        checkedInAt: moment !== 'morning' && t.div === 'in_person' && t.status !== 'withdrawn' ? iso(minutes(now, moment === 'guts' ? -220 : -330)) : null,
+        checkedInAt: (moment === 'guts' || moment === 'after') && t.div === 'in_person' && t.status !== 'withdrawn' ? iso(minutes(now, moment === 'guts' ? -220 : -330)) : null,
+        // The demo student has not run the device check yet the week before.
+        deviceCheckedAt: t.div === 'online' && (moment !== 'before' || (t.no !== 16 && i < 3)) ? iso(minutes(reg, 60 * 24 * 30 + i * 97)) : null,
       };
       competitors.push(c);
       const r = rng(c.publicId);
@@ -232,7 +277,7 @@ export function buildDemo(moment: Moment, now = new Date()): DB {
     });
   }
 
-  if (moment !== 'morning') {
+  if (moment === 'guts' || moment === 'after') {
     // Anyone still missing a waiver signed it at check-in or before the first round.
     for (const c of competitors) {
       const t = teams.find((x) => x.id === c.teamId)!;
@@ -249,7 +294,9 @@ export function buildDemo(moment: Moment, now = new Date()): DB {
     return ms.reduce((a, b) => a + b, 0) / ms.length + 0.5 + Math.min(ms.length, 4) * 0.08;
   };
 
-  if (moment === 'morning') {
+  if (moment === 'before') {
+    // Nothing has happened yet.
+  } else if (moment === 'morning') {
     // Online competitors partway through the Individual round, except the
     // demo student's own team, who have not started.
     const opened = new Date(ind.openedAt!);
@@ -357,13 +404,15 @@ export function buildDemo(moment: Moment, now = new Date()): DB {
         { id: 't3', scope: 'team', label: '3rd', rule: 'top_n', value: 3 },
       ],
     },
+    venue: VENUE(teams),
+    agenda: AGENDA,
     rooms: [
       { id: 'room-1', name: 'Room 1', url: 'https://zoom.us/j/85550101234', proctorId: 'u-proctor', teamIds: ['t14', 't15', 't16', 't17'] },
       { id: 'room-2', name: 'Room 2', url: 'https://zoom.us/j/85550105678', proctorId: 'u-director', teamIds: ['t18', 't19', 't20', 't21'] },
     ],
     resultsPublished: false,
     board: { freezeMinutes: 10, revealed: false },
-    registration: { open: false, closesLabel: '9 Jan', teamMin: 1, teamMax: 4 },
+    registration: { open: moment === 'before', closesLabel: '9 Jan', teamMin: 1, teamMax: 4 },
   };
 
   const users: User[] = [
@@ -435,7 +484,7 @@ SF Math Initiative`,
   ];
 
   return {
-    schema: 3,
+    schema: 4,
     gen: `${moment}-${now.getTime()}`,
     moment,
     seededAt: now.toISOString(),

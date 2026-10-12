@@ -42,7 +42,8 @@ export function Settings() {
         </div>
       </div>
       <div className="split">
-        <div className="table-scroll">
+        <div className="stack">
+        <div className="table-scroll card flush">
           <table className="t">
             <thead><tr><th>Person</th><th>Role</th><th>Can see</th></tr></thead>
             <tbody>
@@ -60,12 +61,13 @@ export function Settings() {
               ))}
             </tbody>
           </table>
-          <p className="muted small" style={{ marginTop: 14 }}>
+        </div>
+          <p className="muted small">
             Coaches and students make their own accounts when they register. {db.users.filter((u) => u.managed).length} students have managed accounts: a username set up by a coach or guardian, with no email of their own.
           </p>
         </div>
-        <aside className="stack">
-          <h2 style={{ fontSize: 16, fontWeight: 700 }}>Invite</h2>
+        <aside className="card stack">
+          <h2 style={{ fontSize: 15, fontWeight: 700 }}>Invite</h2>
           <label className="field"><span>Email</span><input className="input" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && invite()} placeholder="volunteer@school.org" /></label>
           <label className="field">
             <span>Role</span>

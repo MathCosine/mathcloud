@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as RKE } from 'react';
-import { savePaperGutsSet, savePaperSheet, setRuling } from '../../lib/actions';
+import { offers, savePaperGutsSet, savePaperSheet, setRuling } from '../../lib/actions';
 import { useContest, useLookups, useStandings } from '../../lib/hooks';
 import type { Problem, Round } from '../../lib/model';
 import { gradeAnswer, indexRulings, normalize } from '../../lib/scoring/answers';
@@ -17,7 +17,8 @@ export function Grading() {
   const standings = useStandings();
   const director = me.role === 'director' || me.role === 'staff';
   const rounds = contest.rounds.filter((r) => director || me.roundIds?.includes(r.id));
-  const [tab, setTab] = useState<Tab>('key');
+  const paper = offers(contest, 'in_person');
+  const [tab, setTab] = useState<Tab>(paper ? 'key' : 'review');
   const [roundId, setRoundId] = useState(rounds[rounds.length - 1].id);
   const round = contest.rounds.find((r) => r.id === roundId)!;
   const toRule = Object.values(standings.unreviewed).reduce((a, b) => a + b, 0);
@@ -26,8 +27,8 @@ export function Grading() {
     <>
       <div className="page-head">
         <div>
-          <h1 className="page-title">Grading</h1>
-          <p className="page-sub">{director ? 'Graders key paper sheets; online answers grade themselves.' : `You key ${rounds.map((r) => r.name).join(', ')}.`}</p>
+          <h1 className="page-title">{paper ? 'Grading' : 'Review answers'}</h1>
+          <p className="page-sub">{!director ? `You key ${rounds.map((r) => r.name).join(', ')}.` : paper && offers(contest, 'online') ? 'Graders key paper sheets; online answers mark themselves. Odd answers from both wait here for a ruling.' : paper ? 'Graders key the paper sheets. Odd answers wait here for a ruling.' : 'Online answers mark themselves. Odd answers wait here for a ruling.'}</p>
         </div>
         <Segmented label="Round" value={roundId} onChange={setRoundId} items={rounds.map((r) => ({ key: r.id, label: r.short }))} />
       </div>
@@ -35,14 +36,16 @@ export function Grading() {
         value={tab}
         onChange={setTab}
         items={[
-          { key: 'key', label: round.kind === 'guts' ? 'Key sets' : 'Key sheets' },
+          ...(paper ? [{ key: 'key' as Tab, label: round.kind === 'guts' ? 'Key sets' : 'Key sheets' }] : []),
           ...(director ? [{ key: 'review' as Tab, label: 'Review answers', count: toRule || undefined }] : []),
           { key: 'progress', label: 'Progress' },
         ]}
       />
-      {tab === 'key' && (round.kind === 'guts' ? <KeyGuts key={round.id} round={round} /> : <KeySheet key={round.id} round={round} />)}
-      {tab === 'review' && <Review key={round.id} round={round} />}
-      {tab === 'progress' && <Progress round={round} />}
+      <section className="card" style={{ padding: 22 }}>
+        {tab === 'key' && (round.kind === 'guts' ? <KeyGuts key={round.id} round={round} /> : <KeySheet key={round.id} round={round} />)}
+        {tab === 'review' && <Review key={round.id} round={round} />}
+        {tab === 'progress' && <Progress round={round} />}
+      </section>
     </>
   );
 }

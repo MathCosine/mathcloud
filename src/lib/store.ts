@@ -34,8 +34,8 @@ function load(): DB {
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as DB;
-      if (parsed.schema === 3 && Date.now() - new Date(parsed.seededAt).getTime() < 4 * 3600 * 1000) return parsed;
-      if (parsed.schema === 3) return buildDemo(parsed.moment);
+      if (parsed.schema === 4 && Date.now() - new Date(parsed.seededAt).getTime() < 4 * 3600 * 1000) return parsed;
+      if (parsed.schema === 4) return buildDemo(parsed.moment);
     } catch {
       /* fall through to a fresh demo */
     }
@@ -61,8 +61,69 @@ export function subscribe(listener: () => void) {
 
 const getVersion = () => version;
 
-/** Re-render on any change; read whatever you need from the returned db. */
+// --------------------------------------------------------- active contest
+
+/**
+ * Which contest this tab is looking at. Per tab, like the session, so a
+ * director can set up a new contest while another tab runs SFMO.
+ */
+const CONTEST_KEY = 'mathcloud-contest';
+const DEFAULT_CONTEST = 'sfmo-2027';
+let activeContest: string = (() => {
+  try {
+    return sessionStorage.getItem(CONTEST_KEY) ?? DEFAULT_CONTEST;
+  } catch {
+    return DEFAULT_CONTEST;
+  }
+})();
+
+export const activeContestId = () => (db.contests.some((c) => c.id === activeContest) ? activeContest : DEFAULT_CONTEST);
+
+export function setActiveContest(id: string) {
+  if (id === activeContest) return;
+  activeContest = id;
+  try {
+    sessionStorage.setItem(CONTEST_KEY, id);
+  } catch {
+    /* this tab only */
+  }
+  emit();
+}
+
+/**
+ * The database as one contest sees it: its teams, their people, its rounds'
+ * attempts. Screens read this; actions write to the whole database. The real
+ * app gets the same effect from row level security and a contest filter.
+ */
+let view: { v: number; c: string; db: DB } | null = null;
+function scoped(): DB {
+  const c = activeContestId();
+  if (view && view.v === version && view.c === c) return view.db;
+  const contest = db.contests.find((x) => x.id === c)!;
+  const teams = db.teams.filter((t) => t.contestId === c);
+  const teamIds = new Set(teams.map((t) => t.id));
+  const roundIds = new Set(contest.rounds.map((r) => r.id));
+  const out: DB = {
+    ...db,
+    teams,
+    competitors: db.competitors.filter((x) => teamIds.has(x.teamId)),
+    attempts: db.attempts.filter((a) => roundIds.has(a.roundId)),
+    rulings: db.rulings.filter((r) => roundIds.has(r.roundId)),
+    clarifications: db.clarifications.filter((x) => roundIds.has(x.roundId)),
+    activity: db.activity.filter((a) => !a.teamId || teamIds.has(a.teamId)),
+  };
+  view = { v: version, c, db: out };
+  return out;
+}
+
+/** Re-render on any change; read whatever you need from the returned db (this contest only). */
 export function useDB(): DB {
+  useSyncExternalStore(subscribe, getVersion);
+  return scoped();
+}
+
+/** Every contest at once: the contest switcher, a coach with teams in several contests. */
+export function useAllDB(): DB {
   useSyncExternalStore(subscribe, getVersion);
   return db;
 }
@@ -137,6 +198,12 @@ export function update(fn: (draft: DB) => void) {
 
 export function loadMoment(moment: Moment) {
   db = buildDemo(moment);
+  activeContest = DEFAULT_CONTEST;
+  try {
+    sessionStorage.setItem(CONTEST_KEY, DEFAULT_CONTEST);
+  } catch {
+    /* this tab only */
+  }
   emit();
   persist();
 }

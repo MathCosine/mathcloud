@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { checkIn, remindWaiver, setTeamStatus } from '../../lib/actions';
+import { useNavigate } from 'react-router-dom';
+import { checkIn, modeOf, offers, remindWaiver, setTeamStatus } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { Team } from '../../lib/model';
 import { useUser } from '../../lib/session';
 import { useDB } from '../../lib/store';
 import { clock, day, stamp } from '../../lib/time';
-import { Checkbox, downloadCsv, Drawer, Roll, SearchBox, Segmented, State, Tabs, toast, type Tone } from '../../components/ui';
+import { Icon } from '../../components/icons';
+import { Checkbox, downloadCsv, Drawer, ModeChip, Roll, SearchBox, Segmented, State, Tabs, toast, type Tone } from '../../components/ui';
 
 type View = 'teams' | 'people' | 'checkin';
 type Div = 'all' | 'in_person' | 'online';
@@ -21,6 +23,7 @@ export function Roster() {
   const db = useDB();
   const contest = useContest();
   const me = useUser()!;
+  const navigate = useNavigate();
   const [view, setView] = useState<View>('teams');
   const [div, setDiv] = useState<Div>('all');
   const [q, setQ] = useState('');
@@ -37,7 +40,6 @@ export function Roster() {
   const live = (t: Team) => t.status !== 'withdrawn';
   const inDiv = (t: Team) => div === 'all' || t.divisionId === div;
   const has = (s: string) => !q || s.toLowerCase().includes(q.trim().toLowerCase());
-  const divName = (id: string) => contest.divisions.find((d) => d.id === id)?.name ?? id;
 
   const teamRows = useMemo(() => {
     let rows = db.teams.filter((t) => inDiv(t) && has([t.code, t.name, t.school, t.city, t.contactName, ...members(t).map((m) => `${m.publicId} ${m.name}`)].join(' ')));
@@ -139,13 +141,25 @@ export function Roster() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Roster</h1>
-          <p className="page-sub">{liveTeams.length} teams · {comps.length} competitors · registration closed {contest.registration.closesLabel}</p>
+          <p className="page-sub">{liveTeams.length} teams · {comps.length} competitors · registration {contest.registration.open ? `open, closes ${contest.registration.closesLabel}` : `closed ${contest.registration.closesLabel}`}</p>
         </div>
         <div className="actions">
           <button className="btn" type="button" onClick={() => exportCsv()}>Export CSV</button>
-          <button className="btn btn-primary" type="button" onClick={() => toast('Add team', 'Opens the registration form, for teams who register by email.')}>Add team</button>
+          <button className="btn" type="button" onClick={() => navigate('/staff/roster/import')}><Icon name="upload" />Import CSV</button>
+          <button className="btn btn-primary" type="button" onClick={() => navigate(`/register/${contest.slug}`)}><Icon name="plus" />Add team</button>
         </div>
       </div>
+
+      {db.teams.length === 0 ? (
+        <section className="card stack reveal" style={{ alignItems: 'flex-start', padding: 28 }}>
+          <h2 style={{ fontSize: 18 }}>No teams yet</h2>
+          <p className="soft" style={{ maxWidth: '62ch' }}>Teams arrive two ways, and both land here: coaches fill in your registration form, or you bring in the people who signed up somewhere else.</p>
+          <div className="row wrap">
+            <button className="btn btn-primary" type="button" onClick={() => navigate(`/register/${contest.slug}`)}><Icon name="link" />Open the registration form</button>
+            <button className="btn" type="button" onClick={() => navigate('/staff/roster/import')}><Icon name="upload" />Import a CSV</button>
+          </div>
+        </section>
+      ) : (<>
 
       <Tabs
         value={view}
@@ -153,12 +167,13 @@ export function Roster() {
         items={[
           { key: 'teams', label: 'Teams', count: db.teams.length },
           { key: 'people', label: 'Competitors', count: db.competitors.length },
-          { key: 'checkin', label: 'Check-in', count: here ? here : undefined },
+          ...(offers(contest, 'in_person') ? [{ key: 'checkin' as View, label: 'Check-in', count: here ? here : undefined }] : []),
         ]}
       />
+      <section className="card flush">
 
       {view === 'checkin' ? (
-        <div className="toolbar">
+        <div className="toolbar" style={{ padding: '12px 14px', margin: 0, borderBottom: '1px solid var(--line)' }}>
           <form onSubmit={(e) => { e.preventDefault(); checkinEnter(); }}>
             <SearchBox value={q} onChange={setQ} placeholder="Type or scan an ID, then Enter" inputRef={search} />
           </form>
@@ -166,8 +181,8 @@ export function Roster() {
           <span className="soft"><b className="ok"><Roll value={here} /></b> of {inPersonCount} here</span>
         </div>
       ) : (
-        <div className="toolbar">
-          <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setFocus(-1); }} items={[{ key: 'all', label: 'All' }, { key: 'in_person', label: 'In person' }, { key: 'online', label: 'Online' }]} />
+        <div className="toolbar" style={{ padding: '12px 14px', margin: 0, borderBottom: '1px solid var(--line)' }}>
+          {contest.divisions.length > 1 && <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setFocus(-1); }} items={[{ key: 'all', label: 'All' }, ...contest.divisions.map((d) => ({ key: d.id as Div, label: d.name }))]} />}
           <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Search  /" inputRef={search} />
           <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}>Waiver missing</button>
           <button type="button" className="filter" aria-pressed={onlyPending} onClick={() => setOnlyPending((x) => !x)}>Pending</button>
@@ -183,7 +198,7 @@ export function Roster() {
               <tr>
                 <th className="w-check"><Checkbox checked={allState} label="Select all shown" onChange={() => setSelected((s) => { const n = new Set(s); selectable.forEach((t) => (allState === true ? n.delete(t.id) : n.add(t.id))); return n; })} /></th>
                 <th><Sort k="team">Team</Sort></th>
-                <th>Division</th>
+                {contest.divisions.length > 1 && <th>Takes part</th>}
                 <th><Sort k="waivers">Waivers</Sort></th>
                 <th>Contact</th>
                 <th><Sort k="status">Status</Sort></th>
@@ -206,7 +221,7 @@ export function Roster() {
                   <tr key={t.id} className={`click ${selected.has(t.id) ? 'selected' : ''} ${!live(t) ? 'dim' : ''} ${open === t.id || focus === i ? 'current' : ''}`} onClick={() => { setFocus(i); setOpen(t.id); }}>
                     <td className="w-check">{live(t) && <Checkbox checked={selected.has(t.id)} label={`Select ${t.name}`} onChange={() => toggle(t.id)} />}</td>
                     <td><span className="code">{t.code}</span><span className="name">{t.name}</span></td>
-                    <td className="soft">{divName(t.divisionId)}</td>
+                    {contest.divisions.length > 1 && <td><ModeChip mode={modeOf(contest, t)} /></td>}
                     <td>{!live(t) ? <span className="muted">–</span> : miss ? <span className="wait">{miss} missing</span> : <span className="muted">{members(t).length} of {members(t).length}</span>}</td>
                     <td className="soft">{t.contactName}</td>
                     <td><State tone={STATUS[t.status][0]}>{STATUS[t.status][1]}</State></td>
@@ -246,6 +261,8 @@ export function Roster() {
           </tbody>
         </table>
       </div>
+      </section>
+      </>)}
 
       <TeamDrawer id={open} onClose={() => setOpen(null)} />
 

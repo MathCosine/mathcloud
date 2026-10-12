@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Moment } from '../lib/demo/seed';
-import { homeFor, ROLE_LABEL, useUser } from '../lib/session';
-import { loadMoment, setSession, useDB } from '../lib/store';
+import { enterAs, homeFor, ROLE_LABEL, useUser } from '../lib/session';
+import { loadMoment, useAllDB } from '../lib/store';
 import { toast } from './ui';
 
 const ACCOUNTS = ['u-director', 'u-grader', 'u-proctor', 'u-coach', 'u-c16A', 'u-c05A'];
 const MOMENTS: { key: Moment; label: string; hint: string }[] = [
+  { key: 'before', label: 'The week before', hint: 'registration open' },
   { key: 'morning', label: 'Contest morning', hint: 'Individual open' },
   { key: 'guts', label: 'Guts is live', hint: 'board moving' },
   { key: 'after', label: 'After the contest', hint: 'grade, publish' },
@@ -14,7 +15,7 @@ const MOMENTS: { key: Moment; label: string; hint: string }[] = [
 
 /** The demo's own controls: who you are and which moment of the day it is. */
 export function DemoMenu({ placement = 'up' }: { placement?: 'up' | 'down' }) {
-  const db = useDB();
+  const db = useAllDB();
   const user = useUser();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -33,7 +34,7 @@ export function DemoMenu({ placement = 'up' }: { placement?: 'up' | 'down' }) {
   }, [open]);
 
   const as = (id: string) => {
-    setSession(id);
+    enterAs(id);
     setOpen(false);
     navigate(homeFor(db.users.find((u) => u.id === id) ?? null));
   };
@@ -56,13 +57,13 @@ export function DemoMenu({ placement = 'up' }: { placement?: 'up' | 'down' }) {
           <div className="menu-sep" />
           <div className="menu-title">Moment of the contest day</div>
           {MOMENTS.map((m) => (
-            <button key={m.key} type="button" role="menuitem" className={`menu-item ${db.moment === m.key ? 'on' : ''}`} onClick={() => { loadMoment(m.key); setOpen(false); toast(m.label, 'The demo has been reset to this moment.'); }}>
+            <button key={m.key} type="button" role="menuitem" className={`menu-item ${db.moment === m.key ? 'on' : ''}`} onClick={() => { loadMoment(m.key); setOpen(false); navigate(homeFor(user)); toast(m.label, 'The demo has been reset to this moment.'); }}>
               {m.label}
               <small>{m.hint}</small>
             </button>
           ))}
           <div className="menu-sep" />
-          <button type="button" role="menuitem" className="menu-item" onClick={() => { setSession(null); setOpen(false); navigate('/sign-in'); }}>
+          <button type="button" role="menuitem" className="menu-item" onClick={() => { enterAs(null); setOpen(false); navigate('/sign-in'); }}>
             Sign out
           </button>
         </div>

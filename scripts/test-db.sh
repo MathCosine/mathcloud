@@ -16,4 +16,7 @@ psql_ "-c 'create database mathcloud'"
 psql_ "-d mathcloud -f $here/supabase/tests/stub_auth.sql"
 psql_ "-d mathcloud -f $here/supabase/migrations/0001_core.sql"
 psql_ "-d mathcloud -f $here/supabase/migrations/0001_core.sql"   # re-running must be safe
+psql_ "-d mathcloud -f $here/supabase/migrations/0002_take_part.sql"
+psql_ "-d mathcloud -f $here/supabase/migrations/0002_take_part.sql"
 psql_ "-d mathcloud -f $here/supabase/tests/rules.sql"
+psql_ "-d mathcloud -f $here/supabase/tests/take_part.sql"

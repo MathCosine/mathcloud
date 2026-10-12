@@ -15,6 +15,20 @@ is in [`RESEARCH.md`](RESEARCH.md); the database, hosting and costs are in
   Supabase for the database, accounts, files and live updates.
   `mathcloud.replit.app` was an earlier test portal; this replaces it.
 
+### Decided later on 12 October
+
+- **In person or online is a choice made twice, up front.** The organiser
+  chooses what the contest offers when creating it: in person, online, or
+  both at the same time. When it offers both, each coach chooses one for
+  their team at registration and can switch until registration closes;
+  after that only the organisers can move a team. The choice then decides
+  the rest: paper and graders or browser tests, a venue room or a Zoom room,
+  the contest's clock or the team's own.
+- **Teams who signed up elsewhere come in from a CSV**, with any columns:
+  one row per team (a Google Form) or one row per student. The organiser
+  matches the columns and sees every row, with its problems, before
+  anything is created.
+
 ---
 
 ## In one paragraph
@@ -351,6 +365,18 @@ One **Close the contest** checklist:
   name and email.
 - **Eligibility:** SFMO's 100-mile rule becomes a form rule: choosing *Online*
   requires the distance attestation. It already exists in `register_team()`.
+- **Who chooses.** The organiser decides which modes exist (Setup, or the
+  first question of *New contest*). The coach picks one per team, first, on
+  the registration form, with what each means spelled out: the venue and
+  check-in time, or Zoom and the first round in their own time zone. Built:
+  `supabase/migrations/0002_take_part.sql` (`register_team`,
+  `set_team_mode`, `import_teams`) with 23 checks in
+  `supabase/tests/take_part.sql`.
+- **Two different student days.** An in-person student's page is a pass
+  (competitor ID, room, checked-in stamp), the day with a place for every
+  line, and what to bring. An online student's page is a checklist (waiver,
+  device check, Zoom room), the day in their own time zone with San
+  Francisco time beside it, and a start button when a round opens.
 
 ### 2.12 Making it easy for any contest to run on MathCloud
 
@@ -498,7 +524,12 @@ Two accents, each with one job, so colour always means something:
 | `--green` | `#0E7C55` | **Things that are done:** confirmed, signed, correct, sent |
 | `--amber` | `#A15F00` | Waiting on someone: pending, waiver missing |
 | `--red` | `#BF3326` | Wrong or failed. Never decorative. |
-| Neutrals | near-neutral greys | Text, lines, surfaces. White pages; only the sidebar is tinted |
+| Neutrals | near-neutral greys | Text, lines, surfaces. A pale canvas with white cards on it |
+
+The two ways to take part borrow the two accents, and only for that: **in
+person is green with a pin, online is blue with a screen**, always with the
+word. The colour lets an organiser scan a roster; the icon and word make it
+survive a printout.
 
 - **Light mode first.** Organisers work in daylight at a desk or a check-in
   table, and print what they see.
@@ -526,6 +557,12 @@ Two accents, each with one job, so colour always means something:
 
 ### Structure
 
+- **One card, one job.** A table, a checklist, a form: each sits in its own
+  white card on a pale canvas, so a screen reads as a few distinct things.
+- **The sidebar groups the work by when it happens:** Before (setup, roster,
+  rounds), On the day (live, grading), After (results, certificates, email).
+  The top bar carries the contest, its modes and the round that is running,
+  on every page.
 - **Tables are the product.** 40 px rows, sticky headers, right-aligned
   numbers, keyboard navigation (`j` / `k`, `x` to select, `/` to search).
 - **A side drawer, not a new page,** for a row's detail, so the table and your
@@ -630,17 +667,32 @@ audit_log          org_id, actor, action, target, before, after, at
 - Scoring engine: best k of n, round weights, shared places, the
   harder-problems tiebreak, award rules, problem statistics and
   rare-shared-wrong-answer detection, plus the Guts board with its freeze.
-  23 unit tests.
+  31 unit tests in all.
 - Live Guts scoreboard, in three places: beside the questions in the online
   test, on the proctor's and director's Live page, and full screen for a
   projector (`/board`: either division or both side by side, light or dark,
   controls that fade while presenting). Rows glide to their new place when a
   set is handed in online or keyed from paper, and the board freezes a set
   number of minutes before the end until the director reveals it.
-- Coach portal: teams, managed student accounts, waiver reminders, results.
+- **New contest**, four steps, starting with how teams take part (in person,
+  online, or both), then rounds from a template, then how teams sign up. A
+  contest switcher in the sidebar keeps each contest's teams and results
+  separate.
+- **Setup**: turn in person or online on or off (refused while teams are
+  registered in it), the venue and its rooms, what to bring, Zoom rooms and
+  their proctors, the leave-the-test policy, registration.
+- **Registration form** that opens with the in-person or online choice, then
+  the team, then students; competitor IDs and next steps on the last page.
+- **CSV import** with column matching, a Google Form sample, and a row-by-row
+  check before anything is created. 8 unit tests.
+- Coach portal: teams with their mode, switching between in person and
+  online while registration is open, managed student accounts, waiver
+  reminders, results.
+- Separate student pages for in person and online (see §2.11), with a device
+  check for online students.
 - Guardian waiver page from an emailed link.
-- Database: `supabase/migrations/0001_core.sql`, with 37 rule checks in
-  `supabase/tests/rules.sql` that pass on Postgres 16.
+- Database: `supabase/migrations/0001_core.sql` and `0002_take_part.sql`, with
+  60 rule checks in `supabase/tests/` that pass on Postgres 16.
 
 **Next, in order:**
 

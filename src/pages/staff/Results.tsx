@@ -44,7 +44,7 @@ export function Results() {
       <Tabs value={view} onChange={setView} items={[{ key: 'teams', label: 'Teams', count: teams.length }, { key: 'individuals', label: 'Individuals', count: inds.length }, { key: 'problems', label: 'Problems' }]} />
 
       {view === 'teams' && (
-        <div className="table-scroll">
+        <div className="table-scroll card flush">
           <table className="t">
             <thead>
               <tr>
@@ -71,7 +71,7 @@ export function Results() {
       )}
 
       {view === 'individuals' && (
-        <div className="table-scroll">
+        <div className="table-scroll card flush">
           <table className="t">
             <thead><tr><th style={{ width: 56 }}>Place</th><th>ID</th><th>Name</th><th>Team</th><th className="num">Score</th><th>By problem</th><th>Award</th></tr></thead>
             <tbody>

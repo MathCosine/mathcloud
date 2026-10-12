@@ -17,19 +17,20 @@ The app opens on a demo of SFMO 2027 with invented teams. Pick an account
 
 | Account | What to try |
 | --- | --- |
-| **Director** Jordan Lee | Live → *Show on projector* for the Guts board; roster, grading, results, certificates, email |
+| **Director** Jordan Lee | The contest name in the sidebar, then *New contest*: choose in person, online or both. *Setup* changes it later. *Roster*, then *Import CSV*, then *Try a sample* brings in a Google Form export. *Live*, then *Show on projector*, for the Guts board |
 | **Grader** Sam Ortega | Key a Guts set: Guts, type `05`, Enter, then the four answers. It lands on the board |
 | **Proctor** Priya Nand | Watch Zoom Room 1 live, answer questions, unlock a locked test |
-| **Coach** Megan Hughes | Add a student with a managed account, chase a waiver |
-| **Student** Carter Hughes | Take Guts online with the live scoreboard beside the questions |
-| **Student** Hannah Kim | An in-person competitor signing in with a username |
+| **Coach** Megan Hughes | *Register a team*: the form starts with in person or online. In *The week before*, switch a team between them |
+| **Student** Carter Hughes | Online, in Austin: a checklist, the day in Central time, Guts with the live scoreboard |
+| **Student** Hannah Kim | In person: a pass with her ID and room, the day with a place for every line |
 
 The demo opens with **Guts under way**: the other teams hand in sets on their
 own, so the board moves while you watch. **Open two tabs** (student in one,
 the board or the proctor in the other): sets, flags and questions show up in
 both as they happen. The **Demo** menu switches accounts and jumps between
-three moments: *contest morning* (the Individual round just opened), *Guts is
-live*, and *after the contest* (grading and results).
+four moments: *the week before* (registration open, device checks to do),
+*contest morning* (the Individual round just opened), *Guts is live*, and
+*after the contest* (grading and results).
 
 Everything runs in the browser; nothing is sent anywhere.
 
@@ -41,7 +42,7 @@ Everything runs in the browser; nothing is sent anywhere.
 | `npm test` | Scoring and email-template tests |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run build:demo` | Self-contained build (relative paths, hash routes) in `dist-demo/` |
-| `./scripts/test-db.sh` | Runs the Supabase schema and its 37 rule checks on a throwaway Postgres |
+| `./scripts/test-db.sh` | Runs the Supabase schema and its 60 rule checks on a throwaway Postgres |
 
 ## Where things live
 
@@ -57,6 +58,9 @@ src/
   pages/student/        student home and the test portal
   pages/coach/          coach portal
   pages/BoardPage.tsx   the projector scoreboard
+  pages/Register.tsx    the registration form: in person or online first
+  pages/staff/NewContest.tsx, Setup.tsx, Import.tsx
+  lib/csv.ts            reading a CSV of teams, with tests
   styles/app.css        design tokens and every component style
 supabase/
   migrations/           the real schema: tables, row level security, functions

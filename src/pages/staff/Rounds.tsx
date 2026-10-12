@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { closeRound, openRound, saveRound } from '../../lib/actions';
+import { closeRound, offers, openRound, saveRound } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { IntegrityPolicy, Problem, Round } from '../../lib/model';
 import { useUser } from '../../lib/session';
@@ -15,7 +15,7 @@ export function Rounds() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Rounds</h1>
-          <p className="page-sub">Both divisions sit each round at the same time: on paper in San Francisco, in the browser online.</p>
+          <p className="page-sub">{contest.divisions.length > 1 ? `Both divisions sit each round at the same time: on paper at ${contest.venue?.name || 'the venue'}, in the browser online.` : offers(contest, 'online') ? 'Every round is taken in the browser, with answers marked as they come in.' : `Every round is on paper at ${contest.venue?.name || 'the venue'}; graders key the sheets.`}</p>
         </div>
       </div>
       <Tabs value={id} onChange={setId} items={contest.rounds.map((r) => ({ key: r.id, label: r.name }))} />
@@ -38,9 +38,10 @@ function RoundEditor({ round }: { round: Round }) {
 
   return (
     <div className="stack-lg">
+      <section className="card stack" style={{ gap: 18 }}>
       <div className="row wrap" style={{ gap: 24, justifyContent: 'space-between' }}>
         <div className="row wrap" style={{ gap: 24 }}>
-          {state === 'open' && ends ? <State tone="go">Open · {duration(ends - now)} left</State> : state === 'closed' ? <State tone="ok">Finished</State> : <State tone="off">Starts {clockIn(round.startsAt, contest.timeZone)}, 23 January</State>}
+          {state === 'open' && ends ? <State tone="go">Open · {duration(ends - now)} left</State> : state === 'closed' ? <State tone="ok">Finished</State> : <State tone="off">Starts {clockIn(round.startsAt, contest.timeZone)}, {contest.dateLabel.replace(/^\w+day /, '')}</State>}
           <span className="soft">{round.minutes} minutes · {round.problems.length} problems{round.kind === 'guts' ? ', 6 sets' : ''} · {round.kind === 'individual' ? 'individual' : 'team'}</span>
         </div>
         {director && (state === 'open' ? (
@@ -55,14 +56,14 @@ function RoundEditor({ round }: { round: Round }) {
           <span>Length (minutes)</span>
           <input className="input" type="number" min={1} value={round.minutes} onChange={(e) => saveRound(round.id, { minutes: Number(e.target.value) })} />
         </label>
-        <label className="field">
+        {offers(contest, 'online') && <label className="field">
           <span>Leaving the test</span>
           <select className="select" value={round.integrity.policy} onChange={(e) => saveRound(round.id, { integrity: { ...round.integrity, policy: e.target.value as IntegrityPolicy } })}>
             <option value="log">Log it</option>
             <option value="warn">Log it and warn</option>
             <option value="lock">Lock after {round.integrity.lockAfter} times</option>
           </select>
-        </label>
+        </label>}
         <label className="field">
           <span>Grace period (seconds)</span>
           <input className="input" type="number" min={0} value={round.graceSeconds} onChange={(e) => saveRound(round.id, { graceSeconds: Number(e.target.value) })} />
@@ -72,6 +73,7 @@ function RoundEditor({ round }: { round: Round }) {
           Keep the format secret until it starts
         </label>
       </div>
+      </section>
 
       <section className="section">
         <div className="section-head"><h2>Problems and key</h2><span className="label">Changes save as you type</span></div>

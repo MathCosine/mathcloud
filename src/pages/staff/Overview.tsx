@@ -3,7 +3,9 @@ import { useContest, useStandings } from '../../lib/hooks';
 import type { Round } from '../../lib/model';
 import { useDB } from '../../lib/store';
 import { clockIn, duration, roundEnds, roundState } from '../../lib/time';
-import { Roll, State, useNow } from '../../components/ui';
+import { contestOf, offers } from '../../lib/actions';
+import { Icon } from '../../components/icons';
+import { ModeChip, Roll, State, useNow } from '../../components/ui';
 
 export function Overview() {
   const db = useDB();
@@ -21,7 +23,16 @@ export function Overview() {
   const unreviewed = Object.values(standings.unreviewed).reduce((a, b) => a + b, 0);
   const keyGaps = contest.rounds.flatMap((r) => r.problems).filter((p) => !p.answers.join('').trim()).length;
   const online = teams.filter((t) => t.divisionId === 'online');
+  const here = teams.filter((t) => t.divisionId === 'in_person');
   const roomless = online.filter((t) => !contest.rooms.some((r) => r.teamIds.includes(t.id))).length;
+  const seatless = here.filter((t) => !contest.venue?.rooms.some((r) => r.teamIds.includes(t.id))).length;
+  const hereComps = comps.filter((c) => here.some((t) => t.id === c.teamId));
+  const onlineComps = comps.filter((c) => online.some((t) => t.id === c.teamId));
+  const checkedIn = hereComps.filter((c) => c.checkedInAt).length;
+  const devices = onlineComps.filter((c) => c.deviceCheckedAt).length;
+  const started = contest.rounds.some((r) => roundState(r, now) !== 'scheduled');
+  const keyed = contest.rounds.flatMap((r) => r.problems).filter((p) => p.answers.join('').trim()).length;
+  const problemCount = contest.rounds.flatMap((r) => r.problems).length;
 
   const todo = [
     { n: questions, text: questions === 1 ? 'question waiting for an answer' : 'questions waiting for an answer', to: '/staff/live' },
@@ -30,11 +41,18 @@ export function Overview() {
     { n: comps.length - signed, text: 'waivers not signed', to: '/staff/roster' },
   ].filter((t) => t.n > 0);
 
-  const ready = [
-    { ok: keyGaps === 0, text: 'Answer keys complete' },
-    { ok: signed === comps.length, text: 'Every waiver signed' },
-    { ok: roomless === 0, text: 'Every online team in a Zoom room' },
-    { ok: contest.rooms.every((r) => r.proctorId), text: 'Every room has a proctor' },
+  const ready: { ok: boolean; text: string; to: string; mode?: 'in_person' | 'online' }[] = [
+    { ok: teams.length > 0, text: teams.length ? `${teams.length} teams registered` : 'Teams registered or imported', to: '/staff/roster' },
+    { ok: keyGaps === 0, text: keyGaps ? `Answer keys: ${keyed} of ${problemCount} filled in` : 'Answer keys complete', to: '/staff/rounds' },
+    { ok: comps.length > 0 && signed === comps.length, text: 'Every waiver signed', to: '/staff/roster' },
+    ...(offers(contest, 'in_person') ? [
+      { ok: !!contest.venue?.name, text: contest.venue?.name ? `Venue: ${contest.venue.name}` : 'Venue named', to: '/staff/setup', mode: 'in_person' as const },
+      { ok: seatless === 0, text: 'Every in-person team has a room', to: '/staff/setup', mode: 'in_person' as const },
+    ] : []),
+    ...(offers(contest, 'online') ? [
+      { ok: contest.rooms.length > 0 && roomless === 0, text: 'Every online team in a Zoom room', to: '/staff/setup', mode: 'online' as const },
+      { ok: contest.rooms.length > 0 && contest.rooms.every((r) => r.proctorId), text: 'Every Zoom room has a proctor', to: '/staff/setup', mode: 'online' as const },
+    ] : []),
   ];
 
   return (
@@ -42,16 +60,26 @@ export function Overview() {
       <div className="page-head" style={{ marginBottom: 0 }}>
         <div>
           <h1 className="page-title">{contest.short}</h1>
-          <p className="page-sub">{contest.dateLabel} · San Francisco and online</p>
+          <p className="page-sub">{contest.dateLabel} · {contest.divisions.map((d) => (d.mode === 'online' ? 'online' : contest.venue?.name || 'in person')).join(' and ')}</p>
         </div>
         <button className="btn btn-primary" type="button" onClick={() => navigate('/staff/live')}>Go to Live</button>
       </div>
 
       <div className="figures">
-        <div className="figure"><b><Roll value={teams.length} /></b><span>teams</span></div>
-        <div className="figure"><b><Roll value={comps.length} /></b><span>competitors</span></div>
-        <div className="figure"><b><Roll value={signed} /></b><span>of {comps.length} waivers signed</span></div>
-        <div className="figure"><b><Roll value={inTest} /></b><span>in an online test now</span></div>
+        <div className="figure"><div className="top-label">Teams</div><b><Roll value={teams.length} /></b><span>{comps.length} competitors</span></div>
+        <div className="figure"><div className="top-label">Waivers</div><b><Roll value={signed} /></b><span>of {comps.length} signed</span></div>
+        {offers(contest, 'in_person') && (
+          <div className="figure">
+            <div className="top-label"><ModeChip mode="in_person">{here.length} teams</ModeChip></div>
+            <b><Roll value={checkedIn} /></b><span>of {hereComps.length} checked in</span>
+          </div>
+        )}
+        {offers(contest, 'online') && (
+          <div className="figure">
+            <div className="top-label"><ModeChip mode="online">{online.length} teams</ModeChip></div>
+            {started ? <><b><Roll value={inTest} /></b><span>in a test right now</span></> : <><b><Roll value={devices} /></b><span>of {onlineComps.length} device checks done</span></>}
+          </div>
+        )}
       </div>
 
       <section className="section">
@@ -74,9 +102,15 @@ export function Overview() {
 
       <section className="section">
         <div className="section-head"><h2>Ready for the day</h2><span className="label">{ready.filter((r) => r.ok).length} of {ready.length}</span></div>
-        <div className="split-wide" style={{ gap: '6px 40px' }}>
-          {ready.map((r) => <State key={r.text} tone={r.ok ? 'ok' : 'wait'}>{r.text}</State>)}
-        </div>
+        <ul className="checklist">
+          {ready.map((r) => (
+            <li key={r.text} className={r.ok ? 'done' : ''}>
+              <span className="box">{r.ok && <Icon name="check" size={13} />}</span>
+              <span className="row" style={{ gap: 10 }}><b style={{ fontWeight: 500 }}>{r.text}</b>{r.mode && <ModeChip mode={r.mode} />}</span>
+              {r.ok ? <span /> : <Link to={r.to} className="btn btn-sm">Fix</Link>}
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );
@@ -90,6 +124,9 @@ function RoundLine({ round, now, tz }: { round: Round; now: number; tz: string }
   const attempts = db.attempts.filter((a) => a.roundId === round.id);
   const online = attempts.filter((a) => a.source === 'online');
   const paper = attempts.filter((a) => a.source === 'paper').length;
+  const contest = contestOf(db);
+  const hasOnline = offers(contest, 'online');
+  const hasPaper = offers(contest, 'in_person');
   const pct = ends ? Math.max(0, Math.min(100, ((now - (ends - round.minutes * 60000)) / (round.minutes * 60000)) * 100)) : 0;
   return (
     <div className="round-line">
@@ -100,9 +137,11 @@ function RoundLine({ round, now, tz }: { round: Round; now: number; tz: string }
           {state === 'open' && ends ? <State tone="go">Open · {duration(ends - now)} left</State> : state === 'closed' ? <State tone="ok">Finished</State> : <State tone="off">Not started</State>}
         </div>
         <div className="muted small" style={{ marginTop: 2 }}>
-          {round.kind === 'guts'
-            ? `${attempts.reduce((n, a) => n + (a.setsSubmitted ?? 0), 0)} sets in from ${attempts.filter((a) => (a.setsSubmitted ?? 0) > 0).length} teams · ${online.filter((a) => !a.submittedAt && a.startedAt).length} online teams working`
-            : `${online.filter((a) => a.submittedAt).length} online handed in · ${online.filter((a) => !a.submittedAt && a.startedAt).length} working · ${paper} paper sheets keyed`}
+          {state === 'scheduled'
+            ? `${round.minutes} minutes, ${round.problems.length} problems`
+            : round.kind === 'guts'
+              ? `${attempts.reduce((n, a) => n + (a.setsSubmitted ?? 0), 0)} sets in from ${attempts.filter((a) => (a.setsSubmitted ?? 0) > 0).length} teams${hasOnline ? ` · ${online.filter((a) => !a.submittedAt && a.startedAt).length} online teams working` : ''}`
+              : [hasOnline && `${online.filter((a) => a.submittedAt).length} online handed in · ${online.filter((a) => !a.submittedAt && a.startedAt).length} working`, hasPaper && `${paper} paper sheets keyed`].filter(Boolean).join(' · ')}
         </div>
         {state === 'open' && <div className="progress"><i style={{ width: `${pct}%` }} /></div>}
       </div>

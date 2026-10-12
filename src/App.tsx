@@ -18,6 +18,10 @@ import { TestPortal } from './pages/student/TestPortal';
 import { CoachHome } from './pages/coach/CoachHome';
 import { WaiverPage } from './pages/WaiverPage';
 import { BoardPage } from './pages/BoardPage';
+import { NewContest } from './pages/staff/NewContest';
+import { Setup } from './pages/staff/Setup';
+import { Import } from './pages/staff/Import';
+import { Register } from './pages/Register';
 
 const Router = __DEMO_BUILD__ ? MemoryRouter : BrowserRouter;
 
@@ -34,9 +38,14 @@ export function App() {
         <Route path="/sign-in" element={<SignIn />} />
         <Route path="/board" element={<BoardPage />} />
         <Route path="/waiver/:competitorId" element={<WaiverPage />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/register/:slug" element={<Register />} />
         <Route path="/staff" element={<StaffLayout />}>
           <Route index element={<Overview />} />
+          <Route path="new" element={<NewContest />} />
+          <Route path="setup" element={<Setup />} />
           <Route path="roster" element={<Roster />} />
+          <Route path="roster/import" element={<Import />} />
           <Route path="rounds" element={<Rounds />} />
           <Route path="live" element={<Live />} />
           <Route path="grading" element={<Grading />} />

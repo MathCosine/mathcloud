@@ -24,13 +24,46 @@ export type User = {
   managed?: boolean;
 };
 
+/**
+ * How a team takes part. Chosen once, at registration, and it decides almost
+ * everything after: where the rounds happen, how answers are collected, what
+ * the student's portal shows, which times they see.
+ */
 export type DivisionMode = 'in_person' | 'online';
 
 export type Division = {
   id: string;
   name: string;
   mode: DivisionMode;
+  /** Who it is for, shown at registration: "Teams more than 100 miles away". */
   detail: string;
+};
+
+/** A room at the venue. In-person teams sit in one for the individual-style rounds. */
+export type VenueRoom = { id: string; name: string; teamIds: string[] };
+
+export type Venue = {
+  name: string;
+  address: string;
+  /** The big room: opening, Guts and awards. */
+  hall: string;
+  rooms: VenueRoom[];
+  bring: string[];
+};
+
+/**
+ * One line of the day. Rounds come from `rounds`; this adds everything else
+ * (check-in, lunch, awards) and says where each thing happens for each mode.
+ */
+export type AgendaItem = {
+  id: string;
+  at: string;
+  title: string;
+  roundId?: string;
+  modes: DivisionMode[];
+  /** In person: 'room' is the team's own room, 'hall' the venue's hall, or a place name. */
+  where?: 'room' | 'hall' | string;
+  note?: string;
 };
 
 export type RoundKind = 'individual' | 'team' | 'guts';
@@ -112,6 +145,9 @@ export type Contest = {
   rounds: Round[];
   recipe: ScoringRecipe;
   rooms: ZoomRoom[];
+  /** Set when the contest has an in-person division. */
+  venue: Venue | null;
+  agenda: AgendaItem[];
   resultsPublished: boolean;
   /** The live Guts board: it freezes this many minutes before the end, until revealed. */
   board: { freezeMinutes: number; revealed: boolean };
@@ -134,6 +170,10 @@ export type Team = {
   status: TeamStatus;
   registeredAt: string;
   joinCode: string;
+  /** Online teams: where they are, so their portal can show their own clock. */
+  timeZone?: string;
+  /** In person: allergies, access needs. Online: nothing extra. */
+  notes?: string;
   pledge: number | null;
   wantsTeammates?: boolean;
   disqualified?: string;
@@ -151,6 +191,8 @@ export type Competitor = {
   waiverSignedAt: string | null;
   reminderSentAt?: string | null;
   checkedInAt?: string | null;
+  /** Online: when the student last passed the device check. */
+  deviceCheckedAt?: string | null;
   disqualified?: string;
 };
 
@@ -228,7 +270,7 @@ export type DB = {
   /** Changes whenever the demo is reset or jumps to another moment. */
   gen: string;
   /** Demo only: which moment of the contest day this copy starts from, and when it was made. */
-  moment: 'morning' | 'guts' | 'after';
+  moment: 'before' | 'morning' | 'guts' | 'after';
   seededAt: string;
   orgs: Org[];
   users: User[];

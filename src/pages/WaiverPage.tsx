@@ -4,6 +4,7 @@ import { signWaiver } from '../lib/actions';
 import { useContest } from '../lib/hooks';
 import { useDB } from '../lib/store';
 import { day } from '../lib/time';
+import { contestInitials } from '../lib/session';
 
 /** The page a guardian reaches from the emailed link. No account needed. */
 export function WaiverPage() {
@@ -17,9 +18,9 @@ export function WaiverPage() {
   if (!c) return <div className="portal"><h1 className="page-title">This link has expired</h1></div>;
   return (
     <>
-      <header className="top"><span className="brand">{contest.short}</span></header>
-      <main className="portal" style={{ maxWidth: 640 }}>
-        <div className="stack-lg">
+      <header className="top"><span className="brand"><span className="tile" style={{ width: 30, height: 30, fontSize: 11, borderRadius: 8 }}>{contestInitials(contest.short)}</span>{contest.short}</span></header>
+      <main className="portal" style={{ maxWidth: 680 }}>
+        <div className="card stack-lg" style={{ padding: 28 }}>
           <div className="stack" style={{ gap: 6 }}>
             <span className="label">Liability waiver · {contest.name}</span>
             <h1 className="page-title">Waiver for {c.name}</h1>

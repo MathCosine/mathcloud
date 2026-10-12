@@ -44,13 +44,14 @@ function answer(p: Problem, chance: number) {
 }
 
 function step() {
-  const contest = contestOf(getDB());
+  // The simulated competitors are SFMO's, whatever contest this tab is showing.
+  const contest = contestOf(getDB(), 'sfmo-2027');
   const open = contest.rounds.filter((r) => roundState(r) === 'open');
   if (!open.length) return;
   update((db) => {
     const now = new Date().toISOString();
     for (const round of open) {
-      const live = db.teams.filter((t) => t.status !== 'withdrawn' && t.id !== DEMO_TEAM);
+      const live = db.teams.filter((t) => t.contestId === contest.id && t.status !== 'withdrawn' && t.id !== DEMO_TEAM);
       if (round.kind === 'guts') {
         // Every team, both divisions: online teams hand in sets, graders key paper ones.
         const moving = live.filter(() => Math.random() < 0.035);
