@@ -142,7 +142,7 @@ function Ready({ title, steps }: { title: string; steps: Step[] }) {
 }
 
 /** Answers from the proctors: to everyone, and to this student's own questions. */
-function Announcements({ competitorId }: { competitorId: string }) {
+function Announcements({ competitorId, tz }: { competitorId: string; tz: string }) {
   const db = useDB();
   const contest = useContest();
   const items = db.clarifications
@@ -156,7 +156,7 @@ function Announcements({ competitorId }: { competitorId: string }) {
       <ul className="pt-news">
         {items.map((c) => (
           <li key={c.id}>
-            <small>{contest.rounds.find((r) => r.id === c.roundId)?.name ?? 'Contest'} · {hm(c.answeredAt ?? c.at, Intl.DateTimeFormat().resolvedOptions().timeZone)} · {c.broadcast ? 'to everyone' : 'your question'}</small>
+            <small>{contest.rounds.find((r) => r.id === c.roundId)?.name ?? 'Contest'} · {hm(c.answeredAt ?? c.at, tz)} · {c.broadcast ? 'to everyone' : 'your question'}</small>
             {c.question && <div className="soft">{c.question}</div>}
             {c.answer ? <div>{c.answer}</div> : <div className="muted">Waiting for a proctor</div>}
           </li>
@@ -312,7 +312,7 @@ function InPersonHome({ competitor, team }: { competitor: Competitor; team: Team
             </span>
           </div>
           <Ready title="Ready for the day" steps={steps} />
-          <Announcements competitorId={competitor.id} />
+          <Announcements competitorId={competitor.id} tz={tz} />
           {venue && venue.bring.filter(Boolean).length > 0 && (
             <section className="section">
               <div className="section-head"><h2>Bring</h2></div>
@@ -438,8 +438,8 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
           </section>
         </div>
         <div className="stack-lg">
-          <Ready title="Before the day" steps={steps} />
-          <Announcements competitorId={competitor.id} />
+          <Ready title={contest.rounds.some((r) => roundState(r, now) !== 'scheduled') ? 'Ready to take part' : 'Before the day'} steps={steps} />
+          <Announcements competitorId={competitor.id} tz={tz} />
           <TeamCard team={team} inPerson={false} />
         </div>
       </div>

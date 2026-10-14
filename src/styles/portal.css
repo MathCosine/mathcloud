@@ -1,0 +1,171 @@
+/* ==========================================================================
+   Coach and student portals. Everything is under .pt (or .pt-*) so it does
+   not reach other pages. Colours come from the tokens in app.css.
+   ========================================================================== */
+
+/* ------------------------------------------------------------ who you are */
+.pt-who { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.pt-who-id { flex: none; display: grid; place-items: center; align-content: center; width: 76px; height: 76px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); box-shadow: var(--card-shadow); position: relative; overflow: hidden; }
+.pt-who-id::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--green); }
+.pt-who-id.online::before { background: var(--blue); }
+.pt-who-id span { font-size: 11px; font-weight: 600; color: var(--ink-3); letter-spacing: .04em; }
+.pt-who-id b { font: 700 24px/1.1 var(--mono); letter-spacing: -.02em; }
+
+/* ------------------------------------------------------------- next thing */
+.pt-hero { display: flex; align-items: center; justify-content: space-between; gap: 18px 28px; flex-wrap: wrap; padding: 20px 22px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); box-shadow: var(--card-shadow); position: relative; overflow: hidden; }
+.pt-hero::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--line-2); }
+.pt-hero.online::before { background: var(--blue); }
+.pt-hero.in_person::before { background: var(--green); }
+.pt-hero.now.online { background: var(--blue-soft); border-color: #C9D5F7; }
+.pt-hero.now.in_person { background: var(--green-soft); border-color: #CBE6D7; }
+.pt-hero-main { min-width: 0; flex: 1 1 320px; }
+.pt-hero-kicker { display: block; margin-bottom: 4px; }
+.pt-hero h2 { font-size: 20px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
+.pt-hero p { margin-top: 4px; color: var(--ink-2); }
+.pt-hero p svg { vertical-align: -2px; }
+.pt-hero-side { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.pt-hero-clock { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.pt-hero-clock b { font-size: 22px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.pt-hero-clock b.mono { font-size: 30px; }
+
+/* --------------------------------------------------------------- timeline */
+.pt-tl { list-style: none; margin: 0; padding: 0; }
+.pt-tl-item { display: grid; grid-template-columns: 58px 18px minmax(0, 1fr) auto; gap: 0 12px; align-items: start; }
+.pt-tl-time { font-weight: 600; color: var(--ink-2); line-height: 18px; padding-bottom: 18px; }
+.pt-tl-time small { display: block; font-weight: 500; font-size: 11.5px; line-height: 1.4; color: var(--ink-3); }
+.pt-tl-rail { position: relative; align-self: stretch; }
+.pt-tl-dot { position: relative; display: block; z-index: 1; }
+.pt-tl-line { position: absolute; left: 8px; top: 9px; width: 2px; height: 100%; overflow: visible; }
+.pt-tl-body { min-width: 0; padding-bottom: 18px; }
+.pt-tl-title { font-weight: 600; line-height: 18px; }
+.pt-tl-item.past .pt-tl-title { color: var(--ink-2); }
+.pt-tl-item.now .pt-tl-title { color: var(--blue); }
+.pt-tl-detail { display: flex; flex-direction: column; gap: 2px; margin-top: 3px; font-size: 13px; color: var(--ink-3); }
+.pt-tl-side { line-height: 18px; }
+.pt-where { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); }
+.pt-where svg { flex: none; }
+
+/* ------------------------------------------------------------ small lists */
+.pt-mates { list-style: none; margin: 0; padding: 0; }
+.pt-mates li { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.pt-mates li:first-child { border-top: 0; padding-top: 0; }
+.pt-mate-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.pt-news li { padding: 10px 12px; border-radius: var(--r); background: var(--bg-2); font-size: 13.5px; }
+.pt-news small { display: block; color: var(--ink-3); font-size: 12px; margin-bottom: 2px; }
+
+/* ----------------------------------------------------------- score report */
+.pt-report { display: flex; flex-direction: column; gap: 22px; }
+.pt-report-top { display: flex; align-items: flex-end; gap: 16px 40px; flex-wrap: wrap; }
+.pt-big { font-size: 46px; font-weight: 700; line-height: 1; letter-spacing: -.03em; margin-top: 4px; }
+.pt-big span { font-size: 20px; color: var(--ink-3); letter-spacing: 0; }
+.pt-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: 13.5px; }
+.pt-facts dt { color: var(--ink-3); }
+.pt-facts dd { margin: 0; font-weight: 600; }
+.pt-award { color: var(--blue); font-weight: 600; }
+.pt-report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+.pt-figure { margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pt .chart, .pt-sheet .chart { margin: 0; }
+.pt .chart-axis, .pt-sheet .chart-axis { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11.5px; color: var(--ink-3); }
+.pt-bars { display: flex; flex-direction: column; gap: 8px; }
+.pt-bar-row { display: grid; grid-template-columns: minmax(90px, 140px) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.pt-bar-label { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-bar { width: 100%; height: 10px; display: block; }
+.pt-bar-value { white-space: nowrap; text-align: right; min-width: 64px; }
+.pt-legend { display: inline-flex; gap: 12px; font-size: 12px; color: var(--ink-3); }
+.pt-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.pt-legend .mark { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(18, 21, 28, .12); }
+.pt-marks { grid-template-columns: repeat(auto-fill, 28px); }
+
+/* ------------------------------------------------------------------ coach */
+.pt-empty { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.pt-empty svg { width: 120px; height: 90px; flex: none; }
+.pt-empty > div { flex: 1 1 240px; }
+.pt-empty h2 { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+.pt-overview { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; align-items: start; }
+.pt-ring-card { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.pt-ring-card p { margin-top: 3px; }
+.pt-next li { grid-template-columns: 26px minmax(0, 1fr) auto; }
+.pt-next li.pt-next-up .box { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+.pt-when { font-size: 12.5px; font-weight: 600; color: var(--ink-2); text-align: right; white-space: nowrap; }
+.pt-next li.done .pt-when { color: var(--ink-3); font-weight: 500; }
+.pt-team-head { align-items: flex-start; flex-wrap: wrap; }
+.pt-team-strip { display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--line); background: #FBFBFC; }
+.pt-stat { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pt-stat > span { display: flex; flex-direction: column; line-height: 1.3; }
+.pt-stat small { font-size: 12px; color: var(--ink-3); }
+.pt-stat b { font-size: 14px; }
+.pt-join b { font-size: 16px; letter-spacing: .04em; }
+.pt-roster td { height: 54px; }
+.pt-guardian { font-weight: 400; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.pt-remove { color: var(--ink-3); }
+.pt-remove:hover { color: var(--red); }
+.pt-add { padding: 16px 18px; border-top: 1px solid var(--line); }
+.pt-today .section-head { margin-bottom: 14px; }
+.pt-rounds { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.pt-round { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 12px 14px; background: var(--bg); min-width: 0; }
+.pt-round.open { border-color: #C9D5F7; background: var(--blue-soft); }
+.pt-round.scheduled { background: var(--bg-2); }
+.pt-round-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pt-round-teams { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pt-round-teams li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: center; }
+
+/* ------------------------------------------------- printable sheet overlay */
+.pt-sheet { position: fixed; inset: 0; z-index: 70; background: var(--canvas); overflow: auto; animation: fade .16s var(--ease) both; }
+.pt-sheet-bar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.pt-sheet-title { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; line-height: 1.3; }
+.pt-sheet-body { max-width: 860px; margin: 0 auto; padding: 24px 16px 80px; display: flex; flex-direction: column; gap: 20px; }
+.pt-page { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--card-shadow); padding: 28px 32px; }
+.pt-page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+.pt-page-head h2 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; margin-top: 4px; }
+.pt-slips { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.pt-slip { border: 1px dashed var(--line-2); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; break-inside: avoid; }
+.pt-slip b { font-size: 15px; }
+.pt-slip dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 12px; margin: 0; font-size: 13px; }
+.pt-slip dt { color: var(--ink-3); }
+.pt-slip dd { margin: 0; overflow-wrap: anywhere; font-weight: 600; }
+
+@media print {
+  body.pt-has-sheet { background: #fff; }
+  body.pt-has-sheet > *:not(.pt-sheet) { display: none !important; }
+  .pt-sheet { position: static; overflow: visible; background: #fff; animation: none; }
+  .pt-sheet-bar { display: none; }
+  .pt-sheet-body { max-width: none; padding: 0; gap: 0; }
+  .pt-page { border: 0; box-shadow: none; border-radius: 0; padding: 0; break-after: page; }
+  .pt-page:last-child { break-after: auto; }
+  .pt-slip { border-color: #999; }
+}
+
+@media (max-width: 1000px) {
+  .pt-overview { grid-template-columns: minmax(0, 1fr); }
+  .pt-ring-card { flex-direction: row; align-items: center; }
+}
+@media (max-width: 600px) {
+  .pt-who-id { width: 62px; height: 62px; }
+  .pt-who-id b { font-size: 19px; }
+  .pt-hero { padding: 16px 16px 16px 20px; }
+  .pt-hero h2 { font-size: 18px; }
+  .pt-hero-side { width: 100%; justify-content: space-between; }
+  .pt-hero-side .btn-lg { flex: 1 1 auto; }
+  .pt-hero-clock { align-items: flex-start; }
+  .pt-tl-item { grid-template-columns: 48px 18px minmax(0, 1fr); }
+  .pt-tl-side { grid-column: 3; padding-bottom: 14px; margin-top: -12px; }
+  .pt-tl-side:empty { display: none; }
+  .pt-next li { grid-template-columns: 26px minmax(0, 1fr); }
+  .pt-next .pt-when { grid-column: 2; text-align: left; margin-top: -6px; }
+  .pt-bar-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .pt-bar-row .pt-bar { grid-column: 1 / -1; grid-row: 2; }
+  .pt-page { padding: 18px 16px; }
+  .pt-sheet-title { display: none; }
+  .pt-report-top { gap: 14px; }
+}
+
+/* Roster: let names and guardians wrap rather than push the actions off. */
+.pt-roster td.name { white-space: normal; min-width: 160px; padding-block: 8px; }
+.pt-team .card-foot { flex-wrap: wrap; }
+@media (max-width: 600px) {
+  .pt-team-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 16px; }
+  .pt-team-head { padding: 14px 16px; }
+}
+.pt .section-head h2 { white-space: nowrap; }
+.pt .section-head .label { text-align: right; }

@@ -35,7 +35,7 @@ describe('dedupeTeams on the sample', () => {
     expect(d.merged).toBe(1);
     expect(by['Pi-Rates']).toBeUndefined();
     expect(by['Pi Rates'].students.map((s) => s.name)).toEqual(['Jin Lee', 'Omar Haddad', 'Clara Voss', 'Theo Brandt']);
-    expect(by['Pi Rates'].notes[0]).toMatch(/merged in \(same name\), 1 more student/);
+    expect(by['Pi Rates'].info[0]).toMatch(/merged in \(same name\), 1 more student/);
     expect(d.studentDups).toBe(2);
   });
 
@@ -45,7 +45,7 @@ describe('dedupeTeams on the sample', () => {
     expect(by['Blue Tangent'].existing).toMatchObject({ id: 't03', why: 'same contact email and school' });
     expect(by['Blue Tangent'].newStudents.map((s) => s.name)).toEqual(['Nina Laurent']);
     expect(by['Blue Tangent'].changes).toEqual([]);
-    expect(by['Blue Tangent'].notes[0]).toMatch(/keeps that name/);
+    expect(by['Blue Tangent'].info[0]).toMatch(/keeps that name/);
     expect(defaultTeamAction(by['Krill Seekers'])).toBe('skip');
     expect(defaultTeamAction(by['Angle Fish'])).toBe('new');
   });
@@ -65,7 +65,7 @@ describe('two rows from the same coach and school', () => {
   const d = dedupeTeams(plan, [], [], 4);
   it('merges when they share a student, flags when they do not', () => {
     expect(d.rows.map((r) => r.name)).toEqual(['Sine Waves', 'Sine Waves B']);
-    expect(d.rows[0].notes[0]).toMatch(/same contact email and school/);
+    expect(d.rows[0].info[0]).toMatch(/same contact email and school/);
     expect(d.rows[1].fileDupOf).toMatchObject({ name: 'Sine Waves', row: 2 });
     expect(isDuplicate(d.rows[1])).toBe(true);
   });

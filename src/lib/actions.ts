@@ -616,14 +616,21 @@ export async function sendMessages(kind: string, templateId: string | null, mess
   let waiting = 0;
   update((d) => {
     const today = new Date().toDateString();
-    const sentToday = d.sends.filter((s) => s.status === 'sent' && new Date(s.at).toDateString() === today).length;
-    let room = Math.max(0, capacity - sentToday);
+    const sentToday = d.sends.filter((s) => s.status === 'sent' && new Date(s.at).toDateString() === today);
+    let room = Math.max(0, capacity - sentToday.length);
+    // Like the server: each key sends up to its own limit, then the next takes over.
+    const left = new Map(keys.map((k) => [k.id, k.dailyLimit - sentToday.filter((s) => s.keyId === k.id).length]));
+    const nextKey = () => {
+      const k = keys.find((x) => (left.get(x.id) ?? 0) > 0);
+      if (k) left.set(k.id, (left.get(k.id) ?? 0) - 1);
+      return k?.id ?? null;
+    };
     for (const m of messages) {
       const key = `${templateId ?? kind}:${m.to.toLowerCase()}${m.tag ? `:${m.tag}` : ''}`;
       if (d.sends.some((s) => `${s.templateId ?? s.kind}:${s.to.toLowerCase()}${(s as { tag?: string }).tag ? `:${(s as { tag?: string }).tag}` : ''}` === key && s.status !== 'failed')) continue;
       const status = room > 0 ? 'sent' : 'queued';
       if (room > 0) room--;
-      d.sends.push({ id: uid('s'), templateId, kind, to: m.to, subject: m.subject, at: nowIso(), status, keyId: keys[0]?.id ?? null });
+      d.sends.push({ id: uid('s'), templateId, kind, to: m.to, subject: m.subject, at: nowIso(), status, keyId: status === 'sent' ? nextKey() : null });
       if (status === 'sent') sent++;
       else waiting++;
     }

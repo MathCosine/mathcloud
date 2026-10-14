@@ -185,7 +185,7 @@ export function PublicFooter() {
 const FLOW: { title: string; text: string; eg: string; icon: IconName }[] = [
   { title: 'Register', icon: 'roster', text: 'Coaches sign up on your contest page, or you import a spreadsheet.', eg: '21 teams · 79 students' },
   { title: 'Waivers', icon: 'file', text: 'Guardians get a link by email and sign with their name. Reminders go to the rest.', eg: '74 of 79 signed' },
-  { title: 'Rounds', icon: 'rounds', text: 'Paper in rooms at the venue, the browser on Zoom at home, on one schedule.', eg: 'Individual 9:20 · Guts 12:00' },
+  { title: 'Rounds', icon: 'rounds', text: 'Paper in rooms at the venue, the browser on Zoom at home, on one schedule.', eg: 'Guts at 12:00' },
   { title: 'Grading', icon: 'grading', text: 'Sheets keyed by ID, online answers checked as they arrive, odd answers ruled once.', eg: '3 answers to rule on' },
   { title: 'Results', icon: 'results', text: 'Standings with your weights and tie-breaks, then a score report to every family.', eg: 'Published 14:05' },
 ];
@@ -280,7 +280,7 @@ const M = { fontFamily: 'var(--mono)' } as const;
 /** The organiser's view at noon on contest day: both divisions, the rounds so far, Guts live. */
 function HeroArt() {
   const board: [string, number, number, 'p' | 'o'][] = [
-    ['Tidepool Theorems', 67, 5, 'p'], ['Moon Jellies', 62, 5, 'o'], ['Hydrothermal', 60, 4, 'p'], ['Blue Tangents', 56, 4, 'o'], ['Rip Current', 48, 3, 'p'],
+    ['Tidepool Theorems', 67, 5, 'p'], ['Moon Jellies', 62, 5, 'o'], ['Hydrothermal', 60, 4, 'p'], ['Blue Tangents', 56, 4, 'o'],
   ];
   const rounds: [string, string, string, number][] = [
     ['Individual', 'Graded', 'var(--green)', 1], ['Mystery Dive', 'Keying 88%', 'var(--amber)', 0.88], ['Guts', 'Live · 37:41 left', 'var(--blue)', 0.38],
@@ -293,7 +293,7 @@ function HeroArt() {
       <rect x="8" y="44" width="520" height="1" fill="var(--line)" />
       <circle cx="28" cy="26" r="4" fill="var(--line-2)" /><circle cx="42" cy="26" r="4" fill="var(--line-2)" /><circle cx="56" cy="26" r="4" fill="var(--line-2)" />
       <text x="78" y="30" fontSize="12" fontWeight="700" fill="var(--ink)" {...T}>SFMO 2027</text>
-      <text x="146" y="30" fontSize="11.5" fill="var(--ink-3)" {...T}>Saturday 23 January</text>
+      <text x="160" y="30" fontSize="11.5" fill="var(--ink-3)" {...T}>Saturday 23 January</text>
       <rect x="418" y="16" width="96" height="20" rx="10" fill="var(--blue-soft)" />
       <circle cx="431" cy="26" r="3.5" fill="var(--blue)" />
       <text x="441" y="30" fontSize="11" fontWeight="700" fill="var(--blue)" {...T}>Guts is live</text>
@@ -304,23 +304,24 @@ function HeroArt() {
         { x: 168, label: 'Online', sub: 'in Zoom rooms', n: '31', of: '/ 32', c: 'var(--blue)', soft: 'var(--blue-soft)', frac: 31 / 32 },
       ].map((d) => (
         <g key={d.label} transform={`translate(${d.x} 62)`}>
-          <rect width="128" height="78" rx="9" fill="var(--bg)" stroke="var(--line)" />
+          <rect width="128" height="90" rx="9" fill="var(--bg)" stroke="var(--line)" />
           <rect x="12" y="12" width={d.label === 'Online' ? 54 : 66} height="18" rx="9" fill={d.soft} />
           {d.label === 'Online'
             ? <g stroke={d.c} strokeWidth="1.4" fill="none"><rect x="19" y="16.5" width="9" height="6.5" rx="1.2" /><path d="M21.5 25.5h4" /></g>
             : <g stroke={d.c} strokeWidth="1.4" fill="none"><path d="M23.5 27s-3.6-3.1-3.6-6a3.6 3.6 0 0 1 7.2 0c0 2.9-3.6 6-3.6 6z" /></g>}
           <text x="31" y="25" fontSize="10" fontWeight="700" fill={d.c} {...T}>{d.label}</text>
           <text x="12" y="56" fontSize="22" fontWeight="700" fill="var(--ink)" {...T}>{d.n}</text>
-          <text x={d.n.length > 1 ? 41 : 30} y="56" fontSize="12" fill="var(--ink-3)" {...T}>{d.of} {d.sub}</text>
-          <rect x="12" y="64" width="104" height="4" rx="2" fill="var(--bg-3)" />
-          <rect x="12" y="64" width={104 * d.frac} height="4" rx="2" fill={d.c} />
+          <text x="42" y="56" fontSize="12" fill="var(--ink-3)" {...T}>{d.of}</text>
+          <text x="12" y="72" fontSize="10.5" fill="var(--ink-3)" {...T}>{d.sub}</text>
+          <rect x="12" y="78" width="104" height="4" rx="2" fill="var(--bg-3)" />
+          <rect x="12" y="78" width={104 * d.frac} height="4" rx="2" fill={d.c} />
         </g>
       ))}
 
       {/* rounds */}
-      <text x="28" y="166" fontSize="11" fontWeight="700" fill="var(--ink-3)" {...T}>ROUNDS</text>
+      <text x="28" y="176" fontSize="11" fontWeight="700" fill="var(--ink-3)" {...T}>ROUNDS</text>
       {rounds.map(([name, state, c, frac], i) => (
-        <g key={name} transform={`translate(28 ${178 + i * 36})`}>
+        <g key={name} transform={`translate(28 ${188 + i * 34})`}>
           <text x="0" y="12" fontSize="12" fontWeight="600" fill="var(--ink)" {...T}>{name}</text>
           <text x="268" y="12" fontSize="11" fill={c} fontWeight="600" textAnchor="end" {...T}>{state}</text>
           <rect x="0" y="19" width="268" height="5" rx="2.5" fill="var(--bg-3)" />
@@ -329,13 +330,13 @@ function HeroArt() {
       ))}
 
       {/* activity */}
-      <rect x="28" y="290" width="268" height="72" rx="9" fill="var(--bg-2)" />
+      <rect x="28" y="294" width="268" height="70" rx="9" fill="var(--bg-2)" />
       {[
         ['12:22', 'Moon Jellies handed in set 5', 'var(--blue)'],
         ['12:21', 'Sheet 05A keyed by Sam Ortega', 'var(--green)'],
         ['12:19', '“3/8” vs key “0.375”: ruled correct', 'var(--amber)'],
       ].map(([t, s, c], i) => (
-        <g key={t} transform={`translate(40 ${306 + i * 19})`}>
+        <g key={t} transform={`translate(40 ${311 + i * 19})`}>
           <circle cx="3" cy="0" r="3" fill={c} />
           <text x="12" y="4" fontSize="10.5" fill="var(--ink-3)" {...M}>{t}</text>
           <text x="50" y="4" fontSize="10.5" fill="var(--ink-2)" {...T}>{s}</text>
@@ -343,7 +344,7 @@ function HeroArt() {
       ))}
 
       {/* the board */}
-      <rect x="314" y="62" width="196" height="300" rx="9" fill="#0D1117" />
+      <rect x="314" y="62" width="196" height="262" rx="9" fill="#0D1117" />
       <text x="330" y="88" fontSize="13" fontWeight="700" fill="#F3F5F9" {...T}>Guts board</text>
       <text x="494" y="88" fontSize="13" fontWeight="600" fill="#F3F5F9" textAnchor="end" {...M}>37:41</text>
       <rect x="330" y="98" width="164" height="2" fill="#232A35" />
@@ -359,16 +360,16 @@ function HeroArt() {
           ))}
         </g>
       ))}
-      <circle cx="334" cy="346" r="3" fill="#3CC48D" /><text x="342" y="349" fontSize="9.5" fill="#9AA3B2" {...T}>In person</text>
-      <circle cx="398" cy="346" r="3" fill="#7C9BFF" /><text x="406" y="349" fontSize="9.5" fill="#9AA3B2" {...T}>Online</text>
+      <circle cx="334" cy="304" r="3" fill="#3CC48D" /><text x="342" y="307" fontSize="9.5" fill="#9AA3B2" {...T}>In person</text>
+      <circle cx="398" cy="304" r="3" fill="#7C9BFF" /><text x="406" y="307" fontSize="9.5" fill="#9AA3B2" {...T}>Online</text>
 
       {/* a paper sheet on the desk */}
-      <g transform="translate(400 300)">
-        <rect x="4" y="6" width="142" height="118" rx="6" fill="rgba(18,21,28,.08)" />
-        <rect width="142" height="118" rx="6" fill="var(--bg)" stroke="var(--line-2)" />
+      <g transform="translate(392 318)">
+        <rect x="4" y="6" width="142" height="96" rx="6" fill="rgba(18,21,28,.08)" />
+        <rect width="142" height="96" rx="6" fill="var(--bg)" stroke="var(--line-2)" />
         <text x="12" y="20" fontSize="10.5" fontWeight="700" fill="var(--ink)" {...T}>Guts · set 5</text>
         <text x="130" y="20" fontSize="10.5" fontWeight="700" fill="var(--ink-2)" textAnchor="end" {...M}>T05</text>
-        {[['17', '144', 'g'], ['18', '7/12', 'g'], ['19', '2√3', 'a'], ['20', '', '']].map(([n, v, t], i) => (
+        {[['17', '144', 'g'], ['18', '7/12', 'g'], ['19', '2√3', 'a']].map(([n, v, t], i) => (
           <g key={n} transform={`translate(12 ${32 + i * 20})`}>
             <text x="0" y="11" fontSize="9.5" fill="var(--ink-3)" {...M}>{n}</text>
             <rect x="20" y="0" width="98" height="15" rx="3" fill={t === 'g' ? 'var(--green-soft)' : t === 'a' ? 'var(--amber-soft)' : 'var(--bg-2)'} />

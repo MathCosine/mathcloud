@@ -1,88 +1,82 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { checkIn, modeOf, offers, remindWaiver, setTeamStatus } from '../../lib/actions';
+import { Link, useNavigate } from 'react-router-dom';
+import { deleteTeam, modeOf, setTeamStatus } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { Team } from '../../lib/model';
+import { rosterHealth } from '../../lib/people';
 import { useUser } from '../../lib/session';
 import { useDB } from '../../lib/store';
-import { clock, day, stamp } from '../../lib/time';
+import { day } from '../../lib/time';
+import { ArtEmpty } from '../../components/art';
 import { Icon } from '../../components/icons';
-import { Checkbox, downloadCsv, Drawer, ModeChip, Roll, SearchBox, Segmented, State, Tabs, toast, type Tone } from '../../components/ui';
+import { Checkbox, downloadCsv, ModeChip, SearchBox, Segmented, State, toast } from '../../components/ui';
+import { STATUS, TeamDrawer, useConfirm } from './PeopleParts';
+import '../../styles/people.css';
 
-type View = 'teams' | 'people' | 'checkin';
-type Div = 'all' | 'in_person' | 'online';
-type SortKey = 'team' | 'waivers' | 'status' | 'reg';
-
-const STATUS: Record<Team['status'], [Tone, string]> = {
-  confirmed: ['ok', 'Confirmed'],
-  pending: ['wait', 'Pending'],
-  withdrawn: ['off', 'Withdrawn'],
-};
+type SortKey = 'team' | 'size' | 'waivers' | 'status' | 'reg';
 
 export function Teams() {
   const db = useDB();
   const contest = useContest();
   const me = useUser()!;
   const navigate = useNavigate();
-  const [view, setView] = useState<View>('teams');
-  const [div, setDiv] = useState<Div>('all');
+  const [ask, confirmNode] = useConfirm();
+  const [div, setDiv] = useState<string>('all');
   const [q, setQ] = useState('');
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [onlyPending, setOnlyPending] = useState(false);
+  const [hideWithdrawn, setHideWithdrawn] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'team', dir: 1 });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
   const [focus, setFocus] = useState(-1);
   const search = useRef<HTMLInputElement>(null);
 
-  const members = (t: Team) => db.competitors.filter((c) => c.teamId === t.id);
+  const byTeam = useMemo(() => {
+    const m = new Map<string, typeof db.competitors>();
+    for (const c of db.competitors) m.set(c.teamId, [...(m.get(c.teamId) ?? []), c]);
+    return m;
+  }, [db]);
+  const members = (t: Team) => byTeam.get(t.id) ?? [];
   const missing = (t: Team) => members(t).filter((c) => !c.waiverSignedAt).length;
   const live = (t: Team) => t.status !== 'withdrawn';
-  const inDiv = (t: Team) => div === 'all' || t.divisionId === div;
-  const has = (s: string) => !q || s.toLowerCase().includes(q.trim().toLowerCase());
+  const health = useMemo(() => rosterHealth(db.teams, db.competitors, contest.registration), [db, contest.registration]);
 
-  const teamRows = useMemo(() => {
-    let rows = db.teams.filter((t) => inDiv(t) && has([t.code, t.name, t.school, t.city, t.contactName, ...members(t).map((m) => `${m.publicId} ${m.name}`)].join(' ')));
-    if (onlyMissing) rows = rows.filter((t) => live(t) && missing(t) > 0);
-    if (onlyPending) rows = rows.filter((t) => t.status === 'pending');
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    let list = db.teams.filter((t) => (div === 'all' || t.divisionId === div)
+      && (!needle || [t.code, t.name, t.school, t.city, t.contactName, t.contactEmail, ...members(t).map((m) => `${m.publicId} ${m.name}`)].join(' ').toLowerCase().includes(needle)));
+    if (onlyMissing) list = list.filter((t) => live(t) && missing(t) > 0);
+    if (onlyPending) list = list.filter((t) => t.status === 'pending');
+    if (hideWithdrawn) list = list.filter(live);
     const key: Record<SortKey, (t: Team) => string | number> = {
       team: (t) => t.code,
+      size: (t) => members(t).length,
       waivers: (t) => -missing(t),
       status: (t) => ({ pending: 0, confirmed: 1, withdrawn: 2 })[t.status],
       reg: (t) => t.registeredAt,
     };
     const k = key[sort.key];
-    return rows.slice().sort((a, b) => (k(a) > k(b) ? 1 : k(a) < k(b) ? -1 : 0) * sort.dir);
+    return list.slice().sort((a, b) => (k(a) > k(b) ? 1 : k(a) < k(b) ? -1 : 0) * sort.dir);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, div, q, onlyMissing, onlyPending, sort]);
-
-  const people = useMemo(() => {
-    const byId = new Map(db.teams.map((t) => [t.id, t]));
-    let rows = db.competitors.map((c) => ({ c, t: byId.get(c.teamId)! })).filter(({ c, t }) => t && inDiv(t) && has([c.publicId, c.name, c.guardianName, t.name].join(' ')));
-    if (onlyMissing) rows = rows.filter(({ c, t }) => live(t) && !c.waiverSignedAt);
-    if (onlyPending) rows = rows.filter(({ t }) => t.status === 'pending');
-    if (view === 'checkin') rows = rows.filter(({ t }) => t.divisionId === 'in_person' && live(t));
-    return rows;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, div, q, onlyMissing, onlyPending, view]);
+  }, [db, div, q, onlyMissing, onlyPending, hideWithdrawn, sort]);
 
   const liveTeams = db.teams.filter(live);
-  const comps = db.competitors.filter((c) => liveTeams.some((t) => t.id === c.teamId));
-  const here = comps.filter((c) => c.checkedInAt).length;
-  const inPersonCount = comps.filter((c) => liveTeams.find((t) => t.id === c.teamId)?.divisionId === 'in_person').length;
-  const ids = view === 'teams' ? teamRows.map((t) => t.id) : people.map((r) => r.t.id);
+  const liveIds = new Set(liveTeams.map((t) => t.id));
+  const comps = db.competitors.filter((c) => liveIds.has(c.teamId));
+  const pendingCount = liveTeams.filter((t) => t.status === 'pending').length;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
-      if (el.matches('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (el.matches('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('.scrim')) return;
       if (e.key === '/') { e.preventDefault(); search.current?.focus(); }
       else if (e.key === 'j' || e.key === 'k') {
-        const n = Math.max(0, Math.min(ids.length - 1, focus + (e.key === 'j' ? 1 : -1)));
+        const n = Math.max(0, Math.min(rows.length - 1, focus + (e.key === 'j' ? 1 : -1)));
         setFocus(n);
-        if (open) setOpen(ids[n]);
-      } else if (e.key === 'x' && view === 'teams' && teamRows[focus]) toggle(teamRows[focus].id);
-      else if (e.key === 'Enter' && ids[focus]) setOpen(ids[focus]);
+        if (open && rows[n]) setOpen(rows[n].id);
+      } else if (e.key === 'x' && rows[focus]) toggle(rows[focus].id);
+      else if (e.key === 'Enter' && rows[focus]) setOpen(rows[focus].id);
       else if (e.key === 'Escape' && !open) setSelected(new Set());
     };
     window.addEventListener('keydown', onKey);
@@ -94,9 +88,12 @@ export function Teams() {
     return () => document.body.classList.remove('has-bulk');
   }, [selected]);
 
+  // Teams deleted elsewhere drop out of the selection.
+  useEffect(() => {
+    if ([...selected].some((id) => !db.teams.some((t) => t.id === id))) setSelected((s) => new Set([...s].filter((id) => db.teams.some((t) => t.id === id))));
+  }, [db, selected]);
+
   function toggle(id: string) {
-    const t = db.teams.find((x) => x.id === id);
-    if (!t || !live(t)) return;
     setSelected((s) => {
       const n = new Set(s);
       if (n.has(id)) n.delete(id);
@@ -105,21 +102,42 @@ export function Teams() {
     });
   }
 
-  const selectable = teamRows.filter(live);
-  const picked = selectable.filter((t) => selected.has(t.id)).length;
-  const allState: boolean | 'mixed' = picked === 0 ? false : picked === selectable.length ? true : 'mixed';
+  const picked = rows.filter((t) => selected.has(t.id)).length;
+  const allState: boolean | 'mixed' = picked === 0 ? false : picked === rows.length ? true : 'mixed';
 
   const exportCsv = (only?: Set<string>) =>
     downloadCsv(
-      'sfmo-2027-roster.csv',
-      ['competitor_id', 'name', 'grade', 'team_code', 'team', 'division', 'status', 'waiver', 'guardian', 'guardian_email'],
+      `${contest.slug}-roster.csv`,
+      ['competitor_id', 'name', 'grade', 'team_code', 'team', 'division', 'mode', 'status', 'school', 'city', 'contact', 'contact_email', 'waiver', 'guardian', 'guardian_email'],
       db.competitors
         .filter((c) => !only || only.has(c.teamId))
         .map((c) => {
           const t = db.teams.find((x) => x.id === c.teamId)!;
-          return [c.publicId, c.name, c.grade, t.code, t.name, t.divisionId, t.status, c.waiverSignedAt ? 'signed' : 'missing', c.guardianName, c.guardianEmail];
+          return [c.publicId, c.name, c.grade || '', t.code, t.name, contest.divisions.find((d) => d.id === t.divisionId)?.name, modeOf(contest, t), t.status, t.school, t.city, t.contactName, t.contactEmail, c.waiverSignedAt ? 'signed' : 'missing', c.guardianName, c.guardianEmail];
         }),
     );
+
+  const bulkStatus = (status: Team['status'], verb: string) => {
+    const ids = [...selected].filter((id) => db.teams.find((t) => t.id === id)?.status !== status);
+    if (!ids.length) return toast(`Already ${verb}`, `Every selected team is ${verb}.`);
+    setTeamStatus(ids, status, me.name);
+    toast(`${verb[0].toUpperCase()}${verb.slice(1)} ${ids.length} ${ids.length === 1 ? 'team' : 'teams'}`, undefined, status === 'confirmed' ? 'g' : '');
+  };
+
+  const bulkDelete = () => {
+    const ids = [...selected];
+    const n = db.competitors.filter((c) => ids.includes(c.teamId)).length;
+    ask({
+      title: `Delete ${ids.length} ${ids.length === 1 ? 'team' : 'teams'}?`, label: 'Delete', danger: true,
+      body: <p>This removes {ids.length === 1 ? 'the team' : 'the teams'} and {n} {n === 1 ? 'student' : 'students'}, with their answers. It cannot be undone. Withdrawing keeps the record.</p>,
+      run: () => {
+        ids.forEach((id) => deleteTeam(id, me.name));
+        setSelected(new Set());
+        setOpen(null);
+        toast(`Deleted ${ids.length} ${ids.length === 1 ? 'team' : 'teams'}`);
+      },
+    });
+  };
 
   const Sort = ({ k, children }: { k: SortKey; children: string }) => (
     <button type="button" className={`sort ${sort.key === k ? 'on' : ''} ${sort.key === k && sort.dir < 0 ? 'desc' : ''}`} onClick={() => setSort((s) => (s.key === k ? { key: k, dir: (s.dir * -1) as 1 | -1 } : { key: k, dir: k === 'reg' ? -1 : 1 }))}>
@@ -128,228 +146,101 @@ export function Teams() {
     </button>
   );
 
-  const checkinEnter = () => {
-    const c = people.find(({ c }) => c.publicId.toLowerCase() === q.trim().toLowerCase())?.c;
-    if (!c) return;
-    if (!c.waiverSignedAt) toast(`${c.publicId} has no signed waiver`, 'A guardian can sign on a phone at the desk.', 'a');
-    else if (!c.checkedInAt) { checkIn(c.id); toast(`${c.publicId} ${c.name} checked in`, undefined, 'g'); }
-    setQ('');
-  };
-
   return (
     <>
       <div className="page-head">
         <div>
-          <h1 className="page-title">Roster</h1>
-          <p className="page-sub">{liveTeams.length} teams · {comps.length} competitors · registration {contest.registration.open ? `open, closes ${contest.registration.closesLabel}` : `closed ${contest.registration.closesLabel}`}</p>
+          <h1 className="page-title">Teams</h1>
+          <p className="page-sub">
+            {liveTeams.length} teams · {comps.length} students{pendingCount ? ` · ${pendingCount} pending` : ''} · registration {contest.registration.open ? `open, closes ${contest.registration.closesLabel}` : `closed ${contest.registration.closesLabel}`}
+            {health.total > 0 && <> · <Link to="/staff/people?tab=check">{health.total} roster {health.total === 1 ? 'issue' : 'issues'}</Link></>}
+          </p>
         </div>
         <div className="actions">
-          <button className="btn" type="button" onClick={() => exportCsv()}>Export CSV</button>
-          <button className="btn" type="button" onClick={() => navigate('/staff/roster/import')}><Icon name="upload" />Import CSV</button>
+          <button className="btn" type="button" disabled={!db.teams.length} onClick={() => exportCsv()}>Export CSV</button>
+          <button className="btn" type="button" onClick={() => navigate('/staff/import')}><Icon name="upload" />Import</button>
           <button className="btn btn-primary" type="button" onClick={() => navigate(`/register/${contest.slug}`)}><Icon name="plus" />Add team</button>
         </div>
       </div>
 
       {db.teams.length === 0 ? (
-        <section className="card stack reveal" style={{ alignItems: 'flex-start', padding: 28 }}>
-          <h2 style={{ fontSize: 18 }}>No teams yet</h2>
-          <p className="soft" style={{ maxWidth: '62ch' }}>Teams arrive two ways, and both land here: coaches fill in your registration form, or you bring in the people who signed up somewhere else.</p>
-          <div className="row wrap">
-            <button className="btn btn-primary" type="button" onClick={() => navigate(`/register/${contest.slug}`)}><Icon name="link" />Open the registration form</button>
-            <button className="btn" type="button" onClick={() => navigate('/staff/roster/import')}><Icon name="upload" />Import a CSV</button>
+        <section className="card pp-empty">
+          <ArtEmpty kind="teams" className="pp-art" />
+          <div className="stack" style={{ gap: 8 }}>
+            <h2>No teams yet</h2>
+            <p className="soft">Teams arrive two ways and both land here: coaches fill in your registration form, or you import the people who signed up somewhere else.</p>
+            <div className="row wrap" style={{ marginTop: 6 }}>
+              <button className="btn btn-primary" type="button" onClick={() => navigate(`/register/${contest.slug}`)}><Icon name="link" />Open the registration form</button>
+              <button className="btn" type="button" onClick={() => navigate('/staff/import')}><Icon name="upload" />Import a spreadsheet</button>
+            </div>
           </div>
         </section>
-      ) : (<>
-
-      <Tabs
-        value={view}
-        onChange={(v) => { setView(v); setFocus(-1); setOpen(null); setQ(''); }}
-        items={[
-          { key: 'teams', label: 'Teams', count: db.teams.length },
-          { key: 'people', label: 'Competitors', count: db.competitors.length },
-          ...(offers(contest, 'in_person') ? [{ key: 'checkin' as View, label: 'Check-in', count: here ? here : undefined }] : []),
-        ]}
-      />
-      <section className="card flush">
-
-      {view === 'checkin' ? (
-        <div className="toolbar" style={{ padding: '12px 14px', margin: 0, borderBottom: '1px solid var(--line)' }}>
-          <form onSubmit={(e) => { e.preventDefault(); checkinEnter(); }}>
-            <SearchBox value={q} onChange={setQ} placeholder="Type or scan an ID, then Enter" inputRef={search} />
-          </form>
-          <span className="grow" />
-          <span className="soft"><b className="ok"><Roll value={here} /></b> of {inPersonCount} here</span>
-        </div>
       ) : (
-        <div className="toolbar" style={{ padding: '12px 14px', margin: 0, borderBottom: '1px solid var(--line)' }}>
-          {contest.divisions.length > 1 && <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setFocus(-1); }} items={[{ key: 'all', label: 'All' }, ...contest.divisions.map((d) => ({ key: d.id as Div, label: d.name }))]} />}
-          <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Search  /" inputRef={search} />
-          <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}>Waiver missing</button>
-          <button type="button" className="filter" aria-pressed={onlyPending} onClick={() => setOnlyPending((x) => !x)}>Pending</button>
-          <span className="grow" />
-          <span className="muted small">{view === 'teams' ? teamRows.length : people.length} shown</span>
-        </div>
+        <section className="card flush">
+          <div className="toolbar pp-toolbar">
+            {contest.divisions.length > 1 && (
+              <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setFocus(-1); }} items={[{ key: 'all', label: 'All' }, ...contest.divisions.map((d) => ({ key: d.id, label: d.name }))]} />
+            )}
+            <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Search teams, students, IDs  /" inputRef={search} />
+            <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}>Waiver missing</button>
+            <button type="button" className="filter" aria-pressed={onlyPending} onClick={() => setOnlyPending((x) => !x)}>Pending</button>
+            <button type="button" className="filter" aria-pressed={hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}>Hide withdrawn</button>
+            <span className="grow" />
+            <span className="muted small hide-sm">{rows.length} shown · <kbd>j</kbd> <kbd>k</kbd> move, <kbd>x</kbd> select, <kbd>Enter</kbd> open</span>
+          </div>
+          <div className="table-scroll">
+            <table className="t">
+              <thead>
+                <tr>
+                  <th className="w-check"><Checkbox checked={allState} label="Select all shown" onChange={() => setSelected((s) => { const n = new Set(s); rows.forEach((t) => (allState === true ? n.delete(t.id) : n.add(t.id))); return n; })} /></th>
+                  <th><Sort k="team">Team</Sort></th>
+                  {contest.divisions.length > 1 && <th>Takes part</th>}
+                  <th className="num"><Sort k="size">Students</Sort></th>
+                  <th><Sort k="waivers">Waivers</Sort></th>
+                  <th>Contact</th>
+                  <th><Sort k="status">Status</Sort></th>
+                  <th className="num"><Sort k="reg">Registered</Sort></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 && (
+                  <tr className="empty"><td colSpan={8}>Nothing matches. <button className="linkbtn" type="button" onClick={() => { setQ(''); setOnlyMissing(false); setOnlyPending(false); setHideWithdrawn(false); setDiv('all'); }}>Clear filters</button></td></tr>
+                )}
+                {rows.map((t, i) => {
+                  const miss = missing(t);
+                  const n = members(t).length;
+                  const off = n > contest.registration.teamMax || n < contest.registration.teamMin;
+                  return (
+                    <tr key={t.id} className={`click ${selected.has(t.id) ? 'selected' : ''} ${!live(t) ? 'dim' : ''} ${open === t.id || focus === i ? 'current' : ''}`} onClick={() => { setFocus(i); setOpen(t.id); }}>
+                      <td className="w-check"><Checkbox checked={selected.has(t.id)} label={`Select ${t.name}`} onChange={() => toggle(t.id)} /></td>
+                      <td><span className="code">{t.code}</span><span className="name">{t.name}</span><div className="muted tiny pp-sub">{t.school}{t.city ? `, ${t.city}` : ''}</div></td>
+                      {contest.divisions.length > 1 && <td><ModeChip mode={modeOf(contest, t)} /></td>}
+                      <td className={`num ${off && live(t) ? 'wait' : 'soft'}`}>{n}</td>
+                      <td>{!live(t) ? <span className="muted">–</span> : miss ? <span className="wait">{miss} missing</span> : n ? <span className="ok">All {n} in</span> : <span className="muted">–</span>}</td>
+                      <td className="soft"><span className="ellipsis">{t.contactName}</span></td>
+                      <td><State tone={STATUS[t.status][0]}>{STATUS[t.status][1]}</State></td>
+                      <td className="num muted">{day(t.registeredAt)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
-      <div className="table-scroll">
-        <table className="t">
-          <thead>
-            {view === 'teams' ? (
-              <tr>
-                <th className="w-check"><Checkbox checked={allState} label="Select all shown" onChange={() => setSelected((s) => { const n = new Set(s); selectable.forEach((t) => (allState === true ? n.delete(t.id) : n.add(t.id))); return n; })} /></th>
-                <th><Sort k="team">Team</Sort></th>
-                {contest.divisions.length > 1 && <th>Takes part</th>}
-                <th><Sort k="waivers">Waivers</Sort></th>
-                <th>Contact</th>
-                <th><Sort k="status">Status</Sort></th>
-                <th className="num"><Sort k="reg">Registered</Sort></th>
-              </tr>
-            ) : view === 'people' ? (
-              <tr><th>ID</th><th>Name</th><th>Grade</th><th>Team</th><th>Signs in with</th><th>Waiver</th></tr>
-            ) : (
-              <tr><th>ID</th><th>Name</th><th>Team</th><th>Waiver</th><th>Arrived</th><th /></tr>
-            )}
-          </thead>
-          <tbody>
-            {(view === 'teams' ? teamRows.length : people.length) === 0 && (
-              <tr className="empty"><td colSpan={7}>Nothing matches. <button className="linkbtn" type="button" onClick={() => { setQ(''); setOnlyMissing(false); setOnlyPending(false); setDiv('all'); }}>Clear filters</button></td></tr>
-            )}
-            {view === 'teams' &&
-              teamRows.map((t, i) => {
-                const miss = missing(t);
-                return (
-                  <tr key={t.id} className={`click ${selected.has(t.id) ? 'selected' : ''} ${!live(t) ? 'dim' : ''} ${open === t.id || focus === i ? 'current' : ''}`} onClick={() => { setFocus(i); setOpen(t.id); }}>
-                    <td className="w-check">{live(t) && <Checkbox checked={selected.has(t.id)} label={`Select ${t.name}`} onChange={() => toggle(t.id)} />}</td>
-                    <td><span className="code">{t.code}</span><span className="name">{t.name}</span></td>
-                    {contest.divisions.length > 1 && <td><ModeChip mode={modeOf(contest, t)} /></td>}
-                    <td>{!live(t) ? <span className="muted">–</span> : miss ? <span className="wait">{miss} missing</span> : <span className="muted">{members(t).length} of {members(t).length}</span>}</td>
-                    <td className="soft">{t.contactName}</td>
-                    <td><State tone={STATUS[t.status][0]}>{STATUS[t.status][1]}</State></td>
-                    <td className="num muted">{day(t.registeredAt)}</td>
-                  </tr>
-                );
-              })}
-            {view === 'people' &&
-              people.map(({ c, t }, i) => {
-                const acct = db.users.find((u) => u.competitorId === c.id);
-                return (
-                  <tr key={c.id} className={`click ${!live(t) ? 'dim' : ''} ${focus === i ? 'current' : ''}`} onClick={() => { setFocus(i); setOpen(t.id); }}>
-                    <td className="mono">{c.publicId}</td>
-                    <td className="name">{c.name}</td>
-                    <td className="soft">{c.grade}</td>
-                    <td><span className="ellipsis soft">{t.name}</span></td>
-                    <td className="soft">{acct ? (acct.managed ? <span className="mono">{acct.email}</span> : acct.email) : <span className="muted">Invited</span>}</td>
-                    <td>{c.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone="wait">Missing</State>}</td>
-                  </tr>
-                );
-              })}
-            {view === 'checkin' &&
-              people.map(({ c, t }) => (
-                <tr key={c.id}>
-                  <td className="mono">{c.publicId}</td>
-                  <td className="name">{c.name}</td>
-                  <td className="soft">{t.name}</td>
-                  <td>{c.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone="wait">Missing</State>}</td>
-                  <td className="muted">{c.checkedInAt ? clock(c.checkedInAt) : '–'}</td>
-                  <td className="num">
-                    <button className={`btn btn-sm ${c.checkedInAt ? 'btn-quiet' : ''}`} type="button" disabled={!c.waiverSignedAt && !c.checkedInAt} onClick={() => checkIn(c.id)}>
-                      {c.checkedInAt ? 'Undo' : 'Check in'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-      </section>
-      </>)}
-
       <TeamDrawer id={open} onClose={() => setOpen(null)} />
+      {confirmNode}
 
       <div className={`bulk ${selected.size ? 'show' : ''}`} role="toolbar" aria-label="Selected teams">
         <span className="n">{selected.size || 1} selected</span>
-        <button type="button" onClick={() => {
-          const pending = [...selected].filter((id) => db.teams.find((t) => t.id === id)?.status === 'pending');
-          if (!pending.length) return toast('Already confirmed', 'Every selected team is confirmed.');
-          setTeamStatus(pending, 'confirmed', me.name);
-          toast(`Confirmed ${pending.length} ${pending.length === 1 ? 'team' : 'teams'}`, 'Confirmation emails are queued.', 'g');
-        }}>Confirm</button>
-        <button type="button" onClick={() => toast('Email', `Opens Email with ${selected.size} team contacts.`)}>Email</button>
+        <button type="button" onClick={() => bulkStatus('confirmed', 'confirmed')}>Confirm</button>
+        <button type="button" onClick={() => bulkStatus('pending', 'pending')}>Mark pending</button>
+        <button type="button" onClick={() => bulkStatus('withdrawn', 'withdrawn')}>Withdraw</button>
         <button type="button" onClick={() => exportCsv(selected)}>Export</button>
+        <button type="button" className="pp-bulk-danger" onClick={bulkDelete}>Delete</button>
         <button type="button" onClick={() => setSelected(new Set())}>Clear</button>
       </div>
     </>
-  );
-}
-
-function TeamDrawer({ id, onClose }: { id: string | null; onClose: () => void }) {
-  const db = useDB();
-  const contest = useContest();
-  const me = useUser()!;
-  const t = db.teams.find((x) => x.id === id);
-  const members = t ? db.competitors.filter((c) => c.teamId === t.id) : [];
-  const log = t ? db.activity.filter((a) => a.teamId === t.id).sort((a, b) => b.at.localeCompare(a.at)) : [];
-  const coach = t?.coachId ? db.users.find((u) => u.id === t.coachId) : undefined;
-  const room = t ? contest.rooms.find((r) => r.teamIds.includes(t.id)) : undefined;
-  return (
-    <Drawer
-      open={!!t}
-      onClose={onClose}
-      kicker={t && `Team ${t.code} · ${contest.divisions.find((d) => d.id === t.divisionId)?.name}`}
-      title={t?.name}
-      foot={
-        t && (
-          <>
-            <button className="btn" type="button" disabled={t.status === 'withdrawn'} onClick={() => toast('Confirmation sent again', `To ${t.contactEmail}.`, 'g')}>Resend confirmation</button>
-            {t.status === 'pending' && <button className="btn btn-primary" type="button" onClick={() => setTeamStatus([t.id], 'confirmed', me.name)}>Confirm team</button>}
-          </>
-        )
-      }
-    >
-      {t && (
-        <>
-          <section key={`${t.id}-m`}>
-            <h3>Members</h3>
-            <table className="t">
-              <tbody>
-                {members.map((m) => (
-                  <tr key={m.id}>
-                    <td className="mono soft" style={{ width: 44 }}>{m.publicId}</td>
-                    <td><b>{m.name}</b><div className="muted tiny">Grade {m.grade} · {m.guardianName}</div></td>
-                    <td className="num">
-                      {m.waiverSignedAt ? (
-                        <span className="ok small">Signed {day(m.waiverSignedAt)}</span>
-                      ) : t.status === 'withdrawn' ? null : m.reminderSentAt ? (
-                        <span className="muted small">Reminded {clock(m.reminderSentAt)}</span>
-                      ) : (
-                        <button className="btn btn-sm" type="button" onClick={() => { remindWaiver(m.id, me.name); toast('Reminder sent', `${m.guardianName} gets the waiver link again.`); }}>Remind</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-          <section key={`${t.id}-d`}>
-            <h3>Details</h3>
-            <dl className="dl">
-              <dt>Status</dt><dd><State tone={STATUS[t.status][0]}>{STATUS[t.status][1]}</State></dd>
-              <dt>School</dt><dd>{t.school}, {t.city}</dd>
-              <dt>Contact</dt><dd>{t.contactName} · {t.contactEmail}</dd>
-              <dt>Coach</dt><dd>{coach ? coach.name : <span className="muted">Captain registered</span>}</dd>
-              {room && (<><dt>Zoom</dt><dd>{room.name}</dd></>)}
-              <dt>Join code</dt><dd className="mono">{t.joinCode}</dd>
-              <dt>Donation</dt><dd>{t.pledge ? `$${t.pledge} pledged` : <span className="muted">None</span>}</dd>
-            </dl>
-          </section>
-          <section key={`${t.id}-a`}>
-            <h3>Activity</h3>
-            <ul className="log">
-              {log.map((a) => <li key={a.id}><time>{stamp(a.at)}</time><span>{a.text}</span></li>)}
-            </ul>
-          </section>
-        </>
-      )}
-    </Drawer>
   );
 }

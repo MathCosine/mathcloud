@@ -55,15 +55,15 @@ export type ExistingStudent = { id: string; teamId: string; name: string; guardi
 /** What to do with a team in the file. */
 export type TeamAction = 'new' | 'skip' | 'update' | 'add';
 
-export type TeamRow = PlannedTeam & {
+export type TeamRow = Omit<PlannedTeam, 'notes'> & {
   /** Position in the plan, stable across re-plans. */
   key: string;
   /** Set when an existing team looks like the same one. */
   existing?: { id: string; code: string; name: string; why: string };
   /** Same contact email and school as an earlier row, but another name and other students. */
   fileDupOf?: { key: string; row: number; name: string };
-  /** Other rows of the file merged into this one. */
-  notes: string[];
+  /** What happened to this row: merges, removed repeats. */
+  info: string[];
   /** Update: fields that would change (never the name: the team keeps its own), and students not on the team yet. */
   changes: { field: 'school' | 'city' | 'contactName' | 'contactEmail'; from: string; to: string }[];
   newStudents: NewStudent[];
@@ -115,7 +115,7 @@ export function dedupeTeams(plan: PlannedTeam[], existing: ExistingTeam[], stude
       into.students = kept;
       studentDups += dropped;
       into.rows = [...into.rows, ...t.rows];
-      into.notes.push(`Row ${t.rows.join(', ')} merged in (${why})${kept.length > before ? `, ${kept.length - before} more ${kept.length - before === 1 ? 'student' : 'students'}` : ''}`);
+      into.info.push(`Row ${t.rows.join(', ')} merged in (${why})${kept.length > before ? `, ${kept.length - before} more ${kept.length - before === 1 ? 'student' : 'students'}` : ''}`);
       // Fill blanks the first row left.
       for (const f of ['school', 'city', 'contactName'] as const) if (!into[f] && t[f]) into[f] = t[f];
       if (into.errors.some((e) => /No students/.test(e)) && kept.length) into.errors = into.errors.filter((e) => !/No students/.test(e));
@@ -126,8 +126,8 @@ export function dedupeTeams(plan: PlannedTeam[], existing: ExistingTeam[], stude
     }
     const { kept, dropped } = uniqueStudents(t.students);
     studentDups += dropped;
-    const row: TeamRow = { ...t, students: kept, key: `r${t.rows[0]}`, notes: [], changes: [], newStudents: [], dupStudents: dropped, errors: [...t.errors], warnings: [...t.warnings] };
-    if (dropped) row.notes.push(`${dropped} repeated ${dropped === 1 ? 'student' : 'students'} removed`);
+    const row: TeamRow = { ...t, students: kept, key: `r${t.rows[0]}`, info: [], changes: [], newStudents: [], dupStudents: dropped, errors: [...t.errors], warnings: [...t.warnings] };
+    if (dropped) row.info.push(`${dropped} repeated ${dropped === 1 ? 'student' : 'students'} removed`);
     // Same coach and school, different team and students: maybe a second team, maybe a duplicate. The organiser decides.
     const twin = rows.find((r) => sameContact(r, t));
     if (twin) row.fileDupOf = { key: twin.key, row: twin.rows[0], name: twin.name };
@@ -145,7 +145,7 @@ export function dedupeTeams(plan: PlannedTeam[], existing: ExistingTeam[], stude
     const e = byName ?? byContact;
     if (!e) continue;
     r.existing = { id: e.id, code: e.code, name: e.name, why: byName ? 'same name' : 'same contact email and school' };
-    if (byContact && r.name.trim()) r.notes.push(`Registered as “${e.name}”; an update keeps that name`);
+    if (byContact && r.name.trim()) r.info.push(`Registered as “${e.name}”; an update keeps that name`);
     for (const f of ['school', 'city', 'contactName', 'contactEmail'] as const) {
       const to = r[f].trim();
       if (to && to !== (e[f] ?? '').trim()) r.changes.push({ field: f, from: e[f] ?? '', to });

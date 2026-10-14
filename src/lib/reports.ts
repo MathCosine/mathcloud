@@ -121,7 +121,7 @@ export function buildReports(contest: Contest, standings: Standings, db: DB): { 
         kind: 'team', id: team.id, key: team.code, name: team.name, school: team.school, divisionId: d.id, division: d.name, mode: modeOf(contest, team),
         place: trow.place, of: all.length, total: trow.total, award: trow.award ?? null,
         maxTotal: trow.parts.reduce((n, p) => n + p.max * p.weight, 0),
-        rounds: trow.parts.map((p) => ({ name: contest.rounds.find((x) => x.id === p.roundId)?.name ?? p.label, score: p.raw, max: p.max, note: p.detail, weight: p.weight, weighted: p.weighted })),
+        rounds: trow.parts.map((p) => ({ name: contest.rounds.find((x) => x.id === p.roundId)?.name ?? p.label, score: p.raw, max: p.max, note: contest.rounds.find((x) => x.id === p.roundId)?.kind === 'individual' ? p.detail : undefined, weight: p.weight, weighted: p.weighted })),
         members: members.map((m) => {
           const ir = inds.find((x) => x.competitor.id === m.id);
           return { name: m.name, publicId: m.publicId, score: ir?.score ?? null, max: ir?.max ?? 0, place: ir?.place ?? null, award: ir?.award ?? null };

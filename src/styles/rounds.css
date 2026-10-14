@@ -1,0 +1,58 @@
+/* Rounds: the problem manager. */
+
+.rd .amber-ink { color: var(--amber); }
+.rd-warn { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--r); background: var(--amber-soft); border: 1px solid #EBD3A8; color: var(--ink); }
+.rd-empty { text-align: center; padding: 28px 18px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+.rd-list:empty { display: none; }
+
+.rd-set { display: flex; align-items: baseline; gap: 12px; padding: 12px 18px 10px; background: var(--bg-2); border-bottom: 1px solid var(--line); }
+.rd-list > div:not(:first-child) .rd-set { border-top: 1px solid var(--line); }
+.rd-set-foot { padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.rd-list > :last-child .rd-set-foot, .rd-list > .rd-set-foot:last-child { border-bottom: 0; }
+
+.rd-prob { display: grid; grid-template-columns: 44px minmax(0, 1fr) 250px; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--line); align-items: start; transition: background-color .12s; }
+.rd-list > div:last-child .rd-prob { border-bottom: 0; }
+.rd-prob.open { background: #FBFBFC; }
+.rd-num { font-weight: 700; font-size: 15px; line-height: 1.6; color: var(--ink-3); }
+.rd-prob.warn .rd-num { color: var(--amber); }
+.rd-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.rd-text { all: unset; cursor: text; display: block; font-size: 15.5px; line-height: 1.65; border-radius: 5px; margin: -2px -6px; padding: 2px 6px; overflow-wrap: anywhere; }
+.rd-text:hover { background: var(--bg-2); }
+.rd-text:focus-visible { outline: 2px solid var(--blue); }
+
+.rd-edit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.rd-edit .textarea { min-height: 120px; font-size: 13px; line-height: 1.55; resize: vertical; }
+.rd-edit .field > span small { font-weight: 500; color: var(--ink-3); margin-left: 6px; }
+.rd-preview { min-height: 120px; padding: 9px 12px; border: 1px dashed var(--line-2); border-radius: var(--r); background: var(--bg); font-size: 15.5px; line-height: 1.65; overflow-wrap: anywhere; }
+
+.rd-meta { gap: 8px; }
+.rd-meta .select { width: auto; }
+.rd-pts { gap: 6px; }
+.rd-pts .input { width: 64px; }
+.rd-tools { display: inline-flex; align-items: center; gap: 0; flex-wrap: wrap; }
+.rd-tools .btn { padding: 0 8px; }
+.rd-ic { width: 28px; padding: 0 !important; justify-content: center; }
+.rd-ic .up { transform: rotate(180deg); }
+.rd-del:hover { color: var(--red); background: var(--red-soft); }
+
+.rd-answers { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rd-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 4px 2px 10px; border-radius: 6px; background: var(--green-soft); color: var(--green); font-weight: 600; font-size: 13.5px; max-width: 100%; }
+.rd-chip .mono { overflow-wrap: anywhere; }
+.rd-chip .katex { color: var(--ink-2); font-size: .95em; }
+.rd-chip .x { all: unset; cursor: pointer; width: 20px; height: 20px; border-radius: 4px; display: grid; place-items: center; color: var(--green); opacity: .7; }
+.rd-chip .x:hover { opacity: 1; background: rgba(14, 124, 85, .12); }
+.rd-chip .x:focus-visible { outline: 2px solid var(--blue); }
+.rd-chip .x svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 1.8; fill: none; }
+.rd-none { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 6px; background: var(--amber-soft); color: var(--amber); font-weight: 600; font-size: 13px; }
+.rd-add .input { width: 100%; }
+
+.rd-paste { min-height: 220px; font-size: 13px; width: 100%; }
+
+@media (max-width: 1000px) {
+  .rd-prob { grid-template-columns: 32px minmax(0, 1fr); gap: 10px 12px; padding: 14px; }
+  .rd-answers { grid-column: 2; }
+  .rd-edit { grid-template-columns: minmax(0, 1fr); }
+  .rd-edit .textarea, .rd-preview { min-height: 90px; }
+  .rd-set { padding: 10px 14px; }
+}
