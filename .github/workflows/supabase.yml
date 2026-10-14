@@ -6,7 +6,8 @@
 #   SUPABASE_ACCESS_TOKEN       supabase.com, Account, Access Tokens
 #   SUPABASE_DB_PASSWORD        the database password chosen when the project was made
 #   SUPABASE_SERVICE_ROLE_KEY   Project Settings, API: service_role (never put this in the site)
-#   DEMO_PASSWORD               optional: password for the demo accounts
+# Variables (not secret: the demo logins are meant to be shared):
+#   DEMO_PASSWORD               optional: password for the demo accounts (default mathcloud-demo)
 # Variables:
 #   SUPABASE_PROJECT_REF        the id in the project URL: https://<ref>.supabase.co
 #   SUPABASE_URL                https://<ref>.supabase.co
@@ -54,4 +55,4 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           MOMENT: ${{ inputs.demo }}
-          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          DEMO_PASSWORD: ${{ vars.DEMO_PASSWORD }}

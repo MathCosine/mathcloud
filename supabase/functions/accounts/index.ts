@@ -7,6 +7,11 @@
 //
 //   { action: 'student_logins', team_id }
 //   { action: 'reset_password', competitor_id }
+//   { action: 'add_staff', contest_id, email, name, role, round_ids?, room_id? }
+//   { action: 'remove_staff', contest_id, user_id, role }
+//
+// Organisers add graders, proctors and other organisers by email. Someone
+// with no account yet gets one, with a password shown once to the organiser.
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -72,6 +77,59 @@ Deno.serve(async (req) => {
       if (!res.ok) return json({ error: await res.text() }, 400);
       const u = await res.json();
       return json({ accounts: [{ name: c.name, username: String(u.email ?? '').split('@')[0], password: pw }] });
+    }
+
+    if (body.action === 'add_staff' || body.action === 'remove_staff') {
+      const ok = await fetch(`${SUPABASE_URL}/rest/v1/rpc/contest_director`, {
+        method: 'POST',
+        headers: { apikey: ANON_KEY, Authorization: auth, 'content-type': 'application/json' },
+        body: JSON.stringify({ p_contest: body.contest_id }),
+      }).then((r) => (r.ok ? r.json() : false));
+      if (ok !== true) return json({ error: 'Only the contest’s organisers can change its staff.' }, 403);
+      const [contest] = await (await fetch(`${SUPABASE_URL}/rest/v1/contests?id=eq.${body.contest_id}&select=org_id`, { headers: service })).json();
+      const role = String(body.role);
+      if (!['director', 'staff', 'grader', 'proctor'].includes(role)) return json({ error: 'Unknown role.' }, 400);
+
+      if (body.action === 'remove_staff') {
+        const path = role === 'grader' || role === 'proctor'
+          ? `contest_roles?contest_id=eq.${body.contest_id}&user_id=eq.${body.user_id}&role=eq.${role}`
+          : `memberships?org_id=eq.${contest.org_id}&user_id=eq.${body.user_id}`;
+        await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { method: 'DELETE', headers: service });
+        return json({ ok: true });
+      }
+
+      const email = String(body.email ?? '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'Enter an email address.' }, 400);
+      const [found] = await (await fetch(`${SUPABASE_URL}/rest/v1/profiles?email=eq.${encodeURIComponent(email)}&select=id`, { headers: service })).json();
+      let userId: string | undefined = found?.id;
+      let pw: string | undefined;
+      if (!userId) {
+        pw = password();
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+          method: 'POST',
+          headers: service,
+          body: JSON.stringify({ email, password: pw, email_confirm: true, user_metadata: { name: body.name || email.split('@')[0] } }),
+        });
+        if (!res.ok) return json({ error: await res.text() }, 400);
+        userId = (await res.json()).id;
+      }
+      const write = role === 'grader' || role === 'proctor'
+        ? fetch(`${SUPABASE_URL}/rest/v1/contest_roles`, {
+            method: 'POST',
+            headers: { ...service, Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({ contest_id: body.contest_id, user_id: userId, role, round_ids: body.round_ids ?? [], room_id: body.room_id ?? null }),
+          })
+        : fetch(`${SUPABASE_URL}/rest/v1/memberships`, {
+            method: 'POST',
+            headers: { ...service, Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({ org_id: contest.org_id, user_id: userId, role }),
+          });
+      const res = await write;
+      if (!res.ok) return json({ error: await res.text() }, 400);
+      if (role === 'proctor' && body.room_id) {
+        await fetch(`${SUPABASE_URL}/rest/v1/zoom_rooms?id=eq.${body.room_id}`, { method: 'PATCH', headers: { ...service, Prefer: 'return=minimal' }, body: JSON.stringify({ proctor_id: userId }) });
+      }
+      return json({ user_id: userId, password: pw });
     }
 
     return json({ error: 'Unknown action.' }, 400);

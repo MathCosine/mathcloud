@@ -26,7 +26,7 @@ if (!url || !key) {
   process.exit(1);
 }
 const moment = (process.env.MOMENT ?? 'before') as Moment;
-const password = process.env.DEMO_PASSWORD ?? 'mathcloud-demo';
+const password = process.env.DEMO_PASSWORD || 'mathcloud-demo';
 const domain = process.env.DEMO_DOMAIN ?? 'mathcloud.test';
 const STUDENT_DOMAIN = 'students.mathcloud.app';
 const ORG_SLUG = 'sfmi-demo';

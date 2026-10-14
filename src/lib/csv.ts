@@ -173,7 +173,8 @@ export type PlanOptions = {
   defaultMode: DivisionMode | null;
   /** The modes this contest offers. */
   offered: DivisionMode[];
-  existingNames: string[];
+  /** Duplicates against registered teams are found by dedupeTeams (importers.ts), which offers skip or update. */
+  existingNames?: string[];
   teamMax: number;
 };
 
@@ -183,7 +184,6 @@ const MODE_WORD: Record<DivisionMode, string> = { in_person: 'in person', online
 export function buildPlan(rows: string[][], map: Mapping, opts: PlanOptions): PlannedTeam[] {
   const [, ...body] = rows;
   const cell = (r: string[], i: number | undefined) => (i === undefined ? '' : (r[i] ?? '').trim());
-  const existing = new Set(opts.existingNames.map((n) => n.trim().toLowerCase()));
   // A contest that runs one way takes every team that way, whatever the file says.
   const only = opts.offered.length === 1 ? opts.offered[0] : null;
   const teams: PlannedTeam[] = [];
@@ -203,7 +203,6 @@ export function buildPlan(rows: string[][], map: Mapping, opts: PlanOptions): Pl
         students: [], rows: [], errors: [], warnings: [],
       };
       if (!name) t.errors.push('No team name');
-      else if (existing.has(key)) t.errors.push('Already registered with this name');
       if (!EMAIL.test(t.contactEmail)) t.errors.push(t.contactEmail ? `“${t.contactEmail}” is not an email address` : 'No contact email');
       if (only) {
         const said = rawMode ? readMode(rawMode) : null;
@@ -245,4 +244,6 @@ export const SAMPLE_CSV = [
   '12/3/2026 07:05,Prime Tide,International School,"Seoul, Korea",Online (Zoom),Min Park,minpark@example,Ha-eun Park,9,minpark@example.com,Ji-ho Choi,9,choi@example.com,,,,,,',
   '12/3/2026 16:30,Krill Seekers,Harborview High,San Francisco,In person (San Francisco),Grace Okafor,gokafor@example.com,Maya Okafor,11,gokafor@example.com,,,,,,,,,',
   '12/4/2026 11:12,Eigen Eels,Sunnyvale Middle,Sunnyvale,Not sure yet,Priya Raman,praman@example.com,Kavya Raman,7,praman@example.com,Ethan Wu,7,lwu@example.com,,,,,,',
+  '12/5/2026 10:48,Pi-Rates,Lakeview Math Circle,"Portland, OR",Online (Zoom),Sam Lee,samlee@example.com,Jin Lee,8,samlee@example.com,Clara Voss,7,mvoss@example.com,Theo Brandt,8,kbrandt@example.com,,,',
+  '12/6/2026 19:20,Blue Tangent,Fogline Academy,Daly City,In person (San Francisco),Claire Laurent,claire.laurent@example.com,Theo Laurent,9,claire.laurent@example.com,Nina Laurent,9,claire.laurent@example.com,,,,,,',
 ].join('\n');

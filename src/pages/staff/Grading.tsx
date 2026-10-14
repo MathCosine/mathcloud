@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as RKE } from 'react';
-import { offers, savePaperGutsSet, savePaperSheet, setRuling } from '../../lib/actions';
+import { modeOf, offers, savePaperGutsSet, savePaperSheet, setRuling } from '../../lib/actions';
 import { useContest, useLookups, useStandings } from '../../lib/hooks';
 import type { Problem, Round } from '../../lib/model';
 import { gradeAnswer, indexRulings, normalize } from '../../lib/scoring/answers';
@@ -119,7 +119,8 @@ function KeySheet({ round }: { round: Round }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const idRef = useRef<HTMLInputElement>(null);
   const rulings = useMemo(() => indexRulings(db.rulings), [db.rulings]);
-  const inPerson = db.teams.filter((t) => t.divisionId === 'in_person' && t.status !== 'withdrawn');
+  const contest = useContest();
+  const inPerson = db.teams.filter((t) => modeOf(contest, t) === 'in_person' && t.status !== 'withdrawn');
   const pool = round.kind === 'individual'
     ? db.competitors.filter((c) => inPerson.some((t) => t.id === c.teamId)).map((c) => ({ id: c.id, code: c.publicId, name: c.name }))
     : inPerson.map((t) => ({ id: t.id, code: t.code, name: t.name }));
@@ -186,7 +187,8 @@ function KeyGuts({ round }: { round: Round }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const codeRef = useRef<HTMLInputElement>(null);
   const rulings = useMemo(() => indexRulings(db.rulings), [db.rulings]);
-  const teams = db.teams.filter((t) => t.divisionId === 'in_person' && t.status !== 'withdrawn');
+  const contest = useContest();
+  const teams = db.teams.filter((t) => modeOf(contest, t) === 'in_person' && t.status !== 'withdrawn');
   const team = teams.find((t) => t.code === code.trim().padStart(2, '0') && code.trim());
   const attempt = team && db.attempts.find((a) => a.roundId === round.id && a.entrantId === team.id);
   const problems = round.problems.filter((p) => p.set === setNo);

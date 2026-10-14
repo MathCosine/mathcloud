@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState, type PointerEvent as RPE } from 'react';
-import { queueSends } from '../../lib/actions';
 import { useContest, useStandings } from '../../lib/hooks';
 import { useDB } from '../../lib/store';
-import { Segmented, toast } from '../../components/ui';
+import { Segmented } from '../../components/ui';
+import { Icon } from '../../components/icons';
+import { usePrint } from './print';
 
 /** A short code printed on each certificate that anyone can check. */
 export function verifyCode(contestSlug: string, publicId: string) {
@@ -13,23 +14,60 @@ export function verifyCode(contestSlug: string, publicId: string) {
 }
 
 type Pos = { x: number; y: number };
+type Person = { id: string; name: string; award: string };
+type Layout = { name: Pos; award: Pos };
 
-export function Certificates() {
+/** One certificate. Sizes are in container units, so it prints the same as it looks. */
+function Cert({ p, bg, pos, org, contest, division, date, slug, frameRef, onMove, onUp, grab }: {
+  p: Person; bg: string | null; pos: Layout; org: string; contest: string; division: string; date: string; slug: string;
+  frameRef?: React.RefObject<HTMLDivElement | null>; onMove?: (e: RPE<HTMLDivElement>) => void; onUp?: () => void; grab?: (k: 'name' | 'award') => (e: RPE<HTMLDivElement>) => void;
+}) {
+  return (
+    <div ref={frameRef} className="cert cert-cq" style={bg ? { backgroundImage: `url(${bg})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} onPointerMove={onMove} onPointerUp={onUp}>
+      {!bg && (
+        <>
+          <div className="cert-frame" />
+          <div className="cert-top">
+            <div className="cert-org">{org} awards</div>
+            <div className="cert-contest">{contest}</div>
+          </div>
+        </>
+      )}
+      <div className="cert-field" style={{ left: `${pos.name.x}%`, top: `${pos.name.y}%` }} onPointerDown={grab?.('name')} title={grab ? 'Drag to move' : undefined}>
+        <div className="cert-name" style={p.name.length > 22 ? { fontSize: `${Math.max(3.2, 5.6 * (22 / p.name.length))}cqw` } : undefined}>{p.name}</div>
+      </div>
+      <div className="cert-field" style={{ left: `${pos.award.x}%`, top: `${pos.award.y}%` }} onPointerDown={grab?.('award')} title={grab ? 'Drag to move' : undefined}>
+        <div className="cert-award">{p.award}</div>
+        <div className="cert-sub">{division} division · {date}</div>
+      </div>
+      <div className="cert-foot">
+        <span>{p.id}</span>
+        <span>Check at mathcloud.app/v · {verifyCode(slug, p.id)}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Certificates: one per competitor, with their award and a code anyone can check. */
+export function CertificatesPanel() {
   const db = useDB();
   const contest = useContest();
   const standings = useStandings();
-  const [div, setDiv] = useState(contest.divisions[0].id);
+  const [div, setDiv] = useState(contest.divisions[0]?.id ?? '');
   const [bg, setBg] = useState<string | null>(null);
-  const [pos, setPos] = useState<{ name: Pos; award: Pos }>({ name: { x: 50, y: 48 }, award: { x: 50, y: 62 } });
+  const [pos, setPos] = useState<Layout>({ name: { x: 50, y: 48 }, award: { x: 50, y: 62 } });
   const frame = useRef<HTMLDivElement>(null);
   const drag = useRef<'name' | 'award' | null>(null);
-  const people = useMemo(
-    () => (standings.individuals[div] ?? []).map((r) => ({ id: r.competitor.publicId, name: r.competitor.name, award: r.award ?? 'Participation', email: r.competitor.guardianEmail })),
+  const { print, portal } = usePrint();
+  const people = useMemo<Person[]>(
+    () => (standings.individuals[div] ?? []).map((r) => ({ id: r.competitor.publicId, name: r.competitor.name, award: r.award ?? 'Participation' })),
     [standings, div],
   );
   const [sel, setSel] = useState(0);
   const p = people[Math.min(sel, people.length - 1)];
   const counts = people.reduce<Record<string, number>>((m, x) => ({ ...m, [x.award]: (m[x.award] ?? 0) + 1 }), {});
+  const divName = contest.divisions.find((d) => d.id === div)?.name ?? '';
+  const common = { bg, pos, org: db.orgs[0]?.name ?? '', contest: contest.name, division: divName, date: contest.dateLabel, slug: contest.slug };
 
   const move = (e: RPE<HTMLDivElement>) => {
     if (!drag.current || !frame.current) return;
@@ -42,45 +80,24 @@ export function Certificates() {
     drag.current = k;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
+  const printList = (list: Person[]) => print(list.map((x) => <div key={x.id} className="print-cert"><Cert p={x} {...common} /></div>));
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">Certificates</h1>
-          <p className="page-sub">One for every competitor, with their award and a code anyone can check.</p>
-        </div>
-        <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setSel(0); }} items={contest.divisions.map((d) => ({ key: d.id, label: d.name }))} />
+      <div className="toolbar" style={{ marginBottom: 16 }}>
+        {contest.divisions.length > 1 && <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setSel(0); }} items={contest.divisions.map((d) => ({ key: d.id, label: d.name, count: standings.individuals[d.id]?.length ?? 0 }))} />}
+        <span className="grow" />
+        {p && <button className="btn" type="button" onClick={() => printList([p])}>Print this one</button>}
+        {p && <button className="btn btn-primary" type="button" onClick={() => printList(people)}><Icon name="certificate" />Print all {people.length}</button>}
       </div>
 
       {!p ? (
-        <div className="note">No scores yet, so no awards. Open the Demo menu and choose After the contest.</div>
+        <div className="note">No Individual scores in this division yet, so no awards. Certificates appear once papers are graded.</div>
       ) : (
         <div className="split">
           <div className="stack">
-            <div ref={frame} className="cert" style={bg ? { backgroundImage: `url(${bg})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined} onPointerMove={move} onPointerUp={() => (drag.current = null)}>
-              {!bg && (
-                <>
-                  <div className="cert-frame" />
-                  <div style={{ position: 'absolute', top: '17%', left: 0, right: 0, textAlign: 'center' }}>
-                    <div style={{ fontSize: 'clamp(10px, 1.2vw, 13px)', color: '#4A5160' }}>{db.orgs[0].name} awards</div>
-                    <div style={{ fontWeight: 700, fontSize: 'clamp(13px, 1.6vw, 18px)', marginTop: 4 }}>{contest.name}</div>
-                  </div>
-                </>
-              )}
-              <div className="cert-field" style={{ left: `${pos.name.x}%`, top: `${pos.name.y}%` }} onPointerDown={grab('name')} title="Drag to move">
-                <div style={{ fontSize: 'clamp(20px, 3.4vw, 40px)', fontWeight: 700, letterSpacing: '-.02em' }}>{p.name}</div>
-              </div>
-              <div className="cert-field" style={{ left: `${pos.award.x}%`, top: `${pos.award.y}%` }} onPointerDown={grab('award')} title="Drag to move">
-                <div style={{ fontSize: 'clamp(13px, 1.7vw, 19px)', fontWeight: 700, color: '#2346C8' }}>{p.award}</div>
-                <div style={{ fontSize: 'clamp(10px, 1.1vw, 12px)', color: '#4A5160' }}>{contest.divisions.find((d) => d.id === div)?.name} division · 23 January 2027</div>
-              </div>
-              <div style={{ position: 'absolute', bottom: '8%', left: '9%', right: '9%', display: 'flex', justifyContent: 'space-between', font: '500 clamp(9px, 1vw, 11px) var(--mono)', color: '#868C98' }}>
-                <span>{p.id}</span>
-                <span>Check at mathcloud.app/v · {verifyCode(contest.slug, p.id)}</span>
-              </div>
-            </div>
-            <p className="muted small">Drag the name and the award into place. Long names shrink to fit.</p>
+            <Cert p={p} {...common} frameRef={frame} onMove={move} onUp={() => (drag.current = null)} grab={grab} />
+            <p className="muted small">Drag the name and the award into place. Long names shrink to fit. Prints landscape, one per page.</p>
           </div>
 
           <aside className="stack-lg" style={{ gap: 24 }}>
@@ -111,13 +128,10 @@ export function Certificates() {
               {bg && <button className="btn btn-quiet" type="button" onClick={() => setBg(null)}>Back to the plain design</button>}
               <span className="muted tiny">A PNG or JPG exported from Canva, landscape.</span>
             </div>
-            <button className="btn btn-primary" type="button" onClick={() => {
-              const [now, later] = queueSends('tpl-results', people.map((x) => x.email));
-              toast(`Sending ${people.length} certificates`, later ? `${now} today, ${later} tomorrow (daily limit).` : `${now} sent.`, 'g');
-            }}>Email {people.length} certificates</button>
           </aside>
         </div>
       )}
+      {portal}
     </>
   );
 }

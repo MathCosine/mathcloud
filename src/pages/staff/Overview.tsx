@@ -3,7 +3,8 @@ import { useContest, useStandings } from '../../lib/hooks';
 import type { Round } from '../../lib/model';
 import { useDB } from '../../lib/store';
 import { clockIn, duration, roundEnds, roundState } from '../../lib/time';
-import { contestOf, offers } from '../../lib/actions';
+import { contestOf, modeOf, offers } from '../../lib/actions';
+import { Ring, Spark } from '../../components/charts';
 import { Icon } from '../../components/icons';
 import { ModeChip, Roll, State, useNow } from '../../components/ui';
 
@@ -22,8 +23,8 @@ export function Overview() {
   const locked = db.attempts.filter((a) => a.locked && !a.submittedAt).length;
   const unreviewed = Object.values(standings.unreviewed).reduce((a, b) => a + b, 0);
   const keyGaps = contest.rounds.flatMap((r) => r.problems).filter((p) => !p.answers.join('').trim()).length;
-  const online = teams.filter((t) => t.divisionId === 'online');
-  const here = teams.filter((t) => t.divisionId === 'in_person');
+  const online = teams.filter((t) => modeOf(contest, t) === 'online');
+  const here = teams.filter((t) => modeOf(contest, t) === 'in_person');
   const roomless = online.filter((t) => !contest.rooms.some((r) => r.teamIds.includes(t.id))).length;
   const seatless = here.filter((t) => !contest.venue?.rooms.some((r) => r.teamIds.includes(t.id))).length;
   const hereComps = comps.filter((c) => here.some((t) => t.id === c.teamId));
@@ -38,20 +39,21 @@ export function Overview() {
     { n: questions, text: questions === 1 ? 'question waiting for an answer' : 'questions waiting for an answer', to: '/staff/live' },
     { n: locked, text: locked === 1 ? 'online test locked' : 'online tests locked', to: '/staff/live' },
     { n: unreviewed, text: unreviewed === 1 ? 'answer needs a ruling' : 'answers need a ruling', to: '/staff/grading' },
-    { n: comps.length - signed, text: 'waivers not signed', to: '/staff/roster' },
+    { n: comps.length - signed, text: comps.length - signed === 1 ? 'waiver not signed' : 'waivers not signed', to: '/staff/waivers' },
+    { n: teams.filter((t) => t.status === 'pending').length, text: 'teams waiting to be confirmed', to: '/staff/teams' },
   ].filter((t) => t.n > 0);
 
   const ready: { ok: boolean; text: string; to: string; mode?: 'in_person' | 'online' }[] = [
-    { ok: teams.length > 0, text: teams.length ? `${teams.length} teams registered` : 'Teams registered or imported', to: '/staff/roster' },
+    { ok: teams.length > 0, text: teams.length ? `${teams.length} teams registered` : 'Teams registered or imported', to: '/staff/teams' },
     { ok: keyGaps === 0, text: keyGaps ? `Answer keys: ${keyed} of ${problemCount} filled in` : 'Answer keys complete', to: '/staff/rounds' },
-    { ok: comps.length > 0 && signed === comps.length, text: 'Every waiver signed', to: '/staff/roster' },
+    { ok: comps.length > 0 && signed === comps.length, text: 'Every waiver signed', to: '/staff/waivers' },
     ...(offers(contest, 'in_person') ? [
-      { ok: !!contest.venue?.name, text: contest.venue?.name ? `Venue: ${contest.venue.name}` : 'Venue named', to: '/staff/setup', mode: 'in_person' as const },
-      { ok: seatless === 0, text: 'Every in-person team has a room', to: '/staff/setup', mode: 'in_person' as const },
+      { ok: !!contest.venue?.name, text: contest.venue?.name ? `Venue: ${contest.venue.name}` : 'Venue named', to: '/staff/settings', mode: 'in_person' as const },
+      { ok: seatless === 0, text: 'Every in-person team has a room', to: '/staff/settings', mode: 'in_person' as const },
     ] : []),
     ...(offers(contest, 'online') ? [
-      { ok: contest.rooms.length > 0 && roomless === 0, text: 'Every online team in a Zoom room', to: '/staff/setup', mode: 'online' as const },
-      { ok: contest.rooms.length > 0 && contest.rooms.every((r) => r.proctorId), text: 'Every Zoom room has a proctor', to: '/staff/setup', mode: 'online' as const },
+      { ok: contest.rooms.length > 0 && roomless === 0, text: 'Every online team in a Zoom room', to: '/staff/settings', mode: 'online' as const },
+      { ok: contest.rooms.length > 0 && contest.rooms.every((r) => r.proctorId), text: 'Every Zoom room has a proctor', to: '/staff/settings', mode: 'online' as const },
     ] : []),
   ];
 
@@ -62,12 +64,27 @@ export function Overview() {
           <h1 className="page-title">{contest.short}</h1>
           <p className="page-sub">{contest.dateLabel} · {contest.divisions.map((d) => (d.mode === 'online' ? 'online' : contest.venue?.name || 'in person')).join(' and ')}</p>
         </div>
-        <button className="btn btn-primary" type="button" onClick={() => navigate('/staff/live')}>Go to Live</button>
+        <div className="actions">
+          <Link className="btn" to="/staff/import"><Icon name="upload" />Import</Link>
+          <button className="btn btn-primary" type="button" onClick={() => navigate('/staff/live')}>Go to Live</button>
+        </div>
       </div>
 
       <div className="figures">
-        <div className="figure"><div className="top-label">Teams</div><b><Roll value={teams.length} /></b><span>{comps.length} competitors</span></div>
-        <div className="figure"><div className="top-label">Waivers</div><b><Roll value={signed} /></b><span>of {comps.length} signed</span></div>
+        <Link to="/staff/teams" className="figure fig-link">
+          <div className="top-label">Teams</div>
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
+            <span><b><Roll value={teams.length} /></b><span>{comps.length} competitors</span></span>
+            <Spark dates={teams.map((t) => t.registeredAt)} width={96} height={34} />
+          </div>
+        </Link>
+        <Link to="/staff/waivers" className="figure fig-link">
+          <div className="top-label">Waivers</div>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span><b><Roll value={signed} /></b><span>of {comps.length} signed</span></span>
+            <Ring value={signed} total={comps.length} size={46} tone={signed === comps.length ? 'green' : 'amber'} />
+          </div>
+        </Link>
         {offers(contest, 'in_person') && (
           <div className="figure">
             <div className="top-label"><ModeChip mode="in_person">{here.length} teams</ModeChip></div>
@@ -97,6 +114,17 @@ export function Overview() {
               <Link to={t.to} className="btn btn-sm">Open</Link>
             </div>
           ))}
+        </section>
+      )}
+
+      {contest.rounds.length > 0 && contest.rounds.every((r) => roundState(r, now) === 'closed') && (
+        <section className="section">
+          <div className="section-head"><h2>After the contest</h2></div>
+          <ul className="checklist">
+            <li className={unreviewed === 0 ? 'done' : ''}><span className="box">{unreviewed === 0 && <Icon name="check" size={13} />}</span><b style={{ fontWeight: 500 }}>{unreviewed ? `${unreviewed} answers to rule on` : 'Every answer ruled on'}</b>{unreviewed ? <Link to="/staff/grading" className="btn btn-sm">Grade</Link> : <span />}</li>
+            <li className={contest.resultsPublished ? 'done' : ''}><span className="box">{contest.resultsPublished && <Icon name="check" size={13} />}</span><b style={{ fontWeight: 500 }}>{contest.resultsPublished ? 'Results published' : 'Publish results'}</b>{contest.resultsPublished ? <span /> : <Link to="/staff/results" className="btn btn-sm">Results</Link>}</li>
+            <li className={db.sends.some((x) => x.kind === 'score_report') ? 'done' : ''}><span className="box">{db.sends.some((x) => x.kind === 'score_report') && <Icon name="check" size={13} />}</span><b style={{ fontWeight: 500 }}>Send score reports</b><Link to="/staff/reports" className="btn btn-sm">Reports</Link></li>
+          </ul>
         </section>
       )}
 

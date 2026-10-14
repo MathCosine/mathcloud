@@ -47,7 +47,8 @@ describe('the Google Form sample', () => {
     expect(by['Pi Rates'].mode).toBe('online');
     expect(by['Pi Rates'].warnings[0]).toMatch(/1 without a guardian email/);
     expect(by['Prime Tide'].errors[0]).toMatch(/not an email address/);
-    expect(by['Krill Seekers'].errors).toContain('Already registered with this name');
+    // Already registered: left to dedupeTeams, which offers skip or update instead of an error.
+    expect(by['Krill Seekers'].errors).toEqual([]);
     expect(by['Eigen Eels'].errors[0]).toMatch(/Cannot tell/);
   });
 
