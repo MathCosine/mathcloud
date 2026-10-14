@@ -38,7 +38,8 @@ function Intro({ round, entrantId, name }: { round: Round; entrantId: string; na
     } catch {
       /* Some browsers and phones refuse fullscreen. The test still runs and still notices leaving the tab. */
     }
-    startAttempt(round.id, entrantId, honor.trim());
+    const error = await startAttempt(round.id, entrantId, honor.trim());
+    if (error) toast('Could not start', error, 'r');
   };
   return (
     <div className="exam">

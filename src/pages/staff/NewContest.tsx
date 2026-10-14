@@ -57,12 +57,16 @@ export function NewContest() {
     setStep((s) => Math.min(STEPS.length - 1, s + 1));
   };
 
-  const create = () => {
-    const id = createContest({ ...plan, modes });
+  const create = async () => {
+    try {
+      await createContest({ ...plan, modes });
+    } catch (e) {
+      return toast('Contest not created', e instanceof Error ? e.message : String(e), 'r');
+    }
     toast(`${plan.short} is ready`, signup === 'import' ? 'Bring in your teams from a spreadsheet.' : 'Registration is open. Share the link from Setup.', 'g');
     navigate(signup === 'import' ? '/staff/roster/import' : '/staff', { replace: true });
-    return id;
   };
+
 
   return (
     <div className="stack-lg" style={{ maxWidth: 860 }}>

@@ -1,0 +1,55 @@
+# Builds the site and publishes it to GitHub Pages on every push to main.
+# Settings it reads (repository Settings, Secrets and variables, Actions, Variables):
+#   SUPABASE_URL          https://<project>.supabase.co
+#   SUPABASE_ANON_KEY     the anon (public) key; safe in a browser, protected by row level security
+#   SHOW_DEMO_ACCOUNTS    true to list the demo logins on the sign-in page (for testing)
+# Without SUPABASE_URL the site is the in-browser sandbox.
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          VITE_SHOW_DEMO_ACCOUNTS: ${{ vars.SHOW_DEMO_ACCOUNTS }}
+          VITE_BASE: /${{ github.event.repository.name }}/
+      # GitHub Pages has no rewrites: serve the app for every path, so links like /staff/roster load.
+      - run: cp dist/index.html dist/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -36,11 +36,11 @@ export function Register() {
   const teamOk = team.name.trim() && team.contactName.trim() && EMAIL.test(team.contactEmail);
   const studentsOk = students.length >= contest.registration.teamMin && students.every((s) => s.name.trim() && EMAIL.test(s.guardianEmail));
 
-  const submit = () => {
+  const submit = async () => {
     if (!mode) return;
-    const t = registerTeam(contest.id, { mode, ...team, students }, user?.role === 'coach' ? user.id : undefined);
-    if (!t) return toast('Could not register', 'Try again in a moment.', 'r');
-    setDone(t);
+    const r = await registerTeam(contest.id, { mode, ...team, students }, user?.role === 'coach' ? user.id : undefined);
+    if (!r.team) return toast('Could not register', r.error ?? 'Try again in a moment.', 'r');
+    setDone(r.team);
     window.scrollTo({ top: 0 });
   };
 

@@ -1,15 +1,22 @@
 /**
- * The demo store: the whole database as one object in the browser.
+ * The app's copy of the database: one object every screen reads.
  *
- * It persists to localStorage when the browser allows it and broadcasts every
- * change to other tabs, so a student in one tab and a proctor in another see
- * each other live. When the app is wired to Supabase, the actions in
- * actions.ts become RPC calls and this file becomes a cache; the screens do
- * not change.
+ * Two ways to fill it:
+ *  - Connected (VITE_SUPABASE_URL is set): it is a cache of what Supabase lets
+ *    this person see, loaded at sign-in and refreshed on realtime changes.
+ *    Actions change it at once for a snappy screen and send the same change
+ *    to the database, which has the final say (see remote/).
+ *  - Sandbox (no Supabase configured): a made-up SFMO lives in the browser,
+ *    saved to localStorage and shared between tabs, for development and for
+ *    trying the app with nothing to set up.
  */
 import { useSyncExternalStore } from 'react';
 import type { DB } from './model';
 import { buildDemo, type Moment } from './demo/seed';
+import { contestSwitched } from './store-hooks';
+
+/** Connected to a Supabase project, rather than the in-browser sandbox. */
+export const REMOTE = !!import.meta.env.VITE_SUPABASE_URL;
 
 const KEY = 'mathcloud-demo-v1';
 const tabId = Math.random().toString(36).slice(2);
@@ -25,19 +32,28 @@ function storageSet(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
   } catch {
-    /* private window or blocked storage: the demo still runs, in memory */
+    /* private window or blocked storage: the sandbox still runs, in memory */
   }
 }
 
+export function emptyDB(): DB {
+  return {
+    schema: 4, gen: 'remote', moment: 'live', seededAt: new Date().toISOString(),
+    orgs: [], users: [], contests: [], teams: [], competitors: [], attempts: [], rulings: [],
+    clarifications: [], templates: [], sends: [], activity: [], results: [],
+  };
+}
+
 function load(): DB {
+  if (REMOTE) return emptyDB();
   const raw = storageGet(KEY);
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as DB;
       if (parsed.schema === 4 && Date.now() - new Date(parsed.seededAt).getTime() < 4 * 3600 * 1000) return parsed;
-      if (parsed.schema === 4) return buildDemo(parsed.moment);
+      if (parsed.schema === 4 && parsed.moment !== 'live') return buildDemo(parsed.moment);
     } catch {
-      /* fall through to a fresh demo */
+      /* fall through to a fresh sandbox */
     }
   }
   return buildDemo('guts');
@@ -68,18 +84,19 @@ const getVersion = () => version;
  * director can set up a new contest while another tab runs SFMO.
  */
 const CONTEST_KEY = 'mathcloud-contest';
-const DEFAULT_CONTEST = 'sfmo-2027';
-let activeContest: string = (() => {
+let activeContest: string | null = (() => {
   try {
-    return sessionStorage.getItem(CONTEST_KEY) ?? DEFAULT_CONTEST;
+    return sessionStorage.getItem(CONTEST_KEY);
   } catch {
-    return DEFAULT_CONTEST;
+    return null;
   }
 })();
 
-export const activeContestId = () => (db.contests.some((c) => c.id === activeContest) ? activeContest : DEFAULT_CONTEST);
+export const activeContestId = (): string =>
+  activeContest && db.contests.some((c) => c.id === activeContest) ? activeContest : (db.contests.find((c) => c.id === 'sfmo-2027') ?? db.contests[0])?.id ?? '';
 
-export function setActiveContest(id: string) {
+/** Look at another contest. Connected, its detail is fetched (pass load: false when it already has been). */
+export function setActiveContest(id: string, opts: { load?: boolean } = {}) {
   if (id === activeContest) return;
   activeContest = id;
   try {
@@ -88,18 +105,23 @@ export function setActiveContest(id: string) {
     /* this tab only */
   }
   emit();
+  if (REMOTE && opts.load !== false) contestSwitched(id);
 }
 
 /**
  * The database as one contest sees it: its teams, their people, its rounds'
- * attempts. Screens read this; actions write to the whole database. The real
- * app gets the same effect from row level security and a contest filter.
+ * attempts. Screens read this; actions write to the whole database. Connected,
+ * row level security has already cut it down to what this person may see.
  */
 let view: { v: number; c: string; db: DB } | null = null;
 function scoped(): DB {
   const c = activeContestId();
   if (view && view.v === version && view.c === c) return view.db;
-  const contest = db.contests.find((x) => x.id === c)!;
+  const contest = db.contests.find((x) => x.id === c);
+  if (!contest) {
+    view = { v: version, c, db };
+    return db;
+  }
   const teams = db.teams.filter((t) => t.contestId === c);
   const teamIds = new Set(teams.map((t) => t.id));
   const roundIds = new Set(contest.rounds.map((r) => r.id));
@@ -111,6 +133,7 @@ function scoped(): DB {
     rulings: db.rulings.filter((r) => roundIds.has(r.roundId)),
     clarifications: db.clarifications.filter((x) => roundIds.has(x.roundId)),
     activity: db.activity.filter((a) => !a.teamId || teamIds.has(a.teamId)),
+    results: (db.results ?? []).filter((r) => (r.teamId ? teamIds.has(r.teamId) : db.competitors.some((x) => x.id === r.competitorId && teamIds.has(x.teamId)))),
   };
   view = { v: version, c, db: out };
   return out;
@@ -138,11 +161,11 @@ export function getDB(): DB {
 
 // ------------------------------------------------------------ persistence
 
-const channel: BroadcastChannel | null = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('mathcloud-demo') : null;
+const channel: BroadcastChannel | null = !REMOTE && typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('mathcloud-demo') : null;
 let persistQueued = false;
 
 function persist() {
-  if (persistQueued) return;
+  if (REMOTE || persistQueued) return;
   persistQueued = true;
   queueMicrotask(() => {
     persistQueued = false;
@@ -189,18 +212,24 @@ function mergeIncoming(local: DB, incoming: DB): DB {
   return incoming;
 }
 
-/** Change the database. Every screen re-renders and other tabs follow. */
+/** Change the database. Every screen re-renders and (in the sandbox) other tabs follow. */
 export function update(fn: (draft: DB) => void) {
   fn(db);
   emit();
   persist();
 }
 
+/** Connected: swap in a fresh copy from Supabase. */
+export function replaceDB(next: DB) {
+  db = next;
+  emit();
+}
+
 export function loadMoment(moment: Moment) {
   db = buildDemo(moment);
-  activeContest = DEFAULT_CONTEST;
+  activeContest = null;
   try {
-    sessionStorage.setItem(CONTEST_KEY, DEFAULT_CONTEST);
+    sessionStorage.removeItem(CONTEST_KEY);
   } catch {
     /* this tab only */
   }
@@ -210,9 +239,10 @@ export function loadMoment(moment: Moment) {
 
 // ---------------------------------------------------------------- session
 
-/** Per tab, so one tab can be the director and another a student. */
+/** Per tab in the sandbox, so one tab can be the director and another a student. Connected, it follows Supabase Auth. */
 const SESSION_KEY = 'mathcloud-session';
 let sessionUserId: string | null = (() => {
+  if (REMOTE) return null;
   try {
     return sessionStorage.getItem(SESSION_KEY);
   } catch {
@@ -233,11 +263,32 @@ export function useSessionUserId(): string | null {
 
 export function setSession(userId: string | null) {
   sessionUserId = userId;
-  try {
-    if (userId) sessionStorage.setItem(SESSION_KEY, userId);
-    else sessionStorage.removeItem(SESSION_KEY);
-  } catch {
-    /* in-memory session only */
+  if (!REMOTE) {
+    try {
+      if (userId) sessionStorage.setItem(SESSION_KEY, userId);
+      else sessionStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* in-memory session only */
+    }
   }
   sessionListeners.forEach((l) => l());
+}
+
+// ------------------------------------------------------------- boot state
+
+/** Connected: has the first load finished? The sandbox is always ready. */
+let ready = !REMOTE;
+const readyListeners = new Set<() => void>();
+export function setReady(v: boolean) {
+  ready = v;
+  readyListeners.forEach((l) => l());
+}
+export function useReady(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      readyListeners.add(l);
+      return () => readyListeners.delete(l);
+    },
+    () => ready,
+  );
 }

@@ -50,11 +50,13 @@ export function Import() {
   const setStudentCol = (k: StudentField, v: string) => setMapping((m) => m && { ...m, students: [{ ...m.students[0], [k]: v === '' ? undefined : Number(v) }] });
   const sample = (i: number | undefined) => (i === undefined ? '' : rows.slice(1).map((r) => r[i]).find((x) => x) ?? '');
 
-  const go = () => {
-    const n = importTeams(ready, status, user.name);
-    toast(`${n} teams imported`, `${ready.reduce((a, t) => a + t.students.length, 0)} students, each with a competitor ID.${skipped ? ` ${skipped} rows left out.` : ''}`, 'g');
+  const go = async () => {
+    const r = await importTeams(ready, status, user.name);
+    if (r.error) return toast('Import stopped', r.error, 'r');
+    toast(`${r.count} teams imported`, `${ready.reduce((a, t) => a + t.students.length, 0)} students, each with a competitor ID.${skipped ? ` ${skipped} rows left out.` : ''}`, 'g');
     navigate('/staff/roster');
   };
+
 
   return (
     <div className="stack-lg">

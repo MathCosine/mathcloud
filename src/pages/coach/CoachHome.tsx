@@ -77,11 +77,12 @@ function TeamBlock({ team }: { team: Team }) {
   const full = members.length >= contest.registration.teamMax;
   const proctor = db.users.find((u) => u.id === zoom?.proctorId);
 
-  const add = () => {
+  const add = async () => {
     if (!form.name.trim() || !form.guardianName.trim() || !/@/.test(form.guardianEmail)) return toast('Fill in every field', 'The waiver goes to the guardian’s email.', 'r');
     const taken = new Set(members.map((c) => c.slot));
     const slot = 'ABCD'.split('').find((s) => !taken.has(s));
-    addCompetitor(team.id, form, user.name);
+    const error = await addCompetitor(team.id, form, user.name);
+    if (error) return toast('Not added', error, 'r');
     toast(`${form.name} added as ${team.code}${slot}`, `The waiver went to ${form.guardianName}.`, 'g');
     setForm({ name: '', grade: 9, guardianName: '', guardianEmail: '' });
     setAdding(false);
@@ -172,8 +173,8 @@ function SwitchMode({ team, to, onClose }: { team: Team; to: DivisionMode; onClo
   const contest = useContest();
   const user = useUser()!;
   const closed = !contest.registration.open;
-  const go = () => {
-    const why = setTeamMode(team.id, to, user.name);
+  const go = async () => {
+    const why = await setTeamMode(team.id, to, user.name);
     if (why) return toast('Not moved', why, 'a');
     toast(`${team.name} is now ${to === 'online' ? 'online' : 'in person'}`, to === 'online' ? 'A Zoom room has been assigned.' : `A room at ${contest.venue?.name} has been assigned.`, 'g');
     onClose();

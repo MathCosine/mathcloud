@@ -4,7 +4,8 @@
  * the real store will read them through Supabase.
  */
 
-export type Role = 'director' | 'staff' | 'grader' | 'proctor' | 'coach' | 'student';
+/** 'guest': signed in, but not yet an organiser, coach or student anywhere. */
+export type Role = 'director' | 'staff' | 'grader' | 'proctor' | 'coach' | 'student' | 'guest';
 
 export type User = {
   id: string;
@@ -189,6 +190,8 @@ export type Competitor = {
   guardianName: string;
   guardianEmail: string;
   waiverSignedAt: string | null;
+  /** Who signed, or how it arrived ("Paper copy at check-in"). */
+  waiverSignedBy?: string | null;
   reminderSentAt?: string | null;
   checkedInAt?: string | null;
   /** Online: when the student last passed the device check. */
@@ -259,18 +262,55 @@ export type EmailTemplate = {
   body: string;
 };
 
-export type EmailSend = { id: string; templateId: string; to: string; at: string; status: 'queued' | 'sent' };
+export type EmailSend = {
+  id: string;
+  templateId?: string | null;
+  /** 'template', 'score_report', 'waiver_reminder', ... */
+  kind?: string;
+  to: string;
+  subject?: string;
+  at: string;
+  status: 'queued' | 'sent' | 'failed';
+  keyId?: string | null;
+  error?: string | null;
+};
+
+/** One provider API key. Several can share the sending, each up to its own daily limit. */
+export type EmailKey = { id: string; label: string; from: string; dailyLimit: number; active: boolean; lastError?: string | null };
+
+/** What a competitor or team sees once results are published. */
+export type PublishedResult = { competitorId?: string; teamId?: string; data: ResultData };
+export type ResultData = {
+  name: string;
+  publicId?: string;
+  division: string;
+  place: number | null;
+  of: number;
+  score: number;
+  max?: number;
+  award?: string | null;
+  rounds?: { name: string; score: number; max: number }[];
+  problems?: { number: number; status: 'correct' | 'incorrect' | 'blank' | 'unreviewed' }[];
+  team?: { name: string; place: number | null; of: number; total: number };
+};
 
 export type Activity = { id: string; teamId?: string; at: string; text: string; tone: 'b' | 'g' | 'a' | '' };
 
-export type Org = { id: string; name: string; short: string; emailProvider: { kind: 'resend' | 'smtp' | 'gmail_relay' | 'none'; from: string; dailyLimit: number } };
+export type Org = {
+  id: string;
+  name: string;
+  short: string;
+  emailProvider: { kind: 'resend' | 'smtp' | 'gmail_relay' | 'none'; from: string; dailyLimit: number };
+  /** The pool of sending keys; sending uses each up to its limit, then the next. */
+  emailKeys?: EmailKey[];
+};
 
 export type DB = {
   schema: number;
   /** Changes whenever the demo is reset or jumps to another moment. */
   gen: string;
-  /** Demo only: which moment of the contest day this copy starts from, and when it was made. */
-  moment: 'before' | 'morning' | 'guts' | 'after';
+  /** Sandbox only: which moment of the contest day this copy starts from. 'live' when connected to Supabase. */
+  moment: 'before' | 'morning' | 'guts' | 'after' | 'live';
   seededAt: string;
   orgs: Org[];
   users: User[];
@@ -283,4 +323,6 @@ export type DB = {
   templates: EmailTemplate[];
   sends: EmailSend[];
   activity: Activity[];
+  /** Published results visible to this person (students and coaches, when connected). */
+  results?: PublishedResult[];
 };

@@ -1,7 +1,7 @@
 -- Just enough of Supabase for the migration to run on plain Postgres:
 -- the auth schema, auth.uid() from the JWT claim, and the API roles.
 create schema if not exists auth;
-create table if not exists auth.users (id uuid primary key, email text);
+create table if not exists auth.users (id uuid primary key, email text, raw_user_meta_data jsonb not null default '{}'::jsonb);
 create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;

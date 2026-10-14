@@ -12,6 +12,7 @@ const CAN: Record<Role, string> = {
   proctor: 'One Zoom room on contest day',
   coach: 'Their own teams',
   student: 'Their own tests and results',
+  guest: 'Nothing yet',
 };
 
 export function Settings() {

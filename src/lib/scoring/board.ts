@@ -81,7 +81,11 @@ export function buildBoard(input: {
       };
     });
 
-  // Highest score first; on equal scores, more sets handed in, then whoever got there first.
+  return { round, rows: rank(rows), totalSets, frozen, freezeAt, endsAt };
+}
+
+/** Highest score first; on equal scores, more sets handed in, then whoever got there first. */
+export function rank(rows: BoardRow[]): BoardRow[] {
   rows.sort(
     (a, b) =>
       b.score - a.score ||
@@ -98,5 +102,27 @@ export function buildBoard(input: {
   rows.forEach((r) => {
     r.tied = r.place !== null && rows.filter((x) => x.place === r.place).length > 1;
   });
-  return { round, rows, totalSets, frozen, freezeAt, endsAt };
+  return rows;
+}
+
+/** One team's line as the database scored it (guts_board()), for people who cannot see every answer. */
+export type ServerBoardRow = { team_id: string; code: string; name: string; division_id: string; score: number | string; sets: number; set_times: string[] | null; frozen: boolean };
+
+export function boardFromServer(contest: Contest, served: ServerBoardRow[], divisionId: string | 'all', now: number): Board | null {
+  const round = gutsRound(contest);
+  if (!round) return null;
+  const totalSets = Math.max(1, ...round.problems.map((p) => p.set ?? 1), 6);
+  const opened = round.openedAt ? new Date(round.openedAt).getTime() : null;
+  const endsAt = opened !== null ? opened + round.minutes * 60000 : null;
+  const freezeAt = endsAt !== null && contest.board.freezeMinutes > 0 ? endsAt - contest.board.freezeMinutes * 60000 : null;
+  const frozen = served.some((r) => r.frozen) || (!contest.board.revealed && freezeAt !== null && now >= freezeAt);
+  const rows: BoardRow[] = served
+    .filter((r) => divisionId === 'all' || r.division_id === divisionId)
+    .map((r) => {
+      const team: Team = { id: r.team_id, contestId: contest.id, code: r.code, name: r.name, divisionId: r.division_id, school: '', city: '', contactName: '', contactEmail: '', status: 'confirmed', registeredAt: '', joinCode: '', pledge: null };
+      const times = r.set_times ?? [];
+      const started = r.sets > 0;
+      return { team, score: Number(r.score), sets: r.sets, current: started && r.sets < totalSets ? r.sets + 1 : null, started, place: null, tied: false, lastSetAt: times.length ? times[times.length - 1] : null };
+    });
+  return { round, rows: rank(rows), totalSets, frozen, freezeAt, endsAt };
 }

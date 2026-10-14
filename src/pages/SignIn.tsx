@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react';
+import { Navigate } from 'react-router-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { signIn } from '../lib/actions';
 import type { DivisionMode } from '../lib/model';
-import { enterAs, homeFor, initials } from '../lib/session';
-import { useAllDB } from '../lib/store';
+import { enterAs, homeFor, initials, useUser } from '../lib/session';
+import { REMOTE, useAllDB } from '../lib/store';
 import { Icon } from '../components/icons';
 import { ModeChip } from '../components/ui';
 
@@ -35,20 +36,21 @@ export function SignIn() {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const me = useUser();
 
   const go = (id: string) => {
     enterAs(id);
     navigate(homeFor(db.users.find((u) => u.id === id) ?? null));
   };
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const u = signIn(login, password);
-    // One message for both failures, so it never says which half was wrong.
-    if (!u) return setError('That email and password do not match an account.');
-    go(u.id);
+    const r = await signIn(login, password);
+    if ('error' in r) return setError(r.error);
+    if (!REMOTE) go(r.userId);
   };
 
+  if (me) return <Navigate to={homeFor(me)} replace />;
   return (
     <div className="signin">
       <div className="signin-form">

@@ -19,7 +19,7 @@ const STATUS: Record<Team['status'], [Tone, string]> = {
   withdrawn: ['off', 'Withdrawn'],
 };
 
-export function Roster() {
+export function Teams() {
   const db = useDB();
   const contest = useContest();
   const me = useUser()!;

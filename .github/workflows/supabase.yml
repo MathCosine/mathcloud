@@ -1,0 +1,57 @@
+# Sets up (or updates) the Supabase project: database tables and rules,
+# the two edge functions, and optionally the SFMO demo with its demo accounts.
+# Run it from the Actions tab: "Set up Supabase", Run workflow.
+#
+# Secrets (Settings, Secrets and variables, Actions, Secrets):
+#   SUPABASE_ACCESS_TOKEN       supabase.com, Account, Access Tokens
+#   SUPABASE_DB_PASSWORD        the database password chosen when the project was made
+#   SUPABASE_SERVICE_ROLE_KEY   Project Settings, API: service_role (never put this in the site)
+#   DEMO_PASSWORD               optional: password for the demo accounts
+# Variables:
+#   SUPABASE_PROJECT_REF        the id in the project URL: https://<ref>.supabase.co
+#   SUPABASE_URL                https://<ref>.supabase.co
+name: Set up Supabase
+
+on:
+  workflow_dispatch:
+    inputs:
+      demo:
+        description: Load the SFMO demo and demo accounts (replaces the previous demo only)
+        type: choice
+        options: [none, before, morning, guts, after]
+        default: before
+
+jobs:
+  supabase:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Link the project
+        run: supabase link --project-ref "${{ vars.SUPABASE_PROJECT_REF }}" --password "$SUPABASE_DB_PASSWORD"
+      - name: Database tables, rules and functions
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+      - name: Edge functions
+        run: |
+          supabase functions deploy send-email --project-ref "${{ vars.SUPABASE_PROJECT_REF }}"
+          supabase functions deploy accounts --project-ref "${{ vars.SUPABASE_PROJECT_REF }}"
+      - uses: actions/setup-node@v4
+        if: inputs.demo != 'none'
+        with:
+          node-version: 22
+          cache: npm
+      - if: inputs.demo != 'none'
+        run: npm ci
+      - name: Demo data and demo accounts
+        if: inputs.demo != 'none'
+        run: npm run seed
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MOMENT: ${{ inputs.demo }}
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}

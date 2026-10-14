@@ -1,136 +1,135 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { contestOf, offers } from '../lib/actions';
-import { contestInitials, initials, ROLE_LABEL, useUser } from '../lib/session';
+import { contestOf } from '../lib/actions';
+import { useStandings } from '../lib/hooks';
+import { contestInitials, homeFor, useUser } from '../lib/session';
 import { setActiveContest, useAllDB, useDB } from '../lib/store';
 import { duration, roundEnds, roundState } from '../lib/time';
-import { DemoMenu } from '../components/DemoMenu';
+import { Logo } from '../components/art';
 import { Icon, type IconName } from '../components/icons';
+import { UserMenu } from '../components/UserMenu';
 import { ModeChip, useNow } from '../components/ui';
 
-type Item = { to: string; label: string; icon: IconName; badge?: number | 'live'; end?: boolean } | { group: string };
+type Tab = { to: string; label: string; icon: IconName; count?: number | 'live'; end?: boolean };
 
-const TITLES: [string, string][] = [
-  ['/staff/new', 'New contest'],
-  ['/staff/setup', 'Setup'],
-  ['/staff/roster/import', 'Import teams'],
-  ['/staff/roster', 'Roster'],
-  ['/staff/rounds', 'Rounds'],
-  ['/staff/live', 'Live'],
-  ['/staff/grading', 'Grading'],
-  ['/staff/results', 'Results'],
-  ['/staff/certificates', 'Certificates'],
-  ['/staff/email', 'Email'],
-  ['/staff/settings', 'People and access'],
-  ['/staff', 'Overview'],
-];
-
+/**
+ * The organisers' frame: a top bar (MathCloud, the contest, you) and the
+ * contest's own header with one tab per part of the job, left to right in
+ * the order a contest happens.
+ */
 export function StaffLayout() {
   const db = useDB();
   const user = useUser();
   const location = useLocation();
-  const navigate = useNavigate();
-  const now = useNow(1000);
-  const nav = useRef<HTMLElement>(null);
-  const [slide, setSlide] = useState<{ y: number; on: boolean }>({ y: 0, on: false });
-
-  useLayoutEffect(() => {
-    const a = nav.current?.querySelector<HTMLElement>('a.active');
-    setSlide(a ? { y: a.offsetTop, on: true } : { y: 0, on: false });
-  }, [location.pathname, user?.role, db.contests.length]);
 
   if (!user) return <Navigate to="/sign-in" replace />;
-  if (!['director', 'staff', 'grader', 'proctor'].includes(user.role)) return <Navigate to="/" replace />;
+  if (!['director', 'staff', 'grader', 'proctor'].includes(user.role)) return <Navigate to={homeFor(user)} replace />;
 
+  const contest = contestOf(db) as ReturnType<typeof contestOf> | undefined;
+  const director = user.role === 'director' || user.role === 'staff';
+  if (!contest) {
+    if (director && location.pathname !== '/staff/new') return <Navigate to="/staff/new" replace />;
+    return (
+      <div className="app">
+        <TopBar />
+        <main className="page">{director ? <Outlet /> : <p className="soft">You have no contests yet. An organiser adds you to one.</p>}</main>
+      </div>
+    );
+  }
+  if (location.pathname === '/staff/new') {
+    return (
+      <div className="app">
+        <TopBar />
+        <main className="page"><Outlet /></main>
+      </div>
+    );
+  }
+  return <ContestFrame director={director} role={user.role} />;
+}
+
+function ContestFrame({ director, role }: { director: boolean; role: string }) {
+  const db = useDB();
+  const now = useNow(1000);
+  const standings = useStandings();
   const contest = contestOf(db);
   const open = contest.rounds.find((r) => roundState(r, now) === 'open');
   const ends = open ? roundEnds(open) : null;
-  const waiting = db.clarifications.filter((c) => !c.answer).length + db.attempts.filter((a) => a.locked && !a.submittedAt).length;
-  const director = user.role === 'director' || user.role === 'staff';
-  const liveBadge = waiting || (open ? 'live' : undefined);
+  const waiting = db.clarifications.filter((c) => !c.answer && !c.broadcast).length + db.attempts.filter((a) => a.locked && !a.submittedAt).length;
+  const missing = db.competitors.filter((c) => !c.waiverSignedAt && db.teams.find((t) => t.id === c.teamId)?.status !== 'withdrawn').length;
+  const toRule = Object.values(standings.unreviewed).reduce((a, b) => a + b, 0);
 
-  const items: Item[] = director
+  const tabs: Tab[] = director
     ? [
         { to: '/staff', label: 'Overview', icon: 'overview', end: true },
-        { group: 'Before' },
-        { to: '/staff/setup', label: 'Setup', icon: 'setup' },
-        { to: '/staff/roster', label: 'Roster', icon: 'roster' },
+        { to: '/staff/teams', label: 'Teams', icon: 'roster', count: db.teams.filter((t) => t.status !== 'withdrawn').length },
+        { to: '/staff/people', label: 'People', icon: 'people' },
+        { to: '/staff/waivers', label: 'Waivers', icon: 'file', count: missing || undefined },
         { to: '/staff/rounds', label: 'Rounds', icon: 'rounds' },
-        { group: 'On the day' },
-        { to: '/staff/live', label: 'Live', icon: 'live', badge: liveBadge },
-        { to: '/staff/grading', label: offers(contest, 'in_person') ? 'Grading' : 'Review answers', icon: 'grading' },
-        { group: 'After' },
+        { to: '/staff/live', label: 'Live', icon: 'live', count: waiting || (open ? 'live' : undefined) },
+        { to: '/staff/grading', label: 'Grading', icon: 'grading', count: toRule || undefined },
         { to: '/staff/results', label: 'Results', icon: 'results' },
-        { to: '/staff/certificates', label: 'Certificates', icon: 'certificate' },
+        { to: '/staff/reports', label: 'Reports', icon: 'certificate' },
         { to: '/staff/email', label: 'Email', icon: 'mail' },
-        { group: 'Organisation' },
-        { to: '/staff/settings', label: 'People and access', icon: 'people' },
+        { to: '/staff/settings', label: 'Settings', icon: 'setup' },
       ]
-    : user.role === 'grader'
-      ? [{ to: '/staff/grading', label: 'Grading', icon: 'grading' }]
-      : [{ to: '/staff/live', label: 'Live', icon: 'live', badge: liveBadge }];
-  const links = items.filter((i): i is Extract<Item, { to: string }> => 'to' in i);
-  const title = TITLES.find(([p]) => location.pathname.startsWith(p))?.[1] ?? '';
+    : role === 'grader'
+      ? [{ to: '/staff/grading', label: 'Grading', icon: 'grading', count: toRule || undefined }]
+      : [{ to: '/staff/live', label: 'Live', icon: 'live', count: waiting || (open ? 'live' : undefined) }];
 
   return (
-    <div className="shell">
-      <aside className="side" aria-label="Contest">
-        {director ? <ContestSwitcher /> : (
-          <div className="switcher" style={{ cursor: 'default' }}>
-            <span className="tile">{contestInitials(contest.short)}</span>
-            <span style={{ minWidth: 0 }}><b>{contest.short}</b><small>{db.orgs[0].name}</small></span>
+    <div className="app">
+      <TopBar />
+      <header className="contest-head">
+        <div className="contest-head-in">
+          <div className="contest-title">
+            <div className="row" style={{ gap: 12, minWidth: 0 }}>
+              <span className="tile">{contestInitials(contest.short)}</span>
+              <div style={{ minWidth: 0 }}>
+                <h1>{contest.name}</h1>
+                <p className="row wrap" style={{ gap: 8 }}>
+                  <span>{contest.dateLabel}</span>
+                  {contest.divisions.map((d) => <ModeChip key={d.id} mode={d.mode} />)}
+                </p>
+              </div>
+            </div>
+            <div className="row" style={{ gap: 8 }}>
+              {open && ends && (
+                <Link to="/staff/live" className="live-pill">
+                  {open.name} · <span className="mono">{duration(ends - now)}</span>
+                </Link>
+              )}
+              {director && <Link className="btn btn-sm hide-sm" to={`/c/${contest.slug}`}><Icon name="link" />Public page</Link>}
+            </div>
           </div>
-        )}
-        <nav className="side-nav" ref={nav}>
-          <span className="pill-slide" style={{ transform: `translateY(${slide.y}px)`, opacity: slide.on ? 1 : 0 }} />
-          {items.map((it, i) =>
-            'group' in it ? (
-              <span key={`g${i}`} className="group">{it.group}</span>
-            ) : (
-              <NavLink key={it.to} to={it.to} end={it.end} className={({ isActive }) => (isActive ? 'active' : '')}>
-                <Icon name={it.icon} />
-                {it.label}
-                {it.badge === 'live' ? <span className="badge live">Live</span> : it.badge ? <span className="badge">{it.badge}</span> : null}
+          <nav className="tabs-nav" aria-label="Contest">
+            {tabs.map((t) => (
+              <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => (isActive ? 'on' : '')}>
+                <Icon name={t.icon} size={15} />
+                {t.label}
+                {t.count === 'live' ? <span className="dot-live" aria-label="live" /> : t.count ? <span className="count">{t.count}</span> : null}
               </NavLink>
-            ),
-          )}
-        </nav>
-        <div className="side-foot">
-          <div className="who">
-            <span className="avatar">{initials(user.name)}</span>
-            <span className="grow">
-              <b>{user.name}</b>
-              <span className="role">{ROLE_LABEL[user.role]}</span>
-            </span>
-          </div>
-          <DemoMenu />
+            ))}
+          </nav>
         </div>
-      </aside>
-      <div style={{ minWidth: 0 }}>
-        <div className="mobile-bar">
-          <b>{contest.short}</b>
-          <select className="select input-sm" aria-label="Go to" value={links.find((l) => (l.end ? location.pathname === l.to : location.pathname.startsWith(l.to)))?.to} onChange={(e) => navigate(e.target.value)}>
-            {links.map((l) => <option key={l.to} value={l.to}>{l.label}</option>)}
-          </select>
-          <DemoMenu placement="down" />
-        </div>
-        <header className="topbar">
-          <div className="crumbs">
-            <span>{contest.short}</span>
-            <span aria-hidden="true">/</span>
-            <b>{title}</b>
-          </div>
-          <span className="grow" />
-          {contest.divisions.map((d) => <ModeChip key={d.id} mode={d.mode} />)}
-          {open && ends && (
-            <Link to="/staff/live" className="live-pill">
-              {open.name} · <span className="mono">{duration(ends - now)}</span>
-            </Link>
-          )}
-        </header>
-        <main className="main">
-          <Outlet key={contest.id} />
-        </main>
+      </header>
+      <main className="page">
+        <Outlet key={contest.id} />
+      </main>
+    </div>
+  );
+}
+
+/** MathCloud, which contest, and who you are. Shared by every signed-in screen. */
+export function TopBar({ children }: { children?: ReactNode }) {
+  const user = useUser();
+  return (
+    <div className="topbar">
+      <div className="topbar-in">
+        <Link to={user ? homeFor(user) : '/'} className="brand"><Logo size={26} /><span>MathCloud</span></Link>
+        {user && (user.role === 'director' || user.role === 'staff') && <ContestSwitcher />}
+        <span className="grow" />
+        {children}
+        <UserMenu />
       </div>
     </div>
   );
@@ -140,7 +139,7 @@ function ContestSwitcher() {
   const all = useAllDB();
   const db = useDB();
   const navigate = useNavigate();
-  const contest = contestOf(db);
+  const contest = contestOf(db) as ReturnType<typeof contestOf> | undefined;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -154,29 +153,28 @@ function ContestSwitcher() {
       window.removeEventListener('keydown', esc);
     };
   }, [open]);
+  const org = all.orgs.find((o) => o.id === contest?.orgId) ?? all.orgs[0];
 
   return (
     <div className="menu-wrap" ref={ref}>
-      <button type="button" className="switcher" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <span className="tile">{contestInitials(contest.short)}</span>
-        <span style={{ minWidth: 0 }}><b>{contest.short}</b><small>{contest.dateLabel.replace(/^\w+day /, '')}</small></span>
-        <Icon name="chevron" />
+      <button type="button" className="ctx" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className="muted hide-sm">{org?.name ?? 'Your organisation'}</span>
+        <span className="slash hide-sm">/</span>
+        <b>{contest?.short ?? 'No contest yet'}</b>
+        <Icon name="chevron" size={14} />
       </button>
       {open && (
-        <div className="menu down" role="menu" style={{ left: 0, right: 'auto', width: 280 }}>
-          <div className="menu-title">{all.orgs[0].name}</div>
-          {all.contests.map((c) => {
-            const teams = all.teams.filter((t) => t.contestId === c.id && t.status !== 'withdrawn').length;
-            return (
-              <button key={c.id} type="button" role="menuitem" className={`menu-item ${c.id === contest.id ? 'on' : ''}`} onClick={() => { setActiveContest(c.id); setOpen(false); navigate('/staff'); }}>
-                <span className="row" style={{ gap: 10 }}>
-                  <span className="tile" style={{ width: 26, height: 26, fontSize: 10, borderRadius: 7 }}>{contestInitials(c.short)}</span>
-                  <span>{c.short}</span>
-                </span>
-                <small>{teams} {teams === 1 ? 'team' : 'teams'}</small>
-              </button>
-            );
-          })}
+        <div className="menu down" role="menu" style={{ left: 0, right: 'auto', width: 300 }}>
+          <div className="menu-title">{org?.name}</div>
+          {all.contests.map((c) => (
+            <button key={c.id} type="button" role="menuitem" className={`menu-item ${c.id === contest?.id ? 'on' : ''}`} onClick={() => { setActiveContest(c.id); setOpen(false); navigate('/staff'); }}>
+              <span className="row" style={{ gap: 10 }}>
+                <span className="tile" style={{ width: 26, height: 26, fontSize: 10, borderRadius: 7 }}>{contestInitials(c.short)}</span>
+                <span>{c.short}</span>
+              </span>
+              <small>{c.dateLabel.replace(/^\w+day /, '')}</small>
+            </button>
+          ))}
           <div className="menu-sep" />
           <button type="button" role="menuitem" className="menu-item" onClick={() => { setOpen(false); navigate('/staff/new'); }}>
             <span className="row" style={{ gap: 10 }}>

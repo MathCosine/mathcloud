@@ -1,0 +1,29 @@
+# For the Supabase CLI (supabase link, db push, functions deploy). The
+# workflow in .github/workflows/supabase.yml runs these for you.
+project_id = "mathcloud"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[auth]
+site_url = "http://localhost:5173"
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+# The send and accounts functions are called by signed-in people only.
+[functions.send-email]
+verify_jwt = true
+
+[functions.accounts]
+verify_jwt = true

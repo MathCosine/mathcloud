@@ -18,5 +18,8 @@ psql_ "-d mathcloud -f $here/supabase/migrations/0001_core.sql"
 psql_ "-d mathcloud -f $here/supabase/migrations/0001_core.sql"   # re-running must be safe
 psql_ "-d mathcloud -f $here/supabase/migrations/0002_take_part.sql"
 psql_ "-d mathcloud -f $here/supabase/migrations/0002_take_part.sql"
+psql_ "-d mathcloud -f $here/supabase/migrations/0003_app.sql"
+psql_ "-d mathcloud -f $here/supabase/migrations/0003_app.sql"
 psql_ "-d mathcloud -f $here/supabase/tests/rules.sql"
 psql_ "-d mathcloud -f $here/supabase/tests/take_part.sql"
+psql_ "-d mathcloud -f $here/supabase/tests/app.sql"

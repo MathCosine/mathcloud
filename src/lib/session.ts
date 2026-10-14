@@ -23,6 +23,7 @@ export const ROLE_LABEL: Record<User['role'], string> = {
   proctor: 'Proctor',
   coach: 'Coach',
   student: 'Student',
+  guest: 'New account',
 };
 
 export function homeFor(user: User | null): string {
@@ -39,6 +40,8 @@ export function homeFor(user: User | null): string {
       return '/coach';
     case 'student':
       return '/me';
+    case 'guest':
+      return '/welcome';
   }
 }
 

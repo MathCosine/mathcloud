@@ -6,7 +6,7 @@
 import { useEffect } from 'react';
 import { contestOf } from '../actions';
 import type { Attempt, Problem, Round } from '../model';
-import { getDB, update } from '../store';
+import { getDB, update, REMOTE } from '../store';
 import { roundEnds, roundState } from '../time';
 import { DEMO_TEAM } from './seed';
 
@@ -100,6 +100,8 @@ function gutsSet(round: Round, attempts: Attempt[], teamId: string, source: 'onl
 
 export function useSimulation() {
   useEffect(() => {
+    // Only the sandbox has made-up competitors to move.
+    if (REMOTE) return;
     const id = setInterval(() => {
       if (lead()) step();
     }, 2500);

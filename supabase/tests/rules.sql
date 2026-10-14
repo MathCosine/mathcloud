@@ -37,7 +37,7 @@ insert into competitors (id, team_id, slot, public_id, name, user_id, guardian_n
   ('70000000-0000-0000-0000-00000000005a', '60000000-0000-0000-0000-000000000005', 'A', '05A', 'Hannah', '00000000-0000-0000-0000-000000000052', 'Joon', 'joon@x', now());
 insert into contest_roles (contest_id, user_id, role, round_ids) values ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000a1', 'grader', '{40000000-0000-0000-0000-000000000001}');
 insert into zoom_rooms (contest_id, name, url, proctor_id, team_ids) values ('20000000-0000-0000-0000-000000000001', 'Room 1', 'https://zoom.us/j/1', '00000000-0000-0000-0000-0000000000b1', '{60000000-0000-0000-0000-000000000016}');
-insert into waiver_tokens (competitor_id, token) values ('70000000-0000-0000-0000-00000000016c', 'tok-16c');
+update waiver_tokens set token = 'tok-16c' where competitor_id = '70000000-0000-0000-0000-00000000016c';  -- made by the trigger
 
 create or replace function pg_temp.expect(ok boolean, what text) returns void language plpgsql as $$
 begin
