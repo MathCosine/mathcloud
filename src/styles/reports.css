@@ -1,6 +1,7 @@
 /* Score reports, certificates and email. Screen first, then print. */
 
-.rp-note { margin-bottom: 14px; }
+.rp-note { margin-bottom: 16px; }
+.rp-todo { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
 .rp-empty { display: flex; align-items: center; gap: 24px; padding: 28px; }
 .rp-empty svg { width: 140px; flex: none; }
 .rp-empty h2 { font-size: 16px; margin-bottom: 4px; }

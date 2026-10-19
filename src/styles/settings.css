@@ -42,3 +42,8 @@
   .set-grid .span-2 { grid-column: auto; }
   .set-slug-in > span { max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
 }
+
+/* Each section is a heading on the canvas and its card(s), not a box in a box. */
+.section.set-section { background: none; border: 0; box-shadow: none; padding: 0; }
+.set-section > .section-head { padding: 0 2px; min-height: 30px; align-items: center; }
+.set-section > .section-head .label { text-align: right; }

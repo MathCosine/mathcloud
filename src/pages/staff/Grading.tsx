@@ -46,9 +46,10 @@ export function Grading() {
         <section className="card pp-empty">
           <ArtEmpty kind="problems" className="pp-art" />
           <div className="stack" style={{ gap: 8 }}>
-            <h2>{director ? 'No rounds yet' : 'No rounds assigned to you'}</h2>
-            <p className="soft">{director ? 'Add the contest’s rounds and their answer keys first; then graders key paper sheets here.' : 'The contest director chooses which rounds each grader keys. Ask them to add you to a round.'}</p>
+            <h2>{director ? 'No rounds yet' : me.role === 'proctor' ? 'Grading is done by graders' : 'No rounds assigned to you'}</h2>
+            <p className="soft">{director ? 'Add the contest’s rounds and their answer keys first; then graders key paper sheets here.' : me.role === 'proctor' ? 'As a proctor you watch your Zoom room and answer questions on the Live page.' : 'The contest director chooses which rounds each grader keys. Ask them to add you to a round.'}</p>
             {director && <div className="row" style={{ marginTop: 6 }}><Link className="btn btn-primary" to="/staff/rounds"><Icon name="plus" />Add rounds</Link></div>}
+            {me.role === 'proctor' && <div className="row" style={{ marginTop: 6 }}><Link className="btn btn-primary" to="/staff/live">Go to Live</Link></div>}
           </div>
         </section>
       </>
@@ -86,13 +87,14 @@ function GradingRounds({ rounds, director }: { rounds: Round[]; director: boolea
     paper && (k.total - k.done > 0 ? `${k.total - k.done} ${unit} left to key` : k.total ? `every ${round.kind === 'guts' ? 'set' : 'sheet'} keyed` : ''),
     director && (toRule ? `${toRule} ${toRule === 1 ? 'answer needs' : 'answers need'} a ruling` : 'nothing to rule on'),
   ].filter(Boolean).join(' · ');
+  const elsewhere = director ? rounds.filter((r) => r.id !== round.id && (standings.unreviewed[r.id] ?? 0) > 0) : [];
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1 className="page-title">Grading</h1>
-          <p className="page-sub">{round.name}: {sub || 'nothing waiting'}.{!director && rounds.length > 1 ? ` You key ${rounds.map((r) => r.short).join(', ')}.` : ''}</p>
+          <p className="page-sub">{round.name}: {sub || 'nothing waiting'}.{elsewhere.length > 0 && <> Also {elsewhere.map((r, i) => <span key={r.id}>{i ? ', ' : ''}<button type="button" className="linkbtn" style={{ fontWeight: 500 }} onClick={() => { setRoundId(r.id); setTab('review'); }}>{standings.unreviewed[r.id]} to rule on in {r.short}</button></span>)}.</>}{!director && rounds.length > 1 ? ` You key ${rounds.map((r) => r.short).join(', ')}.` : ''}</p>
         </div>
         {rounds.length > 1 && <Segmented label="Round" value={round.id} onChange={pick} items={rounds.map((r) => ({ key: r.id, label: r.short, count: work(r) || undefined }))} />}
       </div>
@@ -236,7 +238,7 @@ function KeySheet({ round, onReview }: { round: Round; onReview?: () => void }) 
         <div className="row wrap" style={{ gap: 16, alignItems: 'flex-end' }}>
           <label className="field" style={{ width: 160 }}>
             <span>{round.kind === 'individual' ? 'Competitor ID' : 'Team number'}</span>
-            <input ref={idRef} className="input mono gr-id" autoFocus value={id} placeholder={queue[0]?.code ?? (round.kind === 'individual' ? '05A' : '05')} onChange={(e) => setId(e.target.value.toUpperCase())} onKeyDown={(e) => { if (e.key === 'Enter' && match) { e.preventDefault(); cells.current[0]?.focus(); } }} />
+            <input ref={idRef} className="input mono gr-id" autoFocus value={id} onChange={(e) => setId(e.target.value.toUpperCase())} onKeyDown={(e) => { if (e.key === 'Enter' && match) { e.preventDefault(); cells.current[0]?.focus(); } }} />
           </label>
           <div className="grow" style={{ paddingBottom: 8, minWidth: 160 }}>
             {match ? <div className="gr-who">{match.name}<small>{keyed.has(match.id) ? 'Keyed before. Saving replaces it.' : 'Not keyed yet'}</small></div> : id ? <span className="wait">No in-person {round.kind === 'individual' ? 'competitor' : 'team'} {id}</span> : null}
@@ -318,7 +320,7 @@ function KeyGuts({ round, onReview }: { round: Round; onReview?: () => void }) {
         <div className="row wrap" style={{ gap: 16, alignItems: 'flex-end' }}>
           <label className="field" style={{ width: 120 }}>
             <span>Team number</span>
-            <input ref={codeRef} className="input mono gr-id" autoFocus value={code} inputMode="numeric" placeholder="05" onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 2))} onKeyDown={(e) => { if (e.key === 'Enter' && team) { e.preventDefault(); cells.current[0]?.focus(); } }} />
+            <input ref={codeRef} className="input mono gr-id" autoFocus value={code} inputMode="numeric" onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 2))} onKeyDown={(e) => { if (e.key === 'Enter' && team) { e.preventDefault(); cells.current[0]?.focus(); } }} />
           </label>
           <div className="grow" style={{ paddingBottom: 8, minWidth: 160 }}>
             {team ? <div className="gr-who">{team.name}<small>{rekey ? `Set ${setNo} was keyed before. Saving replaces it.` : `Set ${setNo} is next to key`}</small></div> : code ? <span className="wait">No in-person team {code}</span> : null}
@@ -327,7 +329,7 @@ function KeyGuts({ round, onReview }: { round: Round; onReview?: () => void }) {
         </div>
         {team ? (
           <>
-            <div className="field">
+            <div className="field" style={{ alignSelf: 'flex-start' }}>
               <span>Set</span>
               <Segmented label="Set" value={String(setNo)} onChange={(x) => setSetNo(Number(x))} items={Array.from({ length: totalSets }, (_, i) => ({ key: String(i + 1), label: String(i + 1) }))} />
             </div>
@@ -375,7 +377,14 @@ function Review({ round }: { round: Round }) {
   const firstOpen = round.problems.find((p) => openOf(p.id) > 0);
   const [pid, setPid] = useState((firstOpen ?? round.problems[0]).id);
   const problem = round.problems.find((p) => p.id === pid) ?? round.problems[0];
-  const groups = groupsBy[problem.id];
+  // Answers waiting for a ruling first; the rest keep their order (most common first).
+  const groups = groupsBy[problem.id].slice().sort((a, b) => Number(b.status === 'unreviewed') - Number(a.status === 'unreviewed'));
+  const listRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const list = listRef.current;
+    const el = list?.querySelector<HTMLElement>('.list-btn.on');
+    if (list && el && list.scrollHeight > list.clientHeight) list.scrollTop = el.offsetTop - list.clientHeight / 2;
+  }, [problem.id]);
   const ruled = new Map(db.rulings.filter((r) => r.problemId === problem.id).map((r) => [r.normalized, r.correct]));
   const name = (p: Problem) => (round.kind === 'guts' ? `${p.set}.${((p.number - 1) % 4) + 1}` : `Problem ${p.number}`);
   const idx = round.problems.findIndex((p) => p.id === problem.id);
@@ -385,7 +394,7 @@ function Review({ round }: { round: Round }) {
 
   return (
     <div className="gr-rv">
-      <aside className="gr-probs" aria-label="Problems">
+      <aside className="gr-probs" aria-label="Problems" ref={listRef}>
         {round.problems.map((p) => {
           const open = openOf(p.id);
           return (

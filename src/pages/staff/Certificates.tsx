@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type PointerEvent as RPE } from 'react';
+import { createPortal } from 'react-dom';
 import { useContest, useStandings } from '../../lib/hooks';
 import { useDB } from '../../lib/store';
 import { Segmented } from '../../components/ui';
@@ -49,7 +50,7 @@ function Cert({ p, bg, pos, org, contest, division, date, slug, frameRef, onMove
 }
 
 /** Certificates: one per competitor, with their award and a code anyone can check. */
-export function CertificatesPanel() {
+export function CertificatesPanel({ slot }: { slot?: HTMLElement | null }) {
   const db = useDB();
   const contest = useContest();
   const standings = useStandings();
@@ -84,12 +85,20 @@ export function CertificatesPanel() {
 
   return (
     <>
-      <div className="toolbar" style={{ marginBottom: 16 }}>
-        {contest.divisions.length > 1 && <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setSel(0); }} items={contest.divisions.map((d) => ({ key: d.id, label: d.name, count: standings.individuals[d.id]?.length ?? 0 }))} />}
-        <span className="grow" />
-        {p && <button className="btn" type="button" onClick={() => printList([p])}>Print this one</button>}
-        {p && <button className="btn btn-primary" type="button" onClick={() => printList(people)}><Icon name="certificate" />Print all {people.length}</button>}
-      </div>
+      {(() => {
+        const buttons = p && (
+          <>
+            <button className="btn" type="button" onClick={() => printList([p])}>Print {p.name.split(' ')[0]}’s</button>
+            <button className="btn btn-primary" type="button" onClick={() => printList(people)}><Icon name="certificate" />Print {people.length} certificates</button>
+          </>
+        );
+        return slot ? buttons && createPortal(buttons, slot) : buttons && <div className="toolbar" style={{ marginBottom: 16 }}><span className="grow" />{buttons}</div>;
+      })()}
+      {contest.divisions.length > 1 && (
+        <div className="toolbar" style={{ marginBottom: 16 }}>
+          <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setSel(0); }} items={contest.divisions.map((d) => ({ key: d.id, label: d.name, count: standings.individuals[d.id]?.length ?? 0 }))} />
+        </div>
+      )}
 
       {!p ? (
         <div className="note">No Individual scores in this division yet, so no awards. Certificates appear once papers are graded.</div>

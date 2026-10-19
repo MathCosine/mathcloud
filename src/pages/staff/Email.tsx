@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { addEmailKey, removeEmailKey, saveEmailKey, saveTemplate } from '../../lib/actions';
 import { useContest, useStandings } from '../../lib/hooks';
@@ -33,6 +34,8 @@ export function Email() {
   const queued = db.sends.filter((s) => s.status === 'queued').length;
   const failed = db.sends.filter((s) => s.status === 'failed').length;
   const keys = orgOf(db)?.emailKeys ?? [];
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
+  const active = keys.filter((k) => k.active).length;
 
   return (
     <>
@@ -40,11 +43,12 @@ export function Email() {
         <div>
           <h1 className="page-title">Email</h1>
           <p className="page-sub">
-            {cap.noKeys
-              ? REMOTE ? 'No sending key yet. Add a Resend key to send.' : <>Sandbox: no keys, so sends are only counted against a demo limit of {cap.capacity} a day. {cap.used} sent today{queued > 0 && <> · <span className="wait">{queued} waiting</span></>}</>
-              : <>{cap.used} of {cap.capacity} sent today across {keys.filter((k) => k.active).length || 'no'} key{keys.filter((k) => k.active).length === 1 ? '' : 's'}{queued > 0 && <> · <span className="wait">{queued} waiting</span></>}</>}
+            {cap.noKeys && REMOTE
+              ? <>No sending key yet, so nothing can go out. <Link to="/staff/email?tab=keys">Add a key</Link>.</>
+              : <>{cap.used} of {cap.capacity} sent today{!cap.noKeys && <> across {active} key{active === 1 ? '' : 's'}</>}{queued > 0 && <> · <span className="wait">{queued} waiting</span></>}{failed > 0 && <> · <span className="bad">{failed} failed</span></>}{cap.noKeys && <span className="muted"> · Sandbox: sends are only counted</span>}</>}
           </p>
         </div>
+        <div className="actions" ref={setSlot} />
       </div>
       <Tabs value={tab} onChange={(t) => setTab(t)} items={[
         { key: 'compose', label: 'Compose' },
@@ -52,10 +56,10 @@ export function Email() {
         { key: 'keys', label: 'Sending keys', count: keys.length },
         { key: 'log', label: 'Log', count: queued + failed || undefined },
       ]} />
-      {tab === 'compose' && <Compose initial={params.get('template')} />}
-      {tab === 'templates' && <Templates onUse={(id) => setTab('compose', { template: id })} />}
+      {tab === 'compose' && <Compose initial={params.get('template')} slot={slot} />}
+      {tab === 'templates' && <Templates onUse={(id) => setTab('compose', { template: id })} slot={slot} />}
       {tab === 'keys' && <Keys cap={cap} />}
-      {tab === 'log' && <Log />}
+      {tab === 'log' && <Log slot={slot} />}
     </>
   );
 }
@@ -123,7 +127,7 @@ function VarChips({ audience, target, value, onChange }: { audience: Audience; t
   );
 }
 
-function Compose({ initial }: { initial: string | null }) {
+function Compose({ initial, slot }: { initial: string | null; slot: HTMLElement | null }) {
   const db = useDB();
   const contest = useContest();
   const standings = useStandings();
@@ -168,13 +172,13 @@ function Compose({ initial }: { initial: string | null }) {
 
   return (
     <div className="ml-compose">
+      {slot && createPortal(
+        <button className="btn btn-primary" type="button" disabled={!targets.length || !subject.trim() || !body.trim()} title={!subject.trim() || !body.trim() ? 'Write a subject and a message first' : !targets.length ? 'Nobody to send to' : undefined} onClick={() => setAsking(true)}>
+          <Icon name="mail" />Send to {targets.length}
+        </button>,
+        slot,
+      )}
       <div className="stack">
-        <div className="row wrap" style={{ gap: 12 }}>
-          <Segmented label="Audience" value={audience} onChange={(a) => { setAudience(a); setWho(0); }} items={(['contacts', 'guardians', 'students'] as Audience[]).map((a) => ({ key: a, label: AUDIENCE_LABEL[a] }))} />
-          <select className="select" style={{ width: 'auto' }} aria-label="Filter" value={filter} onChange={(e) => { setFilter(e.target.value as Filter); setWho(0); }}>
-            {filterItems(contest.divisions).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-          </select>
-        </div>
         <label className="field">
           <span>Start from</span>
           <select className="select" value={tplId} onChange={(e) => (e.target.value ? pick(e.target.value) : setTplId(''))}>
@@ -184,6 +188,16 @@ function Compose({ initial }: { initial: string | null }) {
           {tpl && tpl.audience !== audience && <small>This template is written for {AUDIENCE_LABEL[tpl.audience].toLowerCase()}; check the preview for missing values.</small>}
           {edited && <small>Edited for this send only. The template itself stays as it is.</small>}
         </label>
+        <div className="field">
+          <span>To</span>
+          <div className="row wrap" style={{ gap: 12 }}>
+            <Segmented label="Audience" value={audience} onChange={(a) => { setAudience(a); setWho(0); }} items={(['contacts', 'guardians', 'students'] as Audience[]).map((a) => ({ key: a, label: AUDIENCE_LABEL[a] }))} />
+            <select className="select" style={{ width: 'auto' }} aria-label="Filter" value={filter} onChange={(e) => { setFilter(e.target.value as Filter); setWho(0); }}>
+              {filterItems(contest.divisions).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+            </select>
+          </div>
+          <small><b>{targets.length}</b> of {list.length} {AUDIENCE_LABEL[audience].toLowerCase()} get this.{have.size > 0 && !again ? ` ${have.size} already have it and are skipped.` : ''}</small>
+        </div>
         <label className="field"><span>Subject</span><input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="{{contest.name}}: ..." /></label>
         <label className="field"><span>Message</span><textarea ref={ref} className="textarea" style={{ minHeight: 260, fontSize: 13.5 }} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Hi {{contact.first_name}}, ..." /></label>
         <VarChips audience={audience} target={ref} value={body} onChange={setBody} />
@@ -191,13 +205,6 @@ function Compose({ initial }: { initial: string | null }) {
 
       <div className="stack">
         <Preview list={list} subject={subject} body={body} who={who} setWho={setWho} />
-        <div className="card rp-sendbar" style={{ margin: 0 }}>
-          <div className="grow">
-            <b>{targets.length}</b> of {list.length} {AUDIENCE_LABEL[audience].toLowerCase()} get this.
-            {have.size > 0 && !again && <div className="muted small">{have.size} already have it and are skipped.</div>}
-          </div>
-          <button className="btn btn-primary" type="button" disabled={!targets.length || !subject.trim() || !body.trim()} onClick={() => setAsking(true)}><Icon name="mail" />Send to {targets.length}</button>
-        </div>
       </div>
 
       {asking && (
@@ -229,7 +236,7 @@ function Compose({ initial }: { initial: string | null }) {
 
 // ------------------------------------------------------------------ templates
 
-function Templates({ onUse }: { onUse: (id: string) => void }) {
+function Templates({ onUse, slot }: { onUse: (id: string) => void; slot: HTMLElement | null }) {
   const db = useDB();
   const standings = useStandings();
   const [id, setId] = useState(db.templates[0]?.id ?? '');
@@ -249,6 +256,13 @@ function Templates({ onUse }: { onUse: (id: string) => void }) {
 
   return (
     <div className="ml-tpl">
+      {slot && createPortal(
+        <>
+          <button className="btn" type="button" onClick={create}><Icon name="plus" />New template</button>
+          {t && <button className="btn btn-primary" type="button" onClick={() => onUse(t.id)}><Icon name="mail" />Send this template</button>}
+        </>,
+        slot,
+      )}
       <aside className="stack" style={{ gap: 2 }}>
         {db.templates.map((x) => (
           <button key={x.id} type="button" className={`list-btn ${x.id === t?.id ? 'on' : ''}`} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 1 }} onClick={() => { setId(x.id); setWho(0); }}>
@@ -256,7 +270,6 @@ function Templates({ onUse }: { onUse: (id: string) => void }) {
             <span className="muted tiny" style={{ fontWeight: 400 }}>{AUDIENCE_LABEL[x.audience]} · {WHEN[x.trigger]}</span>
           </button>
         ))}
-        <button className="btn btn-sm" type="button" style={{ marginTop: 10, alignSelf: 'flex-start' }} onClick={create}><Icon name="plus" />New template</button>
       </aside>
 
       {t ? (
@@ -286,10 +299,7 @@ function Templates({ onUse }: { onUse: (id: string) => void }) {
           </div>
           <div className="stack">
             <Preview list={list} subject={t.subject} body={t.body} who={who} setWho={setWho} />
-            <div className="row wrap" style={{ justifyContent: 'space-between' }}>
-              <span className="muted small">{list.length} {AUDIENCE_LABEL[t.audience].toLowerCase()} would get this{sent ? `; sent ${sent} times so far` : ''}.</span>
-              <button className="btn btn-primary" type="button" onClick={() => onUse(t.id)}>Send this…</button>
-            </div>
+            <span className="muted small">{list.length} {AUDIENCE_LABEL[t.audience].toLowerCase()} would get this{sent ? `; sent ${sent} times so far` : ''}. Send opens it in Compose to check before it goes.</span>
           </div>
         </div>
       ) : <p className="muted">No templates yet.</p>}
@@ -442,7 +452,7 @@ type LogFilter = 'all' | EmailSend['status'];
 const STATUS: Record<EmailSend['status'], [Parameters<typeof State>[0]['tone'], string]> = { sent: ['ok', 'Sent'], queued: ['wait', 'Waiting'], failed: ['bad', 'Failed'] };
 const KIND: Record<string, string> = { score_report: 'Score report', template: 'Template', message: 'Message', waiver_reminder: 'Waiver reminder', certificate: 'Certificate' };
 
-function Log() {
+function Log({ slot }: { slot: HTMLElement | null }) {
   const db = useDB();
   const [f, setF] = useState<LogFilter>('all');
   const [limit, setLimit] = useState(200);
@@ -470,9 +480,11 @@ function Log() {
           { key: 'queued', label: 'Waiting', count: queued },
           { key: 'failed', label: 'Failed', count: count('failed') },
         ]} />
-        <span className="grow" />
-        <button className="btn" type="button" disabled={busy || !queued} onClick={() => void flush()}>{busy ? 'Sending…' : `Send ${queued || ''} waiting now`}</button>
       </div>
+      {slot && createPortal(
+        <button className={`btn ${queued ? 'btn-primary' : ''}`} type="button" disabled={busy || !queued} title={queued ? 'Uses what is left of today’s limit' : 'Nothing is waiting'} onClick={() => void flush()}>{busy ? 'Sending…' : queued ? `Send ${queued} waiting now` : 'Nothing waiting'}</button>,
+        slot,
+      )}
       <div className="card flush ml-log">
         <div className="table-scroll">
           <table className="t">

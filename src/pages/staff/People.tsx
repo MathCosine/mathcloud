@@ -44,7 +44,7 @@ export function People() {
       <div className="page-head">
         <div>
           <h1 className="page-title">People</h1>
-          <p className="page-sub">Every student, coach and organiser in {contest.short}. Click anyone to edit them.</p>
+          <p className="page-sub">Students, coaches and staff. Click anyone to edit them.</p>
         </div>
       </div>
       <Tabs
@@ -114,11 +114,11 @@ function Students({ onOpen, initialQ }: { onOpen: (id: string) => void; initialQ
   return (
     <section className="card flush">
       <div className="toolbar pp-toolbar">
-        <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Name, ID, team, guardian  /" inputRef={search} />
+        <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Name, ID, team, guardian" inputRef={search} />
         <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}>Waiver missing</button>
         <button type="button" className="filter" aria-pressed={!hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}>Include withdrawn</button>
         <span className="grow" />
-        <span className="muted small">{rows.length} shown</span>
+        <span className="muted small" title="Keyboard: / search, j and k move, Enter opens">{rows.length} shown</span>
         <button className="btn btn-sm" type="button" onClick={exportCsv}>Export CSV</button>
       </div>
       <div className="table-scroll">
@@ -141,7 +141,7 @@ function Students({ onOpen, initialQ }: { onOpen: (id: string) => void; initialQ
                   <td className="soft">{c.guardianEmail ? <span className="ellipsis">{c.guardianEmail}</span> : <span className="wait">None</span>}</td>
                   <td>{c.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone={t.status === 'withdrawn' ? 'off' : 'wait'}>Missing</State>}</td>
                   <td className="soft">{!inPerson ? <span className="muted">Online</span> : c.checkedInAt ? <span className="ok">{clock(c.checkedInAt)}</span> : <span className="muted">–</span>}</td>
-                  <td className="soft">{acct ? <span className={acct.managed ? 'mono' : ''}>{acct.email}</span> : <span className="muted">None</span>}</td>
+                  <td className="soft">{acct ? <span className={acct.managed ? 'mono' : ''}>{acct.email}</span> : <span className="muted">–</span>}</td>
                 </tr>
               );
             })}

@@ -156,7 +156,7 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
         <div style={{ maxWidth: 560, margin: '80px auto', padding: '0 20px' }} className="stack-lg">
           <div className="stack" style={{ gap: 8 }}>
             <h1 className="page-title" style={{ fontSize: 32 }}>{over && !attempt.submittedAt ? 'Time’s up' : 'Handed in'}</h1>
-            <p className="lede">{answered} of {round.problems.length} answered{attempt.submittedAt ? `, handed in at ${clock(attempt.submittedAt)}` : ''}. Results come out when the director publishes them.</p>
+            <p className="lede">{answered} of {round.problems.length} answered{attempt.submittedAt ? `, handed in at ${clock(attempt.submittedAt)}` : ''}. Your results appear on your page when the organisers publish them.</p>
           </div>
           {round.kind === 'guts' && board && (
             <div>

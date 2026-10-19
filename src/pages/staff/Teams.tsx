@@ -153,7 +153,7 @@ export function Teams() {
         <div>
           <h1 className="page-title">Teams</h1>
           <p className="page-sub">
-            {liveTeams.length} teams · {comps.length} students{pendingCount ? ` · ${pendingCount} pending` : ''} · registration {contest.registration.open ? `open, closes ${contest.registration.closesLabel}` : `closed ${contest.registration.closesLabel}`}
+            {liveTeams.length} teams · {comps.length} students{pendingCount > 0 && <> · <button type="button" className="linkbtn" style={{ fontWeight: 500 }} onClick={() => setOnlyPending(true)}>{pendingCount} pending</button></>} · registration {contest.registration.open ? `open, closes ${contest.registration.closesLabel}` : `closed ${contest.registration.closesLabel}`}
             {health.total > 0 && <> · <Link to="/staff/people?tab=check">{health.total} roster {health.total === 1 ? 'issue' : 'issues'}</Link></>}
           </p>
         </div>

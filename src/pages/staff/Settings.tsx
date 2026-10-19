@@ -9,7 +9,7 @@ import type { DivisionMode, IntegrityPolicy } from '../../lib/model';
 import { useDB } from '../../lib/store';
 import { useDraft } from '../../lib/useDraft';
 import { Icon, type IconName } from '../../components/icons';
-import { Choice, CloseIcon, ModeChip, toast } from '../../components/ui';
+import { Choice, CloseIcon, Modal, ModeChip, State, toast } from '../../components/ui';
 import '../../styles/settings.css';
 
 const POLICY: Record<IntegrityPolicy, string> = {
@@ -201,14 +201,21 @@ function RegistrationSection() {
 
   return (
     <Section id="registration" title="Registration" aside={
-      <label className="check set-toggle"><input type="checkbox" checked={reg.open} onChange={(e) => { setRegistration({ open: e.target.checked }); toast(e.target.checked ? 'Registration is open' : 'Registration is closed', e.target.checked ? 'Coaches can register and edit their teams.' : 'Coaches can no longer add teams. You still can.', e.target.checked ? 'g' : ''); }} />{reg.open ? 'Open' : 'Closed'}</label>
+      <span className="row" style={{ gap: 12 }}>
+        <State tone={reg.open ? 'ok' : 'off'}>{reg.open ? 'Open to coaches' : 'Closed'}</State>
+        <button className="btn btn-sm" type="button" onClick={() => {
+          const open = !reg.open;
+          setRegistration({ open });
+          toast(open ? 'Registration is open' : 'Registration is closed', open ? 'Coaches can register and edit their teams.' : 'Coaches can no longer add teams. You still can.', open ? 'g' : '');
+        }}>{reg.open ? 'Close registration' : 'Open registration'}</button>
+      </span>
     }>
       <div className="card stack">
         <div className="form-grid set-grid">
           <label className="field">
             <span>Closes</span>
             <input className="input" value={closes} onChange={(e) => setCloses(e.target.value)} onBlur={flushCloses} placeholder="9 Jan" />
-            <small>Shown on the form. Close it with the switch above.</small>
+            <small>Shown on the form. It does not close by itself.</small>
           </label>
           <label className="field">
             <span>Smallest team</span>
@@ -275,6 +282,28 @@ function TakingPart() {
   );
 }
 
+// ------------------------------------------------------------------ rooms
+
+/** Removing a room with teams in it asks first, and says where the teams go. */
+function useRemoveRoom(kind: 'venue' | 'zoom') {
+  const [asking, setAsking] = useState<{ id: string; name: string; teams: number } | null>(null);
+  const ask = (r: { id: string; name: string; teamIds: string[] }) => {
+    if (!r.teamIds.length) { removeRoom(kind, r.id); toast(`${r.name} removed`); return; }
+    setAsking({ id: r.id, name: r.name, teams: r.teamIds.length });
+  };
+  const modal = asking && (
+    <Modal title={`Remove ${asking.name}?`} onClose={() => setAsking(null)} actions={
+      <>
+        <button className="btn" type="button" onClick={() => setAsking(null)}>Cancel</button>
+        <button className="btn btn-danger" type="button" onClick={() => { removeRoom(kind, asking.id); toast(`${asking.name} removed`, `${asking.teams} ${asking.teams === 1 ? 'team was' : 'teams were'} moved to other rooms.`); setAsking(null); }}>Remove room</button>
+      </>
+    }>
+      <p>Its {asking.teams} {asking.teams === 1 ? 'team moves' : 'teams move'} to the {kind === 'zoom' ? 'Zoom rooms' : 'rooms'} with the most space. Coaches see the new room on their page.</p>
+    </Modal>
+  );
+  return { ask, modal };
+}
+
 // ------------------------------------------------------------------ venue
 
 function RoomName({ id, name }: { id: string; name: string }) {
@@ -287,6 +316,7 @@ function VenueSection() {
   const contest = useContest();
   const db = useDB();
   const venue = contest.venue!;
+  const rm = useRemoveRoom('venue');
   return (
     <Section id="in-person" title="Venue and rooms" aside={<ModeChip mode="in_person">In person · {venue.rooms.length} rooms</ModeChip>}>
       <div className="card flush">
@@ -310,7 +340,7 @@ function VenueSection() {
                 <tr key={r.id}>
                   <td style={{ width: 220, minWidth: 160 }}><RoomName id={r.id} name={r.name} /></td>
                   <td className="soft">{r.teamIds.length ? r.teamIds.map((id) => db.teams.find((t) => t.id === id)?.code).filter(Boolean).join(', ') : <span className="muted">Empty</span>}</td>
-                  <td className="num"><button className="close" type="button" aria-label={`Remove ${r.name}`} onClick={() => removeRoom('venue', r.id)}><CloseIcon /></button></td>
+                  <td className="num"><button className="close" type="button" aria-label={`Remove ${r.name}`} onClick={() => rm.ask(r)}><CloseIcon /></button></td>
                 </tr>
               ))}
             </tbody>
@@ -321,6 +351,7 @@ function VenueSection() {
           <button className="btn btn-sm" type="button" onClick={addVenueRoom}><Icon name="plus" />Add a room</button>
         </div>
       </div>
+      {rm.modal}
     </Section>
   );
 }
@@ -335,6 +366,7 @@ function OnlineSection() {
   const staff = db.users.filter((u) => u.role === 'proctor' || u.role === 'director' || u.role === 'staff');
   const policy = contest.rounds[0]?.integrity.policy ?? 'warn';
   const mixed = new Set(contest.rounds.map((r) => r.integrity.policy)).size > 1;
+  const rm = useRemoveRoom('zoom');
   return (
     <Section id="online" title="Online and Zoom" aside={<ModeChip mode="online">Online · {contest.rooms.length} Zoom rooms</ModeChip>}>
       <div className="card flush">
@@ -347,10 +379,10 @@ function OnlineSection() {
           <label className="field span-all">
             <span>When a student leaves the test (another tab, another window)</span>
             <select className="select" value={mixed ? '' : policy} onChange={(e) => contest.rounds.forEach((r) => saveRound(r.id, { integrity: { ...r.integrity, policy: e.target.value as IntegrityPolicy } }))}>
-              {mixed && <option value="">Differs by round (set in Rounds)</option>}
+              {mixed && <option value="">Differs by round</option>}
               {(Object.keys(POLICY) as IntegrityPolicy[]).map((k) => <option key={k} value={k}>{POLICY[k]}</option>)}
             </select>
-            <small>For every round. Each round can differ; set that in Rounds.</small>
+            <small>Sets it for every round. To set one round on its own, use Edit settings in <Link to="/staff/rounds">Rounds</Link>.</small>
           </label>
         </div>
         <div className="table-scroll">
@@ -368,7 +400,7 @@ function OnlineSection() {
                     </select>
                   </td>
                   <td className="soft">{r.teamIds.length ? r.teamIds.map((id) => db.teams.find((t) => t.id === id)?.code).filter(Boolean).join(', ') : <span className="muted">Empty</span>}</td>
-                  <td className="num"><button className="close" type="button" aria-label={`Remove ${r.name}`} onClick={() => removeRoom('zoom', r.id)}><CloseIcon /></button></td>
+                  <td className="num"><button className="close" type="button" aria-label={`Remove ${r.name}`} onClick={() => rm.ask(r)}><CloseIcon /></button></td>
                 </tr>
               ))}
             </tbody>
@@ -379,6 +411,7 @@ function OnlineSection() {
           <button className="btn btn-sm" type="button" onClick={addZoomRoom}><Icon name="plus" />Add a Zoom room</button>
         </div>
       </div>
+      {rm.modal}
     </Section>
   );
 }

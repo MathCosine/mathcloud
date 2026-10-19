@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useContest, useStandings, ordinal } from '../../lib/hooks';
 import { useDB, REMOTE } from '../../lib/store';
 import {
@@ -20,7 +21,9 @@ export function Reports() {
   const db = useDB();
   const contest = useContest();
   const standings = useStandings();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('students');
+  const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const { students, teams } = useMemo(() => buildReports(contest, standings, db), [contest, standings, db]);
   const computed = students.some((s) => s.place !== null) || teams.length > 0;
   const toRule = Object.values(standings.unreviewed).reduce((a, b) => a + b, 0);
@@ -29,35 +32,44 @@ export function Reports() {
     <>
       <div className="page-head">
         <div>
-          <h1 className="page-title">Score reports</h1>
-          <p className="page-sub">A one-page report for every student and team, built from the standings. Print them or email them.</p>
+          <h1 className="page-title">Reports</h1>
+          <p className="page-sub">
+            {!computed ? 'A one-page score report for every student and team, and certificates, once papers are graded.'
+              : contest.resultsPublished ? <>{students.length} student and {teams.length} team reports, ready to email or print.</>
+              : <>{students.length} student and {teams.length} team reports to preview and print. Publish results to email them.</>}
+          </p>
         </div>
+        <div className="actions" ref={setSlot} />
       </div>
 
       {!computed ? (
         <div className="card rp-empty">
           <ArtEmpty kind="results" />
-          <div>
+          <div className="grow">
             <h2>No scores yet</h2>
-            <p className="soft">Reports fill in once papers are keyed in and graded. Check <Link to="/staff/grading">Grading</Link> and <Link to="/staff/results">Results</Link>.</p>
+            <p className="soft">Reports fill in once papers are keyed in and graded. Each student gets their place, round scores and every problem; each team its rounds and members.</p>
           </div>
+          <button className="btn btn-primary" type="button" onClick={() => navigate('/staff/grading')}>Open Grading</button>
         </div>
       ) : (
         <>
-          {!contest.resultsPublished && (
+          {(!contest.resultsPublished || toRule > 0) && (
             <div className="note amber rp-note">
-              Results are not published yet, so reports can be previewed and printed but not emailed. <Link to="/staff/results">Publish them on Results</Link> when the scores are final.
+              <b>Before you email reports</b>
+              <ul className="rp-todo">
+                {toRule > 0 && <li>{toRule} {toRule === 1 ? 'answer needs' : 'answers need'} a ruling in <Link to="/staff/grading">Grading</Link>. Until then {toRule === 1 ? 'it counts' : 'they count'} as wrong here.</li>}
+                {!contest.resultsPublished && <li>Results are not published. <Link to="/staff/results">Publish them on Results</Link> when the scores are final; until then reports can be previewed and printed only.</li>}
+              </ul>
             </div>
           )}
-          {toRule > 0 && <div className="note amber rp-note">{toRule} answers still need a ruling in <Link to="/staff/grading">Grading</Link>. Until then they count as wrong on these reports.</div>}
           <Tabs value={tab} onChange={setTab} items={[
             { key: 'students', label: 'Students', count: students.length },
             { key: 'teams', label: 'Teams', count: teams.length },
             { key: 'certificates', label: 'Certificates' },
           ]} />
-          {tab === 'students' && <ReportList key="s" reports={students} kind="student" />}
-          {tab === 'teams' && <ReportList key="t" reports={teams} kind="team" />}
-          {tab === 'certificates' && <CertificatesPanel />}
+          {tab === 'students' && <ReportList key="s" reports={students} kind="student" slot={slot} />}
+          {tab === 'teams' && <ReportList key="t" reports={teams} kind="team" slot={slot} />}
+          {tab === 'certificates' && <CertificatesPanel slot={slot} />}
         </>
       )}
     </>
@@ -77,7 +89,7 @@ const WHO_LABEL: Record<Who, string> = { guardians: 'Guardians', students: 'Stud
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 const fmt = (n: number) => String(Math.round(n * 100) / 100);
 
-function ReportList({ reports, kind }: { reports: Report[]; kind: 'student' | 'team' }) {
+function ReportList({ reports, kind, slot }: { reports: Report[]; kind: 'student' | 'team'; slot: HTMLElement | null }) {
   const db = useDB();
   const contest = useContest();
   const [q, setQ] = useState('');
@@ -95,9 +107,9 @@ function ReportList({ reports, kind }: { reports: Report[]; kind: 'student' | 't
   }, [reports, q, div]);
   const sel = shown.find((r) => r.id === selId) ?? shown[0];
   const counts = countMessages(db, shown, who, resend);
-  const cap = capacityToday(db);
   const canSend = contest.resultsPublished && shown.length > 0;
   const whoOn = (Object.keys(who) as Who[]).filter((k) => who[k]);
+  const filtered = shown.length !== reports.length;
 
   const send = async () => {
     setBusy(true);
@@ -112,37 +124,24 @@ function ReportList({ reports, kind }: { reports: Report[]; kind: 'student' | 't
 
   return (
     <>
+      {slot && createPortal(
+        <>
+          <button className="btn" type="button" disabled={!shown.length} onClick={() => print(shown.map((r) => <ReportSheet key={r.id} r={r} />))} title="One page per report; save as PDF from the print dialog">
+            <Icon name="file" />Print {filtered ? '' : 'all '}{shown.length}
+          </button>
+          <button className="btn btn-primary" type="button" disabled={!canSend} title={!contest.resultsPublished ? 'Publish results first' : undefined} onClick={() => setAsking(true)}>
+            <Icon name="mail" />Send {shown.length} {kind === 'student' ? 'student' : 'team'} reports
+          </button>
+        </>,
+        slot,
+      )}
       <div className="toolbar rp-toolbar">
         <SearchBox value={q} onChange={setQ} placeholder={kind === 'student' ? 'Name, ID or team' : 'Team, code or school'} />
         {contest.divisions.length > 1 && (
           <Segmented label="Division" value={div} onChange={setDiv} items={[{ key: 'all', label: 'All' }, ...contest.divisions.map((d) => ({ key: d.id, label: d.name }))]} />
         )}
         <span className="grow" />
-        <div className="rp-who" role="group" aria-label="Who receives">
-          <span className="label">Send to</span>
-          {(['guardians', 'students', 'coaches'] as Who[]).map((k) => (
-            <label key={k} className="rp-check">
-              <Checkbox checked={who[k]} onChange={() => setWho((w) => ({ ...w, [k]: !w[k] }))} label={WHO_LABEL[k]} />
-              <span onClick={() => setWho((w) => ({ ...w, [k]: !w[k] }))}>{WHO_LABEL[k]}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="card rp-sendbar">
-        <div className="grow">
-          <b>{shown.length}</b> {kind === 'student' ? 'student' : 'team'} reports. <b>{counts.fresh}</b> emails to people who do not have theirs yet
-          {counts.again > 0 && <span className="muted"> ({counts.again} already sent)</span>}.
-          <div className="muted small">
-            {cap.noKeys && REMOTE ? <>No sending key yet. <Link to="/staff/email?tab=keys">Add one in Email, Sending keys</Link>.</> : <>Today: {cap.left} of {cap.capacity} emails left on your keys.</>}
-          </div>
-        </div>
-        <div className="actions">
-          <button className="btn" type="button" disabled={!shown.length} onClick={() => print(shown.map((r) => <ReportSheet key={r.id} r={r} />))}>Print all {shown.length}</button>
-          <button className="btn btn-primary" type="button" disabled={!canSend || !whoOn.length} title={!contest.resultsPublished ? 'Publish results first' : undefined} onClick={() => setAsking(true)}>
-            <Icon name="mail" />Send reports
-          </button>
-        </div>
+        <span className="muted small">{counts.again > 0 ? <>{counts.again} sent, {counts.fresh} to go</> : contest.resultsPublished ? <>None emailed yet</> : null}</span>
       </div>
 
       <div className="rp-grid">
@@ -184,7 +183,7 @@ function ReportList({ reports, kind }: { reports: Report[]; kind: 'student' | 't
                 <span className="muted small">
                   {addressesFor(sel, who).length ? <>Goes to {addressesFor(sel, who).map((a) => a.to).join(', ')}</> : 'Nobody ticked has an address for this report.'}
                 </span>
-                <button className="btn btn-sm" type="button" onClick={() => print(<ReportSheet r={sel} />)}>Print / save as PDF</button>
+                <button className="btn btn-sm" type="button" onClick={() => print(<ReportSheet r={sel} />)} title="Save as PDF from the print dialog"><Icon name="file" />Print this one</button>
               </div>
               <ReportSheet r={sel} />
             </>
@@ -194,20 +193,32 @@ function ReportList({ reports, kind }: { reports: Report[]; kind: 'student' | 't
 
       {asking && (
         <Modal
-          title={`Send ${counts.total} score report email${counts.total === 1 ? '' : 's'}?`}
+          title={`Email ${shown.length} ${kind} reports`}
           onClose={() => !busy && setAsking(false)}
           actions={
             <>
               <button className="btn" type="button" disabled={busy} onClick={() => setAsking(false)}>Cancel</button>
-              <button className="btn btn-primary" type="button" disabled={busy || counts.total === 0} onClick={() => void send()}>{busy ? 'Sending…' : `Send ${counts.total}`}</button>
+              <button className="btn btn-primary" type="button" disabled={busy || counts.total === 0 || !whoOn.length} onClick={() => void send()}>{busy ? 'Sending…' : `Send ${counts.total} email${counts.total === 1 ? '' : 's'}`}</button>
             </>
           }
         >
           <div className="stack">
-            <p>
-              Each {kind === 'student' ? 'student' : 'team'} report in this list ({shown.length}) goes as its own email to {whoOn.map((k) => WHO_LABEL[k].toLowerCase()).join(', ')}
-              {kind === 'team' && (who.guardians || who.students) ? ' of every member' : ''}.
-            </p>
+            <div className="field">
+              <span>Send each report to</span>
+              <div className="rp-who" role="group" aria-label="Who receives">
+                {(['guardians', 'students', 'coaches'] as Who[]).map((k) => (
+                  <label key={k} className="rp-check">
+                    <Checkbox checked={who[k]} onChange={() => setWho((w) => ({ ...w, [k]: !w[k] }))} label={WHO_LABEL[k]} />
+                    <span onClick={() => setWho((w) => ({ ...w, [k]: !w[k] }))}>{WHO_LABEL[k]}</span>
+                  </label>
+                ))}
+              </div>
+              <small>
+                {whoOn.length
+                  ? <>Each of the {shown.length} {kind} reports goes as its own email to {whoOn.map((k) => WHO_LABEL[k].toLowerCase()).join(', ')}{kind === 'team' && (who.guardians || who.students) ? ' of every member' : ''}.</>
+                  : 'Tick at least one.'}
+              </small>
+            </div>
             {counts.again > 0 && (
               <label className="rp-check">
                 <Checkbox checked={resend} onChange={() => setResend(!resend)} label="Send again" />
