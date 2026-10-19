@@ -142,6 +142,7 @@ export function saveTeam(t: Team) {
   return ok('Team not saved', table('teams').update({
     name: t.name, school: t.school, city: t.city, contact_name: t.contactName, contact_email: t.contactEmail, division_id: t.divisionId,
     status: t.status, time_zone: t.timeZone ?? null, notes: t.notes ?? null, disqualified: t.disqualified ?? null, code: t.code,
+    fields: { pledge: t.pledge ?? null, wants_teammates: t.wantsTeammates ?? false },
   }).eq('id', t.id));
 }
 

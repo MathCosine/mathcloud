@@ -92,10 +92,10 @@ function ContestFrame({ director, role }: { director: boolean; role: string }) {
                 </p>
               </div>
             </div>
-            <div className="row" style={{ gap: 8 }}>
+            <div className="row" style={{ gap: 8, flex: 'none' }}>
               {open && ends && (
                 <Link to="/staff/live" className="live-pill">
-                  {open.name} · <span className="mono">{duration(ends - now)}</span>
+                  <span className="hide-sm">{open.name} · </span><span className="mono">{duration(ends - now)}</span>
                 </Link>
               )}
               {director && <Link className="btn btn-sm hide-sm" to={`/c/${contest.slug}`}><Icon name="link" />Public page</Link>}

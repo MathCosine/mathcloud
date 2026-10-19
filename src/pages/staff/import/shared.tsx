@@ -108,7 +108,7 @@ export function Tally({ items }: { items: { n: number; label: string; tone?: 'g'
 export function Issues({ errors, warnings, notes, ok = 'Ready' }: { errors: string[]; warnings: string[]; notes?: string[]; ok?: string }) {
   return (
     <>
-      {errors.length === 0 && warnings.length === 0 && !notes?.length && <span className="state ok">{ok}</span>}
+      {ok && errors.length === 0 && warnings.length === 0 && !notes?.length && <span className="state ok">{ok}</span>}
       <ul className="issues">
         {errors.map((e) => <li key={e} className="e">{e}</li>)}
         {warnings.map((w) => <li key={w} className="w">{w}</li>)}

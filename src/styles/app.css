@@ -685,3 +685,8 @@ body.has-bulk .toasts { bottom: 84px; }
 .fig-link { color: inherit; text-decoration: none; transition: background-color .12s; }
 .fig-link:hover { background: var(--bg-2); text-decoration: none; }
 .fig-link b { color: var(--ink); }
+.contest-title > .row:first-child { flex: 1 1 auto; }
+@media (max-width: 640px) {
+  .contest-title p .mode { display: none; }
+  .live-pill { padding: 0 10px; }
+}

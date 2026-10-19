@@ -450,7 +450,7 @@ export function saveTeam(next: Team, by: string) {
     const i = db.teams.findIndex((t) => t.id === next.id);
     if (i < 0) return;
     const before = db.teams[i];
-    changed = (['name', 'school', 'city', 'contactName', 'contactEmail', 'code', 'divisionId', 'status', 'timeZone', 'notes'] as const)
+    changed = (['name', 'school', 'city', 'contactName', 'contactEmail', 'code', 'divisionId', 'status', 'timeZone', 'notes', 'pledge', 'disqualified'] as const)
       .filter((k) => (before[k] ?? '') !== (next[k] ?? ''))
       .join(', ');
     if (before.code !== next.code) {

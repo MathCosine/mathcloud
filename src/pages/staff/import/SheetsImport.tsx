@@ -84,7 +84,7 @@ export function SheetsImport({ initialRound }: { initialRound?: string }) {
             title="Drop the keyed sheets here"
             hint={<>One row per {individual ? 'student' : 'team'}: an ID column, then one column per problem headed with its number{round.kind === 'guts' ? ' (1–24, or 2.3 for set 2, problem 3)' : ` (1–${round.problems.length})`}.</>}
             pastePlaceholder={`ID,${round.problems.slice(0, 5).map(label).join(',')},...`}
-            samples={[{ label: 'Try a sample', text: sampleSheet(round, entrants), name: `sample ${round.short} sheets` }]}
+            samples={[{ label: 'Try a sample', text: sampleSheet(round, [...entrants.filter((e) => !withSheet.has(e.id)), ...entrants.filter((e) => withSheet.has(e.id))]), name: `sample ${round.short} sheets` }]}
           />
         )}
       </section>
@@ -151,7 +151,7 @@ export function SheetsImport({ initialRound }: { initialRound?: string }) {
                       <td className="mono">{s.raw || '–'}</td>
                       <td className="name">{s.entrant?.name ?? <span className="muted">–</span>}</td>
                       <td className="num">{s.filled}<span className="muted">/{round.problems.length}</span></td>
-                      <td className="imp-answers mono small">{round.problems.filter((p) => map.cols[p.id] !== undefined).slice(0, 12).map((p) => <span key={p.id} className={s.values[p.id] ? '' : 'blank'} title={`Problem ${label(p)}`}>{s.values[p.id] || '·'}</span>)}{mapped > 12 && <span className="muted">…</span>}</td>
+                      <td><div className="imp-answers mono small">{round.problems.filter((p) => map.cols[p.id] !== undefined).slice(0, 12).map((p) => <span key={p.id} className={s.values[p.id] ? '' : 'blank'} title={`Problem ${label(p)}`}>{s.values[p.id] || '·'}</span>)}{mapped > 12 && <span className="muted">…</span>}</div></td>
                       <td className="wrap imp-notes">
                         {s.errors.length ? <Issues errors={s.errors} warnings={[]} /> : s.hasSheet ? <span className={`state ${existing === 'overwrite' ? 'go' : 'wait'}`}>{existing === 'overwrite' ? 'Overwrites the sheet in' : 'Already in, skipped'}</span> : <Issues errors={[]} warnings={s.warnings} ok="New sheet" />}
                       </td>

@@ -80,7 +80,7 @@ export function TeamsImport() {
     setBusy(false);
     const parts = [
       made && `${made} new ${made === 1 ? 'team' : 'teams'}`,
-      sum.update.length && `${sum.update.length} updated${added ? ` (${added} students added)` : ''}`,
+      sum.update.length && `${sum.update.length} updated${added ? ` (${added} ${added === 1 ? 'student' : 'students'} added)` : ''}`,
     ].filter(Boolean);
     toast(parts.length ? `Imported: ${parts.join(', ')}` : 'Nothing imported', sum.skipped + sum.blocked ? `${sum.skipped + sum.blocked} rows left out.` : 'Every student has a competitor ID.', 'g');
     navigate('/staff/teams');
@@ -145,7 +145,8 @@ export function TeamsImport() {
             <Tally items={[
               { n: sum.create.length, label: 'new', tone: 'g' },
               { n: sum.update.length, label: sum.update.length === 1 ? 'update' : 'updates', tone: 'b' },
-              { n: sum.skipped + sum.blocked, label: 'skipped', tone: 'a' },
+              { n: sum.skipped, label: 'skipped', tone: 'a' },
+              { n: sum.blocked, label: 'left out', tone: 'r' },
               { n: dd.merged + dd.studentDups, label: 'duplicates removed', tone: '' },
             ]} />
             {dups.some((r) => actionOf(r) !== 'skip') && (
@@ -168,7 +169,7 @@ export function TeamsImport() {
                 const out = t.errors.length > 0 || a === 'skip';
                 return (
                   <tr key={t.key} className={out ? 'dim' : ''}>
-                    <td className="mono soft">{t.rows.length > 1 ? t.rows.join(', ') : t.rows[0]}</td>
+                    <td className="mono soft">{t.rows.join(' + ')}</td>
                     <td className="name">{t.name || <span className="muted">No name</span>}<div className="muted tiny" style={{ fontWeight: 400 }}>{[t.school, t.city].filter(Boolean).join(', ')}</div></td>
                     <td>{t.errors.length && /in person or online|Cannot tell/.test(t.errors.join()) ? <span className="muted">–</span> : <ModeChip mode={t.mode} />}</td>
                     <td className="num">{a === 'update' ? <span title="Students not on the team yet">+{t.newStudents.length}</span> : t.students.length}</td>
@@ -195,6 +196,7 @@ export function TeamsImport() {
                     </td>
                     <td className="wrap imp-notes">
                       <Issues
+                        ok={a === 'skip' ? '' : 'Ready'}
                         errors={t.errors}
                         warnings={t.warnings}
                         notes={[
