@@ -209,7 +209,7 @@ function DemoOpen({ round }: { round: Round }) {
   if (REMOTE) return null;
   return (
     <button className="btn btn-sm btn-quiet pt-demo" type="button" title="Sandbox only" onClick={() => { openRound(round.id); toast(`${round.name} is open`, 'In the sandbox you can open a round yourself.'); }}>
-      Open it now
+      Sandbox: open {round.mystery ? "the next round" : round.name} now
     </button>
   );
 }
