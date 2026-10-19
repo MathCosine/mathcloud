@@ -228,3 +228,16 @@
   .lp-hero h1 { font-size: 27px; }
   .lp-cta .btn { width: 100%; }
 }
+
+/* ------------------------------------------------------------ registration */
+.reg-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.reg-grid em { font-style: normal; font-weight: 400; margin-left: 4px; }
+.reg-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reg-who { white-space: nowrap; }
+.reg-contact { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; padding: 12px 14px; border-radius: var(--r-lg); background: var(--bg-2); border: 1px solid var(--line); }
+@media (max-width: 600px) {
+  .reg-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1000px) {
+  .lp-wrap.cp { padding-bottom: 48px; }
+}

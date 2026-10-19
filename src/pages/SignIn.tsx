@@ -137,7 +137,7 @@ export function SignIn() {
           <p className="muted small">
             {REMOTE
               ? 'Demo data is shared by everyone trying it, so others may be changing things too.'
-              : `Every demo password is “${DEMO_PASSWORD}”. The Demo menu inside switches people and jumps between the week before, the morning, Guts and afterwards.`}
+              : `Every demo password is “${DEMO_PASSWORD}”. Once inside, the menu under your name switches people and jumps between the week before, the morning, Guts and afterwards.`}
           </p>
         </div>
       ) : (

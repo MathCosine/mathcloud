@@ -223,3 +223,7 @@
   .pt-roster th:first-child, .pt-roster td:first-child { padding-left: 16px; }
   .pt-roster td { height: 48px; }
 }
+@media (max-width: 600px) {
+  .pt-roster .pt-waiver { flex-wrap: wrap; row-gap: 0; max-width: 120px; }
+  .pt-roster .pt-waiver .btn { height: 28px; padding: 0 6px; }
+}

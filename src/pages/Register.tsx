@@ -7,6 +7,7 @@ import { setActiveContest, useAllDB } from '../lib/store';
 import { clockIn } from '../lib/time';
 import { Icon } from '../components/icons';
 import { Choice, CloseIcon, ModeChip, toast } from '../components/ui';
+import '../styles/public.css';
 
 const ZONES = ['America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York', 'America/Toronto', 'Europe/London', 'Europe/Bucharest', 'Asia/Almaty', 'Asia/Tashkent', 'Asia/Singapore', 'Asia/Seoul', 'Australia/Sydney'];
 const zoneName = (z: string) => z.split('/').pop()!.replace(/_/g, ' ');
@@ -26,6 +27,8 @@ export function Register() {
   const [team, setTeam] = useState({ name: '', school: '', city: '', timeZone: browserZone, notes: '', contactName: user?.role === 'coach' ? user.name : '', contactEmail: user?.role === 'coach' ? user.email : '' });
   const [students, setStudents] = useState<NewStudent[]>([{ name: '', grade: 9, guardianName: '', guardianEmail: '' }]);
   const [done, setDone] = useState<Team | null>(null);
+  const knownContact = user?.role === 'coach' && !!user.name && EMAIL.test(user.email ?? '');
+  const [editContact, setEditContact] = useState(false);
 
   const first = [...contest.rounds].sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
   const checkIn = contest.agenda.find((a) => a.modes.includes('in_person') && /check/i.test(a.title));
@@ -48,9 +51,9 @@ export function Register() {
     <>
       <header className="top">
         <span className="tile" style={{ width: 30, height: 30, fontSize: 11, borderRadius: 8 }}>{contestInitials(contest.short)}</span>
-        <span><b>{contest.name}</b><span className="muted small" style={{ marginLeft: 10 }}>{contest.dateLabel}</span></span>
+        <span className="reg-title"><b className="hide-sm">{contest.name}</b><b className="show-sm">{contest.short}</b><span className="muted small hide-sm" style={{ marginLeft: 10 }}>{contest.dateLabel}</span></span>
         <span className="grow" />
-        {user ? <span className="soft small">Signed in as {user.name}</span> : <Link className="btn btn-sm" to="/sign-in">Sign in</Link>}
+        {user ? <span className="soft small reg-who">{user.name}</span> : <Link className="btn btn-sm" to="/sign-in">Sign in</Link>}
       </header>
       <main className="portal narrow">
         {done ? (
@@ -60,7 +63,7 @@ export function Register() {
             <div>
               <span className="kicker">Registration</span>
               <h1 className="page-title">Register a team for {contest.short}</h1>
-              <p className="page-sub">Teams of {contest.registration.teamMin === 1 ? 'up to' : `${contest.registration.teamMin} to`} {contest.registration.teamMax}. It takes about three minutes; you can add students later.</p>
+              <p className="page-sub">{contest.dateLabel}. Teams of {contest.registration.teamMin === 1 ? 'up to' : `${contest.registration.teamMin} to`} {contest.registration.teamMax}. Three short steps; you can add and change students later.</p>
             </div>
             {!contest.registration.open && (
               <div className="note amber">Registration closed on {contest.registration.closesLabel}. This is the demo, so you can try the form anyway.</div>
@@ -113,10 +116,10 @@ export function Register() {
                   <h2>Your team</h2>
                   <ModeChip mode={mode} lg />
                 </div>
-                <div className="form-grid" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' }}>
+                <div className="form-grid reg-grid">
                   <label className="field"><span>Team name</span><input className="input" autoFocus value={team.name} placeholder="The Isosceles Owls" onChange={(e) => setTeam({ ...team, name: e.target.value })} /></label>
-                  <label className="field"><span>School or club</span><input className="input" value={team.school} onChange={(e) => setTeam({ ...team, school: e.target.value })} /></label>
-                  <label className="field"><span>City</span><input className="input" value={team.city} onChange={(e) => setTeam({ ...team, city: e.target.value })} /></label>
+                  <label className="field"><span>School or club <em className="muted">optional</em></span><input className="input" value={team.school} onChange={(e) => setTeam({ ...team, school: e.target.value })} /></label>
+                  <label className="field"><span>City <em className="muted">optional</em></span><input className="input" value={team.city} onChange={(e) => setTeam({ ...team, city: e.target.value })} /></label>
                   {mode === 'online' ? (
                     <label className="field">
                       <span>Your time zone</span>
@@ -126,16 +129,23 @@ export function Register() {
                       <small>Your students' pages show times in this zone{first ? `: the first round starts at ${local(first.startsAt, team.timeZone)}` : ''}.</small>
                     </label>
                   ) : (
-                    <label className="field"><span>Allergies or access needs</span><input className="input" value={team.notes} placeholder="Optional" onChange={(e) => setTeam({ ...team, notes: e.target.value })} /></label>
+                    <label className="field"><span>Allergies or access needs <em className="muted">optional</em></span><input className="input" value={team.notes} onChange={(e) => setTeam({ ...team, notes: e.target.value })} /></label>
                   )}
                 </div>
-                <div className="form-grid" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' }}>
-                  <label className="field"><span>Coach or contact</span><input className="input" value={team.contactName} onChange={(e) => setTeam({ ...team, contactName: e.target.value })} /></label>
-                  <label className="field"><span>Contact email</span><input className="input" type="email" value={team.contactEmail} onChange={(e) => setTeam({ ...team, contactEmail: e.target.value })} /><small>Confirmation and reminders go here.</small></label>
-                </div>
+                {knownContact && !editContact ? (
+                  <div className="reg-contact">
+                    <span className="soft">Confirmation and reminders go to <b>{team.contactName}</b>, {team.contactEmail}.</span>
+                    <button className="linkbtn small" type="button" onClick={() => setEditContact(true)}>Change</button>
+                  </div>
+                ) : (
+                  <div className="form-grid reg-grid">
+                    <label className="field"><span>Coach or contact</span><input className="input" value={team.contactName} onChange={(e) => setTeam({ ...team, contactName: e.target.value })} /></label>
+                    <label className="field"><span>Contact email</span><input className="input" type="email" value={team.contactEmail} onChange={(e) => setTeam({ ...team, contactEmail: e.target.value })} /><small>Confirmation and reminders go here.</small></label>
+                  </div>
+                )}
                 <div className="form-foot">
                   {both ? <button className="btn btn-quiet" type="button" onClick={() => setStep(0)}><Icon name="back" />Back</button> : <span />}
-                  <button className="btn btn-primary" type="button" disabled={!teamOk} onClick={() => setStep(2)}>Continue<Icon name="arrow" /></button>
+                  <button className="btn btn-primary" type="button" disabled={!teamOk} title={!teamOk ? 'A team name and a contact email are needed' : undefined} onClick={() => setStep(2)}>Continue<Icon name="arrow" /></button>
                 </div>
               </section>
             )}
@@ -169,7 +179,7 @@ export function Register() {
                 )}
                 <div className="form-foot">
                   <button className="btn btn-quiet" type="button" onClick={() => setStep(1)}><Icon name="back" />Back</button>
-                  <button className="btn btn-primary" type="button" disabled={!studentsOk} onClick={submit}>Register {team.name.trim() || 'the team'}</button>
+                  <button className="btn btn-primary" type="button" disabled={!studentsOk} title={!studentsOk ? 'Each student needs a name and a guardian’s email' : undefined} onClick={submit}>Register {team.name.trim() || 'the team'}</button>
                 </div>
               </section>
             )}

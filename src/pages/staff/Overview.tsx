@@ -136,7 +136,7 @@ export function Overview() {
         {contest.rounds.map((r) => <RoundLine key={r.id} round={r} now={now} tz={contest.timeZone} />)}
       </section>
 
-      <div className="figures">
+      <div className="figures ov-figs">
         <Link to="/staff/teams" className="figure fig-link">
           <div className="top-label">Teams</div>
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>

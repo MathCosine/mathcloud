@@ -151,7 +151,7 @@ function CoachPanel() {
           ))}
         </ul>
       )}
-      {!REMOTE && <p className="small muted">In the sandbox registration opens in the “week before” moment (Demo menu). The coach Megan Hughes already has two teams.</p>}
+      {!REMOTE && <p className="small muted">In the sandbox registration opens in the “week before” moment (the menu under your name). The coach Megan Hughes already has two teams.</p>}
     </section>
   );
 }

@@ -15,9 +15,9 @@ import { PublicFooter, PublicTop } from './Landing';
 type Loaded = { contest: Contest | null; orgName: string | null; error: string | null };
 
 const KIND: Record<Round['kind'], string> = {
-  individual: 'Individual: each student on their own',
-  team: 'Team: the team works together on one paper',
-  guts: 'Guts: sets of problems against the clock, on a live board',
+  individual: 'Each student on their own',
+  team: 'The team works together on one paper',
+  guts: 'Sets of problems against the clock, on a live board',
 };
 
 /** A contest's public page: when, where, how it runs, and the way to register. Anyone can open it. */

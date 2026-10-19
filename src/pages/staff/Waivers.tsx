@@ -126,7 +126,7 @@ export function Waivers() {
           <section className="card">
             <div className="section-head">
               <h2>By team</h2>
-              <span className="muted small">One mark per student, most missing first. Click a team to open it.</span>
+              <span className="muted small hide-sm">One mark per student, most missing first. Click a team to open it.</span>
             </div>
             <div className="pp-teams">
               {perTeam.map(({ t, list }) => {
