@@ -133,7 +133,7 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
                   <td><WaiverCell c={m} by={user.name} /></td>
                   {online && <td>{m.deviceCheckedAt ? <State tone="ok">Ready</State> : <State tone="off">Not yet</State>}</td>}
                   <td className="num">
-                    <button className="btn btn-sm btn-quiet pt-row-act" type="button" onClick={() => setEditing(m)} aria-label={`Edit ${m.name}`} title={`Edit or remove ${m.name}`}><Icon name="pencil" />Edit</button>
+                    <button className="btn btn-sm btn-quiet pt-row-act" type="button" onClick={() => setEditing(m)} aria-label={`Edit ${m.name}`} title={`Edit or remove ${m.name}`}><Icon name="pencil" /><span className="hide-sm">Edit</span></button>
                   </td>
                 </tr>
               );

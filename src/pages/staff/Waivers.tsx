@@ -13,6 +13,7 @@ import { Icon } from '../../components/icons';
 import { downloadCsv, ModeChip, SearchBox, toast } from '../../components/ui';
 import { StudentDrawer, TeamDrawer, useConfirm } from './PeopleParts';
 import '../../styles/people.css';
+import '../../styles/dayof.css';
 
 type Row = { c: Competitor; t: Team };
 
@@ -81,11 +82,11 @@ export function Waivers() {
       <div className="page-head">
         <div>
           <h1 className="page-title">Waivers</h1>
-          <p className="page-sub">{signed.length} of {rows.length} signed{missing.length ? ` · ${missing.length} missing on ${teamsMissing} ${teamsMissing === 1 ? 'team' : 'teams'}` : ''}. Every student needs one signed by a parent or guardian before the contest.</p>
+          <p className="page-sub">{missing.length ? `${missing.length} missing on ${teamsMissing} ${teamsMissing === 1 ? 'team' : 'teams'}. Every student needs one signed by a parent or guardian before the contest.` : rows.length ? `All ${rows.length} signed. Nothing to chase.` : 'Every student needs one signed by a parent or guardian before the contest.'}</p>
         </div>
         <div className="actions">
           <button className="btn" type="button" disabled={!rows.length} onClick={exportCsv}>Download CSV</button>
-          <button className="btn btn-primary" type="button" disabled={!reachable.length || sendingAll} onClick={remindAll}><Icon name="mail" />{sendingAll ? 'Sending' : `Remind all missing (${reachable.length})`}</button>
+          {missing.length > 0 && <button className="btn btn-primary" type="button" disabled={!reachable.length || sendingAll} onClick={remindAll} title={reachable.length ? undefined : 'No guardian email for anyone missing'}><Icon name="mail" />{sendingAll ? 'Sending' : `Email ${reachable.length} ${reachable.length === 1 ? 'guardian' : 'guardians'}`}</button>}
         </div>
       </div>
 
@@ -144,7 +145,7 @@ export function Waivers() {
             </div>
           </section>
 
-          <section className="card flush">
+          {missing.length > 0 && <section className="card flush">
             <div className="card-head">
               <h2>Missing <span className="muted">{missing.length}</span></h2>
               <SearchBox value={q} onChange={setQ} placeholder="Student, team, guardian" />
@@ -153,8 +154,7 @@ export function Waivers() {
               <table className="t">
                 <thead><tr><th>Student</th><th>Team</th><th>Guardian</th><th>Guardian email</th><th>Last reminder</th><th /></tr></thead>
                 <tbody>
-                  {!missing.length && <tr className="empty"><td colSpan={6}>Every waiver is in.</td></tr>}
-                  {missing.length > 0 && !missing.filter(match).length && <tr className="empty"><td colSpan={6}>Nobody matches.</td></tr>}
+                  {!missing.filter(match).length && <tr className="empty"><td colSpan={6}>Nobody matches.</td></tr>}
                   {missing.filter(match).map(({ c, t }) => (
                     <tr key={c.id}>
                       <td><button type="button" className="linkbtn pp-plain" onClick={() => setStudent(c.id)}><span className="mono muted">{c.publicId}</span> <b>{c.name}</b></button></td>
@@ -173,10 +173,10 @@ export function Waivers() {
                 </tbody>
               </table>
             </div>
-          </section>
+          </section>}
 
-          <section className="card flush">
-            <div className="card-head"><h2>Signed <span className="muted">{signed.length}</span></h2></div>
+          <section className="card flush wv-signed">
+            <div className="card-head"><h2>Signed <span className="muted">{signed.length}</span></h2>{!missing.length && <SearchBox value={q} onChange={setQ} placeholder="Student, team, guardian" />}</div>
             <div className="table-scroll">
               <table className="t">
                 <thead><tr><th>Student</th><th>Team</th><th>Signed by</th><th>When</th><th>How</th><th /></tr></thead>
@@ -191,7 +191,11 @@ export function Waivers() {
                         <td>{h.who}</td>
                         <td className="muted">{day(c.waiverSignedAt!)}</td>
                         <td className="soft">{h.how}</td>
-                        <td className="num"><button className="btn btn-quiet btn-sm" type="button" onClick={() => { undoWaiver(c.id, me.name); toast(`Waiver for ${c.publicId} taken back`, 'It shows as missing again.'); }}>Undo</button></td>
+                        <td className="num"><button className="btn btn-quiet btn-sm wv-undo" type="button" onClick={() => ask({
+                          title: `Take back the waiver for ${c.name}?`, label: 'Take it back', danger: true,
+                          body: <p>The record that {h.who} signed on {day(c.waiverSignedAt!)} is cleared and {c.name} shows as missing again. Their guardian would need to sign again.</p>,
+                          run: () => { undoWaiver(c.id, me.name); toast(`Waiver for ${c.publicId} taken back`, 'It shows as missing again.'); },
+                        })}>Undo</button></td>
                       </tr>
                     );
                   })}

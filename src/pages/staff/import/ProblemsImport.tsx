@@ -140,7 +140,7 @@ export function ProblemsImport({ initialRound }: { initialRound?: string }) {
           </div>
           <div className="imp-pad stack">
             <div className="row wrap" style={{ gap: 12 }}>
-              <span className="field-label">Problems already in the round</span>
+              <span className="field-label">The {round.problems.length} already in {round.name}</span>
               <Segmented label="How to import" value={mode} onChange={setMode} items={[
                 { key: 'replace', label: 'Replace the round’s problems' },
                 { key: 'append', label: 'Add at the end' },

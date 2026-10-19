@@ -116,7 +116,7 @@ export function StudentsImport() {
     <>
       <Steps at={3} onGo={setStep} onRestart={restart} />
       <Duplicates<StudentAction>
-        title={dups.length === 1 ? 'student may already be in' : 'students may already be in'}
+        title={dups.length === 1 ? 'student may already be registered' : 'students may already be registered'}
         note="These are set to skip. Add any that really are new."
         items={dups.filter((s) => !s.errors.length).map((s) => ({
           key: s.key,

@@ -216,3 +216,10 @@
   .pt-dots { display: none; }
   .pt-guardian { max-width: 180px; }
 }
+@media (max-width: 600px) {
+  .pt-roster td.name { min-width: 0; }
+  .pt-roster .pt-guardian { display: none; }
+  .pt-roster th, .pt-roster td { padding-left: 8px; padding-right: 8px; }
+  .pt-roster th:first-child, .pt-roster td:first-child { padding-left: 16px; }
+  .pt-roster td { height: 48px; }
+}

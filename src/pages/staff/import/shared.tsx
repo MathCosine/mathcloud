@@ -138,10 +138,10 @@ export function Duplicates<K extends string>({ title, note, items, options, onCh
           <h2><span className="imp-dup-n">{items.length}</span>{title}</h2>
           {note && <p className="soft small" style={{ marginTop: 2 }}>{note}</p>}
         </div>
-        <div className="row wrap" style={{ gap: 8 }}>
+        {items.length > 1 && <div className="row wrap" style={{ gap: 8 }}>
           <span className="small soft">For all:</span>
           {options.map((o) => <button key={o.key} className="btn btn-sm" type="button" disabled={items.every((x) => x.value === o.key || !(x.options ?? options).some((y) => y.key === o.key))} onClick={() => onAll(o.key)}>{o.label}</button>)}
-        </div>
+        </div>}
       </div>
       <ul className="imp-dup-list">
         {items.map((x) => (
