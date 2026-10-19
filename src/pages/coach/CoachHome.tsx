@@ -224,6 +224,8 @@ function Today({ teams, now }: { teams: Team[]; now: number }) {
     if (r.kind === 'guts') {
       const total = Math.max(1, ...r.problems.map((p) => p.set ?? 1));
       const sets = a?.setsSubmitted ?? 0;
+      // Connected, a coach only sees the sets already handed out, so the total is not always known.
+      if (total <= sets || total === 1) return <span className="small"><b>{sets}</b> {sets === 1 ? 'set' : 'sets'} handed in</span>;
       return <span className="row small" style={{ gap: 8 }}><Track done={sets} total={total} current={a?.startedAt && sets < total ? sets + 1 : null} />{sets} of {total} sets</span>;
     }
     return <span className="small">{a?.submittedAt ? 'Handed in' : a?.startedAt ? 'Working' : 'Not started'}</span>;
