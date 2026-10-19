@@ -1,11 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { contestOf } from '../lib/actions';
-import { buildBoard, type Board, type BoardRow } from '../lib/scoring/board';
+import type { Contest } from '../lib/model';
+import { buildBoard, gutsRound, type Board, type BoardRow } from '../lib/scoring/board';
+import { useUser } from '../lib/session';
 import { useDB, useVersion } from '../lib/store';
 import { clockIn, duration, roundState } from '../lib/time';
 import { useBumps } from '../components/Scoreboard';
+import { Logo } from '../components/art';
 import { Roll, useNow } from '../components/ui';
+import '../styles/dayof.css';
 
 type Mode = string; // a division id, or 'all' for both side by side
 
@@ -16,8 +20,41 @@ type Mode = string; // a division id, or 'all' for both side by side
  */
 export function BoardPage() {
   const db = useDB();
+  const contest = contestOf(db) as Contest | undefined;
+  if (!contest || !gutsRound(contest) || !contest.divisions.length) return <NoBoard hasContest={!!contest} />;
+  return <LiveBoard contest={contest} />;
+}
+
+/** Signed out, or a contest with no Guts round: say where the board comes from. */
+function NoBoard({ hasContest }: { hasContest: boolean }) {
+  const user = useUser();
+  const navigate = useNavigate();
+  return (
+    <div className="board-none">
+      <section className="card">
+        <Logo size={32} />
+        <h1>{hasContest ? 'This contest has no Guts round' : 'No live board here yet'}</h1>
+        <p className="soft">
+          {hasContest
+            ? 'The live board follows the Guts round. Add one under Rounds, and it shows here while the round runs.'
+            : 'The live board opens from an organiser’s account: Live, then Show on projector.'}
+        </p>
+        <div className="row wrap">
+          {user ? (
+            <button className="btn btn-primary" type="button" onClick={() => navigate(hasContest ? '/staff/rounds' : '/')}>{hasContest ? 'Go to Rounds' : 'Your home'}</button>
+          ) : (
+            <Link className="btn btn-primary" to="/sign-in">Sign in</Link>
+          )}
+          <button className="btn" type="button" onClick={() => navigate(-1)}>Back</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function LiveBoard({ contest }: { contest: Contest }) {
+  const db = useDB();
   const v = useVersion();
-  const contest = contestOf(db);
   const navigate = useNavigate();
   const now = useNow(500);
   const [mode, setMode] = useState<Mode>(contest.divisions[0].id);

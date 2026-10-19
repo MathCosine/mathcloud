@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { importStudents } from '../../../lib/actions';
 import { parseCsv } from '../../../lib/csv';
 import {
@@ -10,13 +10,14 @@ import { useUser } from '../../../lib/session';
 import { useDB } from '../../../lib/store';
 import { Icon } from '../../../components/icons';
 import { toast } from '../../../components/ui';
-import { ColumnSelect, Issues, sampleOf, Source, Steps, Tally } from './shared';
+import { ColumnSelect, Done, Duplicates, Issues, missingNote, sampleOf, Source, StepFoot, Steps, Tally, type Step } from './shared';
 
 export function StudentsImport() {
   const contest = useContest();
   const db = useDB();
   const user = useUser()!;
-  const navigate = useNavigate();
+  const [step, setStep] = useState<Step>(1);
+  const [added, setAdded] = useState(0);
   const [text, setText] = useState('');
   const [source, setSource] = useState('');
   const [map, setMap] = useState<StudentImportMap | null>(null);
@@ -43,18 +44,33 @@ export function StudentsImport() {
     setSource(name);
     setMap(guessStudentImport(r[0]));
     setActions({});
+    setStep(2);
   };
+  const restart = () => { setMap(null); setText(''); setStep(1); };
 
   const go = async () => {
     setBusy(true);
     const r = await importStudents(ready.map((s) => ({ teamId: s.teamId!, name: s.name, grade: s.grade, guardianName: s.guardianName, guardianEmail: s.guardianEmail })), user.name);
     setBusy(false);
     if (r.error) return toast(`${r.count} added, then it stopped`, r.error, 'r');
-    toast(`${r.count} ${r.count === 1 ? 'student' : 'students'} added`, 'Each has a competitor ID, and a waiver request goes to their guardian.', 'g');
-    navigate('/staff/teams');
+    toast(`${r.count} ${r.count === 1 ? 'student' : 'students'} added`, undefined, 'g');
+    setAdded(r.count);
+    setStep(4);
   };
 
-  if (!map) {
+  if (step === 4) {
+    return (
+      <>
+        <Steps at={4} />
+        <Done title={`${added} ${added === 1 ? 'student' : 'students'} added`} body="Each has a competitor ID, and a waiver request goes to their guardian.">
+          <Link className="btn btn-primary" to="/staff/teams">Go to Teams</Link>
+          <button className="btn" type="button" onClick={restart}>Import another file</button>
+        </Done>
+      </>
+    );
+  }
+
+  if (!map || step === 1) {
     return (
       <>
         <Steps at={1} />
@@ -71,26 +87,50 @@ export function StudentsImport() {
     );
   }
 
+  const missing = [...(map.team === undefined ? ['Team'] : []), ...(map.student === undefined ? ['Student name'] : [])];
+  if (step === 2) {
+    return (
+      <>
+        <Steps at={2} onGo={setStep} onRestart={restart} />
+        <section className="card flush">
+          <div className="card-head wrap">
+            <h2>Which column holds what?</h2>
+            <span className="label"><Icon name="file" size={13} /> {source} · {rows.length - 1} rows</span>
+          </div>
+          <div className="imp-pad">
+            <div className="map-grid">
+              {STUDENT_IMPORT_FIELDS.map((f) => (
+                <ColumnSelect key={f.key} label={f.label} required={f.required} value={map[f.key]} headers={headers} sample={sampleOf(rows, map[f.key])} onChange={(v) => setMap((m) => m && { ...m, [f.key]: v })} />
+              ))}
+            </div>
+          </div>
+          <StepFoot back={restart} backLabel="Choose another file" note={missingNote(missing)}>
+            <button className="btn btn-primary" type="button" disabled={missing.length > 0} onClick={() => setStep(3)}>Check {plan.length} {plan.length === 1 ? 'student' : 'students'}<Icon name="arrow" /></button>
+          </StepFoot>
+        </section>
+      </>
+    );
+  }
+
   return (
     <>
-      <Steps at={map.team === undefined || map.student === undefined ? 2 : 3} onRestart={() => { setMap(null); setText(''); }} />
-      <section className="card flush">
-        <div className="card-head">
-          <h2>Match the columns</h2>
-          <span className="label"><Icon name="file" size={13} /> {source} · {rows.length - 1} rows</span>
-        </div>
-        <div className="imp-pad">
-          <div className="map-grid">
-            {STUDENT_IMPORT_FIELDS.map((f) => (
-              <ColumnSelect key={f.key} label={f.label} required={f.required} value={map[f.key]} headers={headers} sample={sampleOf(rows, map[f.key])} onChange={(v) => setMap((m) => m && { ...m, [f.key]: v })} />
-            ))}
-          </div>
-        </div>
-      </section>
-
+      <Steps at={3} onGo={setStep} onRestart={restart} />
+      <Duplicates<StudentAction>
+        title={dups.length === 1 ? 'student may already be in' : 'students may already be in'}
+        note="These are set to skip. Add any that really are new."
+        items={dups.filter((s) => !s.errors.length).map((s) => ({
+          key: s.key,
+          what: <><b>{s.name}</b> <span className="soft small">row {s.row} · {s.teamLabel}</span></>,
+          why: s.dup,
+          value: actionOf(s),
+        }))}
+        options={[{ key: 'skip', label: 'Skip' }, { key: 'add', label: 'Add anyway' }]}
+        onChange={(k, v) => setActions((x) => ({ ...x, [k]: v }))}
+        onAll={(v) => setActions((a) => ({ ...a, ...Object.fromEntries(dups.map((s) => [s.key, v])) }))}
+      />
       <section className="card flush">
         <div className="card-head wrap">
-          <h2>Check before importing</h2>
+          <h2>What will happen</h2>
           <span className="row wrap" style={{ gap: 10 }}>
             <Tally items={[
               { n: ready.length, label: 'to add', tone: 'g' },
@@ -98,9 +138,6 @@ export function StudentsImport() {
               { n: full, label: 'over the team size', tone: 'r' },
               { n: unknown, label: 'unknown team', tone: 'r' },
             ]} />
-            {dups.some((s) => actionOf(s) !== 'skip') && (
-              <button className="btn btn-sm" type="button" onClick={() => setActions((a) => ({ ...a, ...Object.fromEntries(dups.map((s) => [s.key, 'skip'])) }))}>Remove duplicates</button>
-            )}
           </span>
         </div>
         <div className="table-scroll">
@@ -117,26 +154,20 @@ export function StudentsImport() {
                     <td>{s.teamId ? <span><span className="code">{s.teamLabel.slice(0, s.teamLabel.indexOf(' '))}</span>{s.teamLabel.slice(s.teamLabel.indexOf(' ') + 1)}</span> : <span className="bad-ink">{s.teamRaw || '–'}</span>}</td>
                     <td className="soft">{s.guardianName}<div className="muted tiny">{s.guardianEmail}</div></td>
                     <td>
-                      {s.errors.length ? <span className="state bad">Left out</span> : s.dup ? (
-                        <select className="select input-sm imp-act" aria-label={`What to do with ${s.name}`} value={a} onChange={(e) => setActions((x) => ({ ...x, [s.key]: e.target.value as StudentAction }))}>
-                          <option value="skip">Skip</option>
-                          <option value="add">Add anyway</option>
-                        </select>
-                      ) : <span className="state ok">Add</span>}
+                      {s.errors.length ? <span className="state bad">Left out</span> : a === 'skip' ? <span className="state wait">Skipped</span> : <span className="state ok">Add</span>}
                     </td>
-                    <td className="wrap imp-notes"><Issues errors={s.errors} warnings={s.warnings} notes={s.dup ? [s.dup] : []} ok="Ready" /></td>
+                    <td className="wrap imp-notes"><Issues errors={s.errors} warnings={s.warnings} notes={s.dup ? [s.dup] : []} ok="" /></td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-        <div className="card-foot">
-          <span className="muted small">Teams hold up to {contest.registration.teamMax} students.</span>
+        <StepFoot back={() => setStep(2)} backLabel="Back to columns" note={`Teams hold up to ${contest.registration.teamMax} students.`}>
           <button className="btn btn-primary" type="button" disabled={!ready.length || busy} onClick={go}>
             {busy ? 'Adding…' : `Add ${ready.length} ${ready.length === 1 ? 'student' : 'students'}`}
           </button>
-        </div>
+        </StepFoot>
       </section>
     </>
   );

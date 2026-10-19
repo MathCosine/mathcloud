@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { importStudents, importTeams, offers, saveTeam, type NewTeam } from '../../../lib/actions';
 import { buildPlan, guessMapping, parseCsv, SAMPLE_CSV, STUDENT_FIELDS, TEAM_FIELDS, type Mapping, type StudentField, type TeamField } from '../../../lib/csv';
 import { dedupeTeams, defaultTeamAction, isDuplicate, summarizeTeams, type TeamAction, type TeamRow } from '../../../lib/importers';
@@ -9,7 +9,7 @@ import { useUser } from '../../../lib/session';
 import { useDB } from '../../../lib/store';
 import { Icon } from '../../../components/icons';
 import { ModeChip, Segmented, toast } from '../../../components/ui';
-import { ColumnSelect, Issues, sampleOf, Source, Steps, Tally } from './shared';
+import { ColumnSelect, Done, Duplicates, Issues, missingNote, sampleOf, Source, StepFoot, Steps, Tally, type Step } from './shared';
 
 const FIELD_WORD: Record<string, string> = { school: 'school', city: 'city', contactName: 'contact', contactEmail: 'contact email' };
 
@@ -17,7 +17,8 @@ export function TeamsImport() {
   const contest = useContest();
   const db = useDB();
   const user = useUser()!;
-  const navigate = useNavigate();
+  const [step, setStep] = useState<Step>(1);
+  const [result, setResult] = useState<{ made: number; updated: number; added: number; skipped: number; blocked: number } | null>(null);
   const [text, setText] = useState('');
   const [source, setSource] = useState('');
   const [mapping, setMapping] = useState<Mapping | null>(null);
@@ -48,7 +49,9 @@ export function TeamsImport() {
     setSource(name);
     setMapping(guessMapping(r[0]));
     setActions({});
+    setStep(2);
   };
+  const restart = () => { setMapping(null); setText(''); setResult(null); setStep(1); };
   const setTeamCol = (k: TeamField, v: number | undefined) => setMapping((m) => m && { ...m, team: { ...m.team, [k]: v } });
   const setStudentCol = (k: StudentField, v: number | undefined) => setMapping((m) => m && { ...m, students: [{ ...m.students[0], [k]: v }] });
 
@@ -82,11 +85,27 @@ export function TeamsImport() {
       made && `${made} new ${made === 1 ? 'team' : 'teams'}`,
       sum.update.length && `${sum.update.length} updated${added ? ` (${added} ${added === 1 ? 'student' : 'students'} added)` : ''}`,
     ].filter(Boolean);
-    toast(parts.length ? `Imported: ${parts.join(', ')}` : 'Nothing imported', sum.skipped + sum.blocked ? `${sum.skipped + sum.blocked} rows left out.` : 'Every student has a competitor ID.', 'g');
-    navigate('/staff/teams');
+    toast(parts.length ? `Imported: ${parts.join(', ')}` : 'Nothing imported', undefined, 'g');
+    setResult({ made, updated: sum.update.length, added, skipped: sum.skipped, blocked: sum.blocked });
+    setStep(4);
   };
 
-  if (!mapping) {
+  if (step === 4 && result) {
+    return (
+      <>
+        <Steps at={4} />
+        <Done
+          title={[result.made && `${result.made} new ${result.made === 1 ? 'team' : 'teams'}`, result.updated && `${result.updated} updated`].filter(Boolean).join(', ') || 'Nothing imported'}
+          body={<>{result.added ? `${result.added} ${result.added === 1 ? 'student' : 'students'} added to existing teams. ` : ''}Every student has a competitor ID.{[result.skipped && ` ${result.skipped} skipped as duplicates`, result.blocked && ` ${result.blocked} left out with problems`].filter(Boolean).join(',')}{result.skipped || result.blocked ? '.' : ''}</>}
+        >
+          <Link className="btn btn-primary" to="/staff/teams">Go to Teams</Link>
+          <button className="btn" type="button" onClick={restart}>Import another file</button>
+        </Done>
+      </>
+    );
+  }
+
+  if (!mapping || step === 1) {
     return (
       <>
         <Steps at={1} />
@@ -104,43 +123,84 @@ export function TeamsImport() {
   }
 
   const nothing = sum.create.length + sum.update.length === 0;
+  const missing = [
+    ...(mapping.team.team === undefined ? ['Team name'] : []),
+    ...(mapping.team.contactEmail === undefined ? ['Contact email'] : []),
+    ...(!mapping.students.some((x) => x.student !== undefined) ? ['Student name'] : []),
+  ];
+  const fileLabel = <span className="label"><Icon name="file" size={13} /> {source} · {rows.length - 1} rows · {mapping.shape === 'wide' ? `${mapping.students.length} students per row` : 'one row per student'}</span>;
+
+  if (step === 2) {
+    return (
+      <>
+        <Steps at={2} onGo={setStep} onRestart={restart} />
+        <section className="card flush">
+          <div className="card-head wrap">
+            <h2>Which column holds what?</h2>
+            {fileLabel}
+          </div>
+          <div className="imp-pad stack">
+            <div className="map-grid">
+              {TEAM_FIELDS.filter((f) => f.key !== 'mode' || offered.length > 1).map((f) => (
+                <ColumnSelect key={f.key} label={f.label} required={f.required} value={mapping.team[f.key]} headers={headers} sample={sampleOf(rows, mapping.team[f.key])} onChange={(v) => setTeamCol(f.key, v)} />
+              ))}
+              {mapping.shape === 'long' && STUDENT_FIELDS.map((f) => (
+                <ColumnSelect key={f.key} label={f.label} required={f.required} value={mapping.students[0][f.key]} headers={headers} sample={sampleOf(rows, mapping.students[0][f.key])} onChange={(v) => setStudentCol(f.key, v)} />
+              ))}
+            </div>
+            {mapping.shape === 'wide' && (
+              <p className="soft small">
+                Students: {mapping.students.map((s, i) => `${headers[s.student!] ?? `student ${i + 1}`}`).join(', ')}, each with {[...new Set(mapping.students.flatMap((s) => Object.keys(s)))].filter((k) => k !== 'student').map((k) => STUDENT_FIELDS.find((f) => f.key === k)!.label.toLowerCase()).join(' and ') || 'just a name'}.
+              </p>
+            )}
+            {offered.length > 1 ? (
+              <div className="row wrap" style={{ gap: 12 }}>
+                <span className="soft small">When a row doesn't say in person or online:</span>
+                <Segmented label="When a row doesn't say" value={defaultMode ?? 'none'} onChange={(k) => setDefaultMode(k === 'none' ? null : k)}
+                  items={[{ key: 'none', label: 'Leave it out' }, { key: 'in_person', label: 'In person' }, { key: 'online', label: 'Online' }] as { key: DivisionMode | 'none'; label: string }[]} />
+              </div>
+            ) : (
+              <div className="row" style={{ gap: 8 }}><ModeChip mode={offered[0]} /><span className="soft small">{contest.short} is {offered[0] === 'online' ? 'online only' : 'in person only'}, so every team comes in that way.</span></div>
+            )}
+          </div>
+          <StepFoot back={restart} backLabel="Choose another file" note={missingNote(missing)}>
+            <button className="btn btn-primary" type="button" disabled={missing.length > 0} onClick={() => setStep(3)}>Check {dd.rows.length} {dd.rows.length === 1 ? 'team' : 'teams'}<Icon name="arrow" /></button>
+          </StepFoot>
+        </section>
+      </>
+    );
+  }
+
+  const dupItems = dups.map((t) => t.existing
+    ? {
+      key: t.key,
+      what: <><b>{t.name}</b> <span className="soft small">row {t.rows.join(' + ')}</span></>,
+      why: <>Looks like <b>{t.existing.code} {t.existing.name}</b>, already registered ({t.existing.why})</>,
+      value: actionOf(t) as TeamAction,
+      options: [{ key: 'skip', label: 'Skip' }, { key: 'update', label: `Update ${t.existing.code}` }, { key: 'add', label: 'Add as new' }] as { key: TeamAction; label: string }[],
+    }
+    : {
+      key: t.key,
+      what: <><b>{t.name}</b> <span className="soft small">row {t.rows.join(' + ')}</span></>,
+      why: <>Same contact and school as row {t.fileDupOf!.row}, {t.fileDupOf!.name}</>,
+      value: actionOf(t) as TeamAction,
+      options: [{ key: 'skip', label: 'Skip' }, { key: 'new', label: 'Add as second team' }] as { key: TeamAction; label: string }[],
+    });
+
   return (
     <>
-      <Steps at={mapping.team.team === undefined || mapping.team.contactEmail === undefined || !mapping.students.some((x) => x.student !== undefined) ? 2 : 3} onRestart={() => { setMapping(null); setText(''); }} />
-      <section className="card flush">
-        <div className="card-head">
-          <h2>Match the columns</h2>
-          <span className="label"><Icon name="file" size={13} /> {source} · {rows.length - 1} rows · {mapping.shape === 'wide' ? `${mapping.students.length} students per row` : 'one row per student'}</span>
-        </div>
-        <div className="imp-pad stack">
-          <div className="map-grid">
-            {TEAM_FIELDS.filter((f) => f.key !== 'mode' || offered.length > 1).map((f) => (
-              <ColumnSelect key={f.key} label={f.label} required={f.required} value={mapping.team[f.key]} headers={headers} sample={sampleOf(rows, mapping.team[f.key])} onChange={(v) => setTeamCol(f.key, v)} />
-            ))}
-            {mapping.shape === 'long' && STUDENT_FIELDS.map((f) => (
-              <ColumnSelect key={f.key} label={f.label} required={f.required} value={mapping.students[0][f.key]} headers={headers} sample={sampleOf(rows, mapping.students[0][f.key])} onChange={(v) => setStudentCol(f.key, v)} />
-            ))}
-          </div>
-          {mapping.shape === 'wide' && (
-            <p className="soft small">
-              Students: {mapping.students.map((s, i) => `${headers[s.student!] ?? `student ${i + 1}`}`).join(', ')}, each with {[...new Set(mapping.students.flatMap((s) => Object.keys(s)))].filter((k) => k !== 'student').map((k) => STUDENT_FIELDS.find((f) => f.key === k)!.label.toLowerCase()).join(' and ') || 'just a name'}.
-            </p>
-          )}
-          {offered.length > 1 ? (
-            <div className="row wrap" style={{ gap: 12 }}>
-              <span className="soft small">When a row doesn't say in person or online:</span>
-              <Segmented label="When a row doesn't say" value={defaultMode ?? 'none'} onChange={(k) => setDefaultMode(k === 'none' ? null : k)}
-                items={[{ key: 'none', label: 'Leave it out' }, { key: 'in_person', label: 'In person' }, { key: 'online', label: 'Online' }] as { key: DivisionMode | 'none'; label: string }[]} />
-            </div>
-          ) : (
-            <div className="row" style={{ gap: 8 }}><ModeChip mode={offered[0]} /><span className="soft small">{contest.short} is {offered[0] === 'online' ? 'online only' : 'in person only'}, so every team comes in that way.</span></div>
-          )}
-        </div>
-      </section>
-
+      <Steps at={3} onGo={setStep} onRestart={restart} />
+      <Duplicates<TeamAction>
+        title={dups.length === 1 ? 'row looks like a team you already have' : 'rows look like teams you already have'}
+        note="Nothing is merged without you. Skip a row, update the team that is there, or add it anyway."
+        items={dupItems}
+        options={[{ key: 'skip', label: 'Skip' }, { key: 'update', label: 'Update' }]}
+        onChange={(k, v) => setActions((x) => ({ ...x, [k]: v }))}
+        onAll={(v) => setActions((a) => ({ ...a, ...Object.fromEntries(dups.filter((r) => v !== 'update' || r.existing).map((r) => [r.key, v])) }))}
+      />
       <section className="card flush">
         <div className="card-head wrap">
-          <h2>Check before importing</h2>
+          <h2>What will happen</h2>
           <span className="row wrap" style={{ gap: 10 }}>
             <Tally items={[
               { n: sum.create.length, label: 'new', tone: 'g' },
@@ -149,9 +209,6 @@ export function TeamsImport() {
               { n: sum.blocked, label: 'left out', tone: 'r' },
               { n: dd.merged + dd.studentDups, label: 'duplicates removed', tone: '' },
             ]} />
-            {dups.some((r) => actionOf(r) !== 'skip') && (
-              <button className="btn btn-sm" type="button" onClick={() => setActions((a) => ({ ...a, ...Object.fromEntries(dups.map((r) => [r.key, 'skip'])) }))}>Remove duplicates</button>
-            )}
           </span>
         </div>
         {(offers(contest, 'in_person') && offers(contest, 'online')) && (
@@ -175,28 +232,14 @@ export function TeamsImport() {
                     <td className="num">{a === 'update' ? <span title="Students not on the team yet">+{t.newStudents.length}</span> : t.students.length}</td>
                     <td className="soft">{t.contactName}<div className="muted tiny">{t.contactEmail}</div></td>
                     <td>
-                      {t.errors.length ? <span className="state bad">Left out</span> : t.existing ? (
-                        <div className="stack" style={{ gap: 4 }}>
-                          <select className="select input-sm imp-act" aria-label={`What to do with ${t.name}`} value={a} onChange={(e) => setActions((x) => ({ ...x, [t.key]: e.target.value as TeamAction }))}>
-                            <option value="skip">Skip</option>
-                            <option value="update">Update {t.existing.code} {t.existing.name}</option>
-                            <option value="add">Add anyway, as a new team</option>
-                          </select>
-                          <span className="tiny amber-ink">Matches {t.existing.code} {t.existing.name} ({t.existing.why})</span>
-                        </div>
-                      ) : t.fileDupOf ? (
-                        <div className="stack" style={{ gap: 4 }}>
-                          <select className="select input-sm imp-act" aria-label={`What to do with ${t.name}`} value={a} onChange={(e) => setActions((x) => ({ ...x, [t.key]: e.target.value as TeamAction }))}>
-                            <option value="new">Add as a second team</option>
-                            <option value="skip">Skip</option>
-                          </select>
-                          <span className="tiny amber-ink">Same contact and school as row {t.fileDupOf.row}, {t.fileDupOf.name}</span>
-                        </div>
-                      ) : <span className="state ok">New team</span>}
+                      {t.errors.length ? <span className="state bad">Left out</span>
+                        : a === 'skip' ? <span className="state wait">Skipped</span>
+                          : a === 'update' ? <span className="state go">Updates {t.existing?.code}</span>
+                            : <span className="state ok">{t.existing || t.fileDupOf ? 'Added as new' : 'New team'}</span>}
                     </td>
                     <td className="wrap imp-notes">
                       <Issues
-                        ok={a === 'skip' ? '' : 'Ready'}
+                        ok=''
                         errors={t.errors}
                         warnings={t.warnings}
                         notes={[
@@ -216,7 +259,7 @@ export function TeamsImport() {
             </tbody>
           </table>
         </div>
-        <div className="card-foot wrap">
+        <StepFoot back={() => setStep(2)} backLabel="Back to columns">
           <label className="row small soft" style={{ gap: 8 }}>
             Add new teams as
             <select className="select input-sm" style={{ width: 'auto' }} value={status} onChange={(e) => setStatus(e.target.value as TeamStatus)}>
@@ -227,7 +270,7 @@ export function TeamsImport() {
           <button className="btn btn-primary" type="button" disabled={nothing || busy} onClick={go}>
             {busy ? 'Importing…' : nothing ? 'Nothing to import' : [sum.create.length && `Import ${sum.create.length} ${sum.create.length === 1 ? 'team' : 'teams'}`, sum.update.length && `update ${sum.update.length}`].filter(Boolean).join(', ').replace(/^u/, 'U')}
           </button>
-        </div>
+        </StepFoot>
       </section>
     </>
   );

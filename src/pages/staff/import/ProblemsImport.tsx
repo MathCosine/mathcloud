@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { newProblem, saveRound } from '../../../lib/actions';
 import { parseCsv } from '../../../lib/csv';
 import {
@@ -10,14 +10,15 @@ import { useContest } from '../../../lib/hooks';
 import { useDB } from '../../../lib/store';
 import { Icon } from '../../../components/icons';
 import { AnswerPreview, MathText, Modal, Segmented, toast } from '../../../components/ui';
-import { ColumnSelect, Issues, sampleOf, Source, Steps, Tally } from './shared';
+import { ColumnSelect, Done, Issues, missingNote, sampleOf, Source, StepFoot, Steps, Tally, type Step } from './shared';
 
 const BLOCKS = /^\s*(answers?|ans|key)\s*[:=]/im;
 
 export function ProblemsImport({ initialRound }: { initialRound?: string }) {
   const contest = useContest();
   const db = useDB();
-  const navigate = useNavigate();
+  const [step, setStep] = useState<Step>(1);
+  const [saved, setSaved] = useState<{ total: number; detail: string } | null>(null);
   const [roundId, setRoundId] = useState(contest.rounds.find((r) => r.id === initialRound)?.id ?? contest.rounds[0]?.id);
   const round = contest.rounds.find((r) => r.id === roundId) ?? contest.rounds[0];
   const guts = round?.kind === 'guts';
@@ -49,32 +50,49 @@ export function ProblemsImport({ initialRound }: { initialRound?: string }) {
     setSource(name);
     setBlocks(isBlocks);
     setMap(isBlocks ? null : guessProblemMap(parseCsv(t)[0]));
+    setStep(isBlocks ? 3 : 2);
   };
 
   const save = () => {
     const r = applyProblems(round, drafts, mode, () => newProblem(round).id);
     saveRound(round.id, { problems: r.problems });
     setConfirm(false);
-    toast(`${round.name}: ${r.problems.length} problems`, [r.added && `${r.added} added`, r.updated && `${r.updated} updated`, r.removed && `${r.removed} replaced`].filter(Boolean).join(', '), 'g');
-    navigate(`/staff/rounds?round=${round.id}`);
+    const detail = [r.added && `${r.added} added`, r.updated && `${r.updated} updated`, r.removed && `${r.removed} replaced`].filter(Boolean).join(', ');
+    toast(`${round.name}: ${r.problems.length} problems`, detail, 'g');
+    setSaved({ total: r.problems.length, detail });
+    setStep(4);
   };
 
-  const reset = () => { setText(''); setMap(null); setBlocks(false); };
-  const loaded = !!text;
+  const reset = () => { setText(''); setMap(null); setBlocks(false); setSaved(null); setStep(1); };
+  const loaded = !!text && step > 1;
+  const missing = !blocks && map ? [...(map.text === undefined ? ['Text'] : []), ...(map.answers === undefined ? ['Answer'] : [])] : [];
+  const skip = blocks ? [2] : [];
+
+  if (step === 4 && saved) {
+    return (
+      <>
+        <Steps at={4} skip={skip} />
+        <Done title={`${round.name} now has ${saved.total} problems`} body={saved.detail ? `${saved.detail[0].toUpperCase()}${saved.detail.slice(1)}. Edit any of them in Rounds.` : 'Edit any of them in Rounds.'}>
+          <Link className="btn btn-primary" to={`/staff/rounds?round=${round.id}`}>Open {round.name} in Rounds</Link>
+          <button className="btn" type="button" onClick={reset}>Import another file</button>
+        </Done>
+      </>
+    );
+  }
 
   return (
     <>
-      <Steps at={!loaded ? 1 : !blocks && (map?.text === undefined || map?.answers === undefined) ? 2 : 3} onRestart={loaded ? reset : undefined} steps={['Round and file', 'Columns', 'Check and save']} />
-      <section className="card stack">
+      <Steps at={step} skip={skip} onGo={setStep} onRestart={loaded ? reset : undefined} />
+      {step === 1 && <section className="card stack">
         <div className="row wrap" style={{ gap: 12, justifyContent: 'space-between' }}>
           <div className="row wrap" style={{ gap: 12 }}>
-            <span className="field-label">Round</span>
+            <span className="field-label">Into which round</span>
             <Segmented label="Round" value={round.id} onChange={(k) => { setRoundId(k); setMode(contest.rounds.find((r) => r.id === k)!.problems.length ? 'update' : 'replace'); }}
               items={contest.rounds.map((r) => ({ key: r.id, label: r.name, count: r.problems.length }))} />
           </div>
           <span className="small soft">{round.problems.length} problems now · {round.kind === 'guts' ? 'Guts, in sets' : round.kind === 'team' ? 'team round' : 'individual round'}</span>
         </div>
-        {!loaded && (
+        {(
           <>
             <Source
               onLoad={load}
@@ -89,13 +107,13 @@ export function ProblemsImport({ initialRound }: { initialRound?: string }) {
             />
           </>
         )}
-      </section>
+      </section>}
 
-      {loaded && !blocks && map && (
+      {step === 2 && !blocks && map && (
         <section className="card flush">
           <div className="card-head">
-            <h2>Match the columns</h2>
-            <span className="label"><Icon name="file" size={13} /> {source} · {rows.length - 1} rows</span>
+            <h2>Which column holds what?</h2>
+            <span className="label"><Icon name="file" size={13} /> {source} · {rows.length - 1} rows · into {round.name}</span>
           </div>
           <div className="imp-pad">
             <div className="map-grid">
@@ -104,13 +122,16 @@ export function ProblemsImport({ initialRound }: { initialRound?: string }) {
               ))}
             </div>
           </div>
+          <StepFoot back={reset} backLabel="Choose another file" note={missingNote(missing)}>
+            <button className="btn btn-primary" type="button" disabled={missing.length > 0} onClick={() => setStep(3)}>Check {drafts.length} {drafts.length === 1 ? 'problem' : 'problems'}<Icon name="arrow" /></button>
+          </StepFoot>
         </section>
       )}
 
-      {loaded && (
+      {step === 3 && (
         <section className="card flush">
           <div className="card-head wrap">
-            <h2>Check before saving</h2>
+            <h2>What will happen in {round.name}</h2>
             <Tally items={[
               { n: usable.length, label: usable.length === 1 ? 'problem read' : 'problems read', tone: '' },
               { n: drafts.filter((d) => !d.answers.length && !d.errors.length).length, label: 'without an answer', tone: 'a' },
@@ -119,7 +140,7 @@ export function ProblemsImport({ initialRound }: { initialRound?: string }) {
           </div>
           <div className="imp-pad stack">
             <div className="row wrap" style={{ gap: 12 }}>
-              <span className="field-label">How</span>
+              <span className="field-label">Problems already in the round</span>
               <Segmented label="How to import" value={mode} onChange={setMode} items={[
                 { key: 'replace', label: 'Replace the round’s problems' },
                 { key: 'append', label: 'Add at the end' },
@@ -155,12 +176,11 @@ export function ProblemsImport({ initialRound }: { initialRound?: string }) {
               );
             })}
           </ol>
-          <div className="card-foot">
-            <span className="muted small">Saved to {round.name} straight away; edit any problem afterwards in Rounds.</span>
+          <StepFoot back={() => setStep(blocks ? 1 : 2)} backLabel={blocks ? 'Choose another file' : 'Back to columns'}>
             <button className="btn btn-primary" type="button" disabled={!usable.length} onClick={() => (mode === 'replace' && round.problems.length ? setConfirm(true) : save())}>
-              Save {usable.length} {usable.length === 1 ? 'problem' : 'problems'} to {round.name}
+              Import {usable.length} {usable.length === 1 ? 'problem' : 'problems'} into {round.name}
             </button>
-          </div>
+          </StepFoot>
         </section>
       )}
 

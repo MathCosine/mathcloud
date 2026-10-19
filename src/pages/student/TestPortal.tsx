@@ -12,10 +12,10 @@ import { AnswerPreview, MathText, Modal, toast, useNow } from '../../components/
 export function TestPortal() {
   const { roundId } = useParams();
   const me = useStudent();
-  const contest = useContest();
+  const contest = useContest() as ReturnType<typeof useContest> | undefined;
   const db = useDB();
-  const round = contest.rounds.find((r) => r.id === roundId);
-  if (!me || !round) return <Navigate to="/me" replace />;
+  const round = contest?.rounds.find((r) => r.id === roundId);
+  if (!me || !contest || !round) return <Navigate to="/me" replace />;
   if (contest.divisions.find((d) => d.id === me.team.divisionId)?.mode !== 'online') return <Navigate to="/me" replace />;
   const entrantId = round.kind === 'individual' ? me.competitor.id : me.team.id;
   const attempt = db.attempts.find((a) => a.roundId === round.id && a.entrantId === entrantId);

@@ -690,3 +690,5 @@ body.has-bulk .toasts { bottom: 84px; }
   .contest-title p .mode { display: none; }
   .live-pill { padding: 0 10px; }
 }
+/* Thin rules between the groups of tabs: before the day, on the day, after, settings. */
+.tab-sep { flex: none; width: 1px; height: 18px; margin: 12px 6px 0; background: var(--line-2); }

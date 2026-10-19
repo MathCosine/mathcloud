@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { Icon } from '../../../components/icons';
-import { toast } from '../../../components/ui';
+import { Segmented, toast } from '../../../components/ui';
 
 /** Where the text comes from: a dropped or chosen file, pasted rows, or a sample. */
 export function Source({
@@ -78,21 +78,100 @@ export function ColumnSelect({ label, required, value, headers, sample, onChange
 /** First non-empty value in a column, for the "e.g." under a select. */
 export const sampleOf = (rows: string[][], i: number | undefined) => (i === undefined ? '' : rows.slice(1).map((r) => r[i]).find((x) => x) ?? '');
 
-/** The four steps, so it is clear where you are and that nothing is saved yet. */
-export function Steps({ at, onRestart, steps = ['File', 'Columns', 'Check and import'] }: { at: 1 | 2 | 3; onRestart?: () => void; steps?: string[] }) {
+export type Step = 1 | 2 | 3 | 4;
+export const STEP_NAMES = ['Choose file', 'Match columns', 'Check', 'Import'];
+
+/** The four steps, so it is clear where you are and that nothing is saved until the last one. Done steps can be clicked to go back. */
+export function Steps({ at, onGo, skip = [], onRestart }: { at: Step; onGo?: (s: Step) => void; skip?: number[]; onRestart?: () => void }) {
   return (
     <div className="imp-steps-row">
       <ol className="imp-steps" aria-label="Steps">
-        {steps.map((s, i) => (
-          <li key={s} className={i + 1 < at ? 'done' : i + 1 === at ? 'now' : ''} aria-current={i + 1 === at ? 'step' : undefined}>
-            <span className="n">{i + 1 < at ? <Icon name="check" size={12} /> : i + 1}</span>{s}
-          </li>
-        ))}
+        {STEP_NAMES.map((s, i) => {
+          const n = (i + 1) as Step;
+          const skipped = skip.includes(n);
+          const done = n < at || at === 4;
+          const can = !!onGo && n < at && at !== 4 && !skipped;
+          return (
+            <li key={s} className={`${done ? 'done' : n === at ? 'now' : ''} ${skipped ? 'skipped' : ''}`} aria-current={n === at ? 'step' : undefined}>
+              {can ? (
+                <button type="button" className="imp-step-btn" onClick={() => onGo!(n)} title={`Back to ${s.toLowerCase()}`}>
+                  <span className="n">{done ? <Icon name="check" size={12} /> : n}</span>{s}
+                </button>
+              ) : (
+                <span className="imp-step-btn"><span className="n">{done && !skipped ? <Icon name="check" size={12} /> : n}</span>{s}{skipped && <small> · not needed</small>}</span>
+              )}
+            </li>
+          );
+        })}
       </ol>
-      {onRestart && <button className="btn btn-sm btn-quiet" type="button" onClick={onRestart}>Choose another file</button>}
+      {onRestart && at !== 4 && <button className="btn btn-sm btn-quiet" type="button" onClick={onRestart}>Start over</button>}
     </div>
   );
 }
+
+/** The bar under a step: go back on the left, go on on the right. */
+export function StepFoot({ back, backLabel = 'Back', children, note }: { back?: () => void; backLabel?: string; children?: ReactNode; note?: ReactNode }) {
+  return (
+    <div className="card-foot wrap imp-foot">
+      <div className="row wrap" style={{ gap: 12 }}>
+        {back && <button className="btn" type="button" onClick={back}><Icon name="back" />{backLabel}</button>}
+        {note && <span className="muted small">{note}</span>}
+      </div>
+      <div className="row wrap" style={{ gap: 12 }}>{children}</div>
+    </div>
+  );
+}
+
+/** Rows that look like something already there, each with its own choice, plus one choice for all. */
+export function Duplicates<K extends string>({ title, note, items, options, onChange, onAll }: {
+  title: ReactNode; note?: ReactNode;
+  items: { key: string; what: ReactNode; why: ReactNode; value: K; options?: { key: K; label: string }[] }[];
+  options: { key: K; label: string }[];
+  onChange: (key: string, v: K) => void;
+  onAll: (v: K) => void;
+}) {
+  if (!items.length) return null;
+  return (
+    <section className="card flush imp-dups">
+      <div className="card-head wrap">
+        <div>
+          <h2><span className="imp-dup-n">{items.length}</span>{title}</h2>
+          {note && <p className="soft small" style={{ marginTop: 2 }}>{note}</p>}
+        </div>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <span className="small soft">For all:</span>
+          {options.map((o) => <button key={o.key} className="btn btn-sm" type="button" disabled={items.every((x) => x.value === o.key || !(x.options ?? options).some((y) => y.key === o.key))} onClick={() => onAll(o.key)}>{o.label}</button>)}
+        </div>
+      </div>
+      <ul className="imp-dup-list">
+        {items.map((x) => (
+          <li key={x.key}>
+            <div className="imp-dup-what">
+              <div>{x.what}</div>
+              <div className="small amber-ink">{x.why}</div>
+            </div>
+            <Segmented label="What to do" value={x.value} onChange={(v) => onChange(x.key, v)} items={x.options ?? options} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Step 4: what was saved, and where to go next. */
+export function Done({ title, body, children }: { title: ReactNode; body?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="card imp-done">
+      <span className="imp-done-ic"><Icon name="check" size={22} /></span>
+      <h2>{title}</h2>
+      {body && <p className="soft">{body}</p>}
+      <div className="row wrap" style={{ justifyContent: 'center' }}>{children}</div>
+    </section>
+  );
+}
+
+/** What is still needed before the columns step can go on. */
+export const missingNote = (missing: string[]) => (missing.length ? `Choose a column for ${missing.join(' and ').toLowerCase()} to go on.` : undefined);
 
 /** "12 new · 3 updates · 2 skipped" */
 export function Tally({ items }: { items: { n: number; label: string; tone?: 'g' | 'b' | 'a' | 'r' | '' }[] }) {

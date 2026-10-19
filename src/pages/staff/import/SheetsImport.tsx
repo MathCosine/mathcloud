@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { savePaperGutsSet, savePaperSheet } from '../../../lib/actions';
 import { parseCsv } from '../../../lib/csv';
 import { guessSheetMap, gutsSetsOf, planSheets, sampleSheet, type Entrant, type SheetMap } from '../../../lib/importers';
@@ -9,19 +9,21 @@ import { useUser } from '../../../lib/session';
 import { useDB } from '../../../lib/store';
 import { Icon } from '../../../components/icons';
 import { Segmented, toast } from '../../../components/ui';
-import { ColumnSelect, Issues, sampleOf, Source, Steps, Tally } from './shared';
+import { ColumnSelect, Done, Duplicates, Issues, missingNote, sampleOf, Source, StepFoot, Steps, Tally, type Step } from './shared';
 
 export function SheetsImport({ initialRound }: { initialRound?: string }) {
   const contest = useContest();
   const db = useDB();
   const me = useUser()!;
-  const navigate = useNavigate();
+  const [step, setStep] = useState<Step>(1);
+  const [savedN, setSavedN] = useState(0);
   const [roundId, setRoundId] = useState(contest.rounds.find((r) => r.id === initialRound)?.id ?? contest.rounds[0]?.id);
   const round = contest.rounds.find((r) => r.id === roundId) ?? contest.rounds[0];
   const [text, setText] = useState('');
   const [source, setSource] = useState('');
   const [map, setMap] = useState<SheetMap | null>(null);
-  const [existing, setExisting] = useState<'skip' | 'overwrite'>('skip');
+  const [choice, setChoice] = useState<Record<string, 'skip' | 'overwrite'>>({});
+  const existingOf = (k: string) => choice[k] ?? 'skip';
 
   const individual = round?.kind === 'individual';
   const entrants: Entrant[] = useMemo(() => {
@@ -37,7 +39,9 @@ export function SheetsImport({ initialRound }: { initialRound?: string }) {
   const headers = rows[0] ?? [];
   const plan = useMemo(() => (map && rows.length > 1 ? planSheets(rows, map, entrants, withSheet) : []), [rows, map, entrants, withSheet]);
   const ok = plan.filter((s) => !s.errors.length);
-  const toSave = ok.filter((s) => !s.hasSheet || existing === 'overwrite');
+  const toSave = ok.filter((s) => !s.hasSheet || existingOf(s.key) === 'overwrite');
+  const already = ok.filter((s) => s.hasSheet);
+  const overwriting = already.filter((s) => existingOf(s.key) === 'overwrite').length;
   const mapped = round ? round.problems.filter((p) => map?.cols[p.id] !== undefined).length : 0;
 
   if (!round) return <section className="card"><p className="soft">This contest has no rounds yet.</p></section>;
@@ -49,6 +53,7 @@ export function SheetsImport({ initialRound }: { initialRound?: string }) {
     setText(t);
     setSource(name);
     setMap(guessSheetMap(r[0], round));
+    setStep(2);
   };
   const save = () => {
     let n = 0;
@@ -62,23 +67,37 @@ export function SheetsImport({ initialRound }: { initialRound?: string }) {
       } else savePaperSheet(round.id, s.entrant.id, s.values, me.name);
       n++;
     }
-    toast(`${n} ${n === 1 ? 'sheet' : 'sheets'} saved for ${round.name}`, 'They are marked against the key now; rule on new answers in Grading.', 'g');
-    navigate('/staff/grading');
+    toast(`${n} ${n === 1 ? 'sheet' : 'sheets'} saved for ${round.name}`, undefined, 'g');
+    setSavedN(n);
+    setStep(4);
   };
-  const reset = () => { setText(''); setMap(null); };
+  const reset = () => { setText(''); setMap(null); setChoice({}); setStep(1); };
+  const missing = [...(map?.id === undefined ? [individual ? 'Competitor ID' : 'Team code'] : []), ...(!mapped ? ['at least one problem'] : [])];
+
+  if (step === 4) {
+    return (
+      <>
+        <Steps at={4} />
+        <Done title={`${savedN} ${savedN === 1 ? 'sheet' : 'sheets'} saved for ${round.name}`} body="They are marked against the answers now. Rule on any new answers in Grading.">
+          <Link className="btn btn-primary" to="/staff/grading">Go to Grading</Link>
+          <button className="btn" type="button" onClick={reset}>Import another file</button>
+        </Done>
+      </>
+    );
+  }
 
   return (
     <>
-      <Steps at={!text ? 1 : map?.id === undefined || !mapped ? 2 : 3} onRestart={text ? reset : undefined} steps={['Round and file', 'Columns', 'Check and save']} />
-      <section className="card stack">
+      <Steps at={step} onGo={setStep} onRestart={text ? reset : undefined} />
+      {step === 1 && <section className="card stack">
         <div className="row wrap" style={{ gap: 12, justifyContent: 'space-between' }}>
           <div className="row wrap" style={{ gap: 12 }}>
-            <span className="field-label">Round</span>
+            <span className="field-label">Which round</span>
             <Segmented label="Round" value={round.id} onChange={(k) => { setRoundId(k); reset(); }} items={contest.rounds.map((r) => ({ key: r.id, label: r.name }))} />
           </div>
           <span className="small soft">{withSheet.size} {withSheet.size === 1 ? 'sheet' : 'sheets'} in already · one row per {individual ? 'student, by competitor ID (07A)' : 'team, by team code (07)'}</span>
         </div>
-        {!text && (
+        {(
           <Source
             onLoad={load}
             title="Drop the keyed sheets here"
@@ -87,12 +106,12 @@ export function SheetsImport({ initialRound }: { initialRound?: string }) {
             samples={[{ label: 'Try a sample', text: sampleSheet(round, [...entrants.filter((e) => !withSheet.has(e.id)), ...entrants.filter((e) => withSheet.has(e.id))]), name: `sample ${round.short} sheets` }]}
           />
         )}
-      </section>
+      </section>}
 
-      {text && map && (
+      {step === 2 && map && (
         <section className="card flush">
-          <div className="card-head">
-            <h2>Match the columns</h2>
+          <div className="card-head wrap">
+            <h2>Which column holds what?</h2>
             <span className="label"><Icon name="file" size={13} /> {source} · {rows.length - 1} rows · {mapped} of {round.problems.length} problems found</span>
           </div>
           <div className="imp-pad stack">
@@ -120,31 +139,40 @@ export function SheetsImport({ initialRound }: { initialRound?: string }) {
               </div>
             </details>
           </div>
+          <StepFoot back={reset} backLabel="Choose another file" note={missingNote(missing)}>
+            <button className="btn btn-primary" type="button" disabled={missing.length > 0} onClick={() => setStep(3)}>Check {plan.length} {plan.length === 1 ? 'sheet' : 'sheets'}<Icon name="arrow" /></button>
+          </StepFoot>
         </section>
       )}
 
-      {text && map && (
+      {step === 3 && map && (
+        <Duplicates<'skip' | 'overwrite'>
+          title={already.length === 1 ? 'sheet is already in' : 'sheets are already in'}
+          note={`Keyed on the Grading screen or imported before. Keep what is there, or overwrite it with the file.`}
+          items={already.map((s) => ({ key: s.key, what: <><b className="mono">{s.raw}</b> {s.entrant?.name} <span className="soft small">row {s.row}</span></>, why: 'Already has a sheet for this round', value: existingOf(s.key) }))}
+          options={[{ key: 'skip', label: 'Keep, skip row' }, { key: 'overwrite', label: 'Overwrite' }]}
+          onChange={(k, v) => setChoice((c) => ({ ...c, [k]: v }))}
+          onAll={(v) => setChoice(Object.fromEntries(already.map((s) => [s.key, v])))}
+        />
+      )}
+
+      {step === 3 && map && (
         <section className="card flush">
           <div className="card-head wrap">
-            <h2>Check before saving</h2>
+            <h2>What will happen in {round.name}</h2>
             <Tally items={[
               { n: ok.filter((s) => !s.hasSheet).length, label: 'new', tone: 'g' },
-              { n: ok.filter((s) => s.hasSheet).length, label: existing === 'overwrite' ? 'to overwrite' : 'already in, skipped', tone: existing === 'overwrite' ? 'b' : 'a' },
+              { n: overwriting, label: 'to overwrite', tone: 'b' },
+              { n: already.length - overwriting, label: 'already in, skipped', tone: 'a' },
               { n: plan.length - ok.length, label: 'left out', tone: 'r' },
             ]} />
           </div>
-          {ok.some((s) => s.hasSheet) && (
-            <div className="imp-pad row wrap" style={{ gap: 12, paddingBottom: 0 }}>
-              <span className="small soft">When a sheet is already in:</span>
-              <Segmented label="Sheets already in" value={existing} onChange={setExisting} items={[{ key: 'skip', label: 'Keep it, skip the row' }, { key: 'overwrite', label: 'Overwrite it' }] as { key: 'skip' | 'overwrite'; label: string }[]} />
-            </div>
-          )}
-          <div className="table-scroll" style={{ marginTop: 8 }}>
+          <div className="table-scroll">
             <table className="t imp-table">
               <thead><tr><th>Row</th><th>ID</th><th>{individual ? 'Student' : 'Team'}</th><th className="num">Answered</th><th>Answers</th><th>What happens</th></tr></thead>
               <tbody>
                 {plan.map((s) => {
-                  const skip = s.errors.length > 0 || (s.hasSheet && existing === 'skip');
+                  const skip = s.errors.length > 0 || (s.hasSheet && existingOf(s.key) === 'skip');
                   return (
                     <tr key={s.key} className={skip ? 'dim' : ''}>
                       <td className="mono soft">{s.row}</td>
@@ -153,7 +181,7 @@ export function SheetsImport({ initialRound }: { initialRound?: string }) {
                       <td className="num">{s.filled}<span className="muted">/{round.problems.length}</span></td>
                       <td><div className="imp-answers mono small">{round.problems.filter((p) => map.cols[p.id] !== undefined).slice(0, 12).map((p) => <span key={p.id} className={s.values[p.id] ? '' : 'blank'} title={`Problem ${label(p)}`}>{s.values[p.id] || '·'}</span>)}{mapped > 12 && <span className="muted">…</span>}</div></td>
                       <td className="wrap imp-notes">
-                        {s.errors.length ? <Issues errors={s.errors} warnings={[]} /> : s.hasSheet ? <span className={`state ${existing === 'overwrite' ? 'go' : 'wait'}`}>{existing === 'overwrite' ? 'Overwrites the sheet in' : 'Already in, skipped'}</span> : <Issues errors={[]} warnings={s.warnings} ok="New sheet" />}
+                        {s.errors.length ? <Issues errors={s.errors} warnings={[]} /> : s.hasSheet ? <span className={`state ${existingOf(s.key) === 'overwrite' ? 'go' : 'wait'}`}>{existingOf(s.key) === 'overwrite' ? 'Overwrites the sheet in' : 'Already in, skipped'}</span> : <Issues errors={[]} warnings={s.warnings} ok="New sheet" />}
                       </td>
                     </tr>
                   );
@@ -161,10 +189,9 @@ export function SheetsImport({ initialRound }: { initialRound?: string }) {
               </tbody>
             </table>
           </div>
-          <div className="card-foot">
-            <span className="muted small">Saved as keyed by {me.name}. Blank boxes count as blank answers.</span>
-            <button className="btn btn-primary" type="button" disabled={!toSave.length || !mapped} onClick={save}>Save {toSave.length} {toSave.length === 1 ? 'sheet' : 'sheets'}</button>
-          </div>
+          <StepFoot back={() => setStep(2)} backLabel="Back to columns" note={`Saved as keyed by ${me.name}. Blank boxes count as blank answers.`}>
+            <button className="btn btn-primary" type="button" disabled={!toSave.length || !mapped} onClick={save}>Import {toSave.length} {toSave.length === 1 ? 'sheet' : 'sheets'}</button>
+          </StepFoot>
         </section>
       )}
     </>

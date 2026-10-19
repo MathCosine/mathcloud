@@ -22,13 +22,38 @@
 
 /* ---------------------------------------------------------------- steps */
 .imp-steps-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.imp-steps { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; flex-wrap: wrap; }
-.imp-steps li { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border-radius: 99px; font-size: 13px; font-weight: 600; color: var(--ink-3); }
-.imp-steps li + li::before { content: ''; width: 18px; height: 1px; background: var(--line-2); margin: 0 4px 0 -8px; }
-.imp-steps .n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; background: var(--bg-3); color: var(--ink-2); }
+.imp-steps { display: flex; align-items: center; gap: 4px; margin: 0; padding: 0; list-style: none; flex-wrap: wrap; }
+.imp-steps li { display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink-3); }
+.imp-steps li + li::before { content: ''; width: 24px; height: 1px; background: var(--line-2); margin-right: 4px; }
+.imp-steps li.done + li::before { background: var(--green); opacity: .5; }
+.imp-step-btn { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 10px 0 4px; border-radius: 99px; }
+button.imp-step-btn { cursor: pointer; }
+button.imp-step-btn:hover { background: var(--bg-3); color: var(--ink); }
+button.imp-step-btn:focus-visible { outline: 2px solid var(--blue); }
+.imp-step-btn small { font-weight: 500; font-size: 12px; }
+.imp-steps .n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; background: var(--bg); border: 1px solid var(--line-2); color: var(--ink-2); flex: none; }
 .imp-steps li.now { color: var(--ink); }
-.imp-steps li.now .n { background: var(--blue); color: #fff; }
-.imp-steps li.done .n { background: var(--green-soft); color: var(--green); }
+.imp-steps li.now .n { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 0 0 3px var(--blue-soft); }
+.imp-steps li.done { color: var(--ink-2); }
+.imp-steps li.done .n { background: var(--green-soft); border-color: transparent; color: var(--green); }
+.imp-steps li.skipped { color: var(--ink-3); }
+.imp-steps li.skipped .n { background: var(--bg-2); border-style: dashed; color: var(--ink-3); }
+
+/* ----------------------------------------------------- foot, dups, done */
+.imp-foot .btn svg:last-child:not(:first-child) { margin-left: 2px; }
+.imp-dups { border-color: #EBD3A8; }
+.imp-dups .card-head { background: var(--amber-soft); border-bottom-color: #EBD3A8; align-items: flex-start; }
+.imp-dups h2 { display: flex; align-items: center; gap: 8px; }
+.imp-dup-n { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 99px; background: var(--amber); color: #fff; font-size: 12.5px; }
+.imp-dup-list { list-style: none; margin: 0; padding: 0; }
+.imp-dup-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.imp-dup-list li:last-child { border-bottom: 0; }
+.imp-dup-what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.imp-done { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 36px 20px 32px; }
+.imp-done h2 { font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+.imp-done p { max-width: 520px; margin: 0 0 8px; }
+.imp-done-ic { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--green-soft); color: var(--green); margin-bottom: 4px; }
+.imp-done-ic svg { stroke-width: 2.2; }
 
 /* --------------------------------------------------------- forms, check */
 .imp-pad { padding: 16px 18px; }
@@ -74,8 +99,13 @@
   .imp-art { width: 64px; height: 52px; }
   .imp-art svg { width: 52px; height: 38px; }
   .imp-go { display: none; }
-  .imp-steps li { padding-right: 6px; font-size: 12.5px; }
-  .imp-steps li + li::before { width: 10px; }
+  .imp-steps li { font-size: 12.5px; }
+  .imp-steps li + li::before { width: 8px; margin-right: 0; }
+  .imp-step-btn { padding-right: 6px; gap: 6px; }
+  .imp-steps li:not(.now) .imp-step-btn { font-size: 0; gap: 0; padding-right: 4px; }
+  .imp-steps li:not(.now) .imp-step-btn small { display: none; }
+  .imp-dup-list li { padding: 12px 14px; }
+  .imp-dup-list .seg { max-width: 100%; overflow-x: auto; }
   .imp-probs > li { grid-template-columns: 36px minmax(0, 1fr); padding: 12px 14px; }
   .imp-probs > li > :last-child { display: none; }
   .imp-pad { padding: 14px; }

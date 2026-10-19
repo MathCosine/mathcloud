@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { contestOf } from '../lib/actions';
 import { useStandings } from '../lib/hooks';
@@ -10,7 +10,7 @@ import { Icon, type IconName } from '../components/icons';
 import { UserMenu } from '../components/UserMenu';
 import { ModeChip, useNow } from '../components/ui';
 
-type Tab = { to: string; label: string; icon: IconName; count?: number | 'live'; end?: boolean };
+type Tab = { to: string; label: string; icon: IconName; count?: number | 'live'; end?: boolean; group?: string };
 
 /**
  * The organisers' frame: a top bar (MathCloud, the contest, you) and the
@@ -61,16 +61,16 @@ function ContestFrame({ director, role }: { director: boolean; role: string }) {
   const tabs: Tab[] = director
     ? [
         { to: '/staff', label: 'Overview', icon: 'overview', end: true },
-        { to: '/staff/teams', label: 'Teams', icon: 'roster', count: db.teams.filter((t) => t.status !== 'withdrawn').length },
+        { to: '/staff/teams', label: 'Teams', icon: 'roster', group: 'Before', count: db.teams.filter((t) => t.status !== 'withdrawn').length },
         { to: '/staff/people', label: 'People', icon: 'people' },
         { to: '/staff/waivers', label: 'Waivers', icon: 'file', count: missing || undefined },
-        { to: '/staff/rounds', label: 'Rounds', icon: 'rounds' },
+        { to: '/staff/rounds', label: 'Rounds', icon: 'rounds', group: 'On the day' },
         { to: '/staff/live', label: 'Live', icon: 'live', count: waiting || (open ? 'live' : undefined) },
         { to: '/staff/grading', label: 'Grading', icon: 'grading', count: toRule || undefined },
-        { to: '/staff/results', label: 'Results', icon: 'results' },
+        { to: '/staff/results', label: 'Results', icon: 'results', group: 'After' },
         { to: '/staff/reports', label: 'Reports', icon: 'certificate' },
         { to: '/staff/email', label: 'Email', icon: 'mail' },
-        { to: '/staff/settings', label: 'Settings', icon: 'setup' },
+        { to: '/staff/settings', label: 'Settings', icon: 'setup', group: '' },
       ]
     : role === 'grader'
       ? [{ to: '/staff/grading', label: 'Grading', icon: 'grading', count: toRule || undefined }]
@@ -103,11 +103,14 @@ function ContestFrame({ director, role }: { director: boolean; role: string }) {
           </div>
           <nav className="tabs-nav" aria-label="Contest">
             {tabs.map((t) => (
-              <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => (isActive ? 'on' : '')}>
-                <Icon name={t.icon} size={15} />
-                {t.label}
-                {t.count === 'live' ? <span className="dot-live" aria-label="live" /> : t.count ? <span className="count">{t.count}</span> : null}
-              </NavLink>
+              <Fragment key={t.to}>
+                {t.group !== undefined && <span className="tab-sep" aria-hidden="true" title={t.group} />}
+                <NavLink to={t.to} end={t.end} className={({ isActive }) => (isActive ? 'on' : '')}>
+                  <Icon name={t.icon} size={15} />
+                  {t.label}
+                  {t.count === 'live' ? <span className="dot-live" aria-label="live" /> : t.count ? <span className="count">{t.count}</span> : null}
+                </NavLink>
+              </Fragment>
             ))}
           </nav>
         </div>

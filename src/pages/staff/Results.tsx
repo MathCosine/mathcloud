@@ -1,8 +1,12 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { setPublished, updateRecipe } from '../../lib/actions';
 import { useContest, useStandings } from '../../lib/hooks';
 import type { AwardRule } from '../../lib/model';
+import { ArtEmpty } from '../../components/art';
 import { CloseIcon, downloadCsv, Drawer, Modal, Segmented, State, Tabs, toast } from '../../components/ui';
+import '../../styles/people.css';
+import '../../styles/dayof.css';
 
 type View = 'teams' | 'individuals' | 'problems';
 
@@ -10,7 +14,7 @@ export function Results() {
   const contest = useContest();
   const standings = useStandings();
   const [view, setView] = useState<View>('teams');
-  const [div, setDiv] = useState(contest.divisions[0].id);
+  const [div, setDiv] = useState(contest.divisions[0]?.id ?? '');
   const [confirm, setConfirm] = useState(false);
   const [scoring, setScoring] = useState(false);
   const teams = standings.teams[div] ?? [];
@@ -24,7 +28,7 @@ export function Results() {
         <div>
           <h1 className="page-title">Results</h1>
           <p className="page-sub">
-            {contest.resultsPublished ? <State tone="ok">Published. Students and coaches can see them.</State> : <State tone="off">Draft. Only staff can see this.</State>}
+            {contest.resultsPublished ? <State tone="ok">Published. Students and coaches can see them.</State> : <State tone="off">Draft. Only staff can see these until you publish.</State>}
           </p>
         </div>
         <div className="actions">
@@ -36,15 +40,30 @@ export function Results() {
         </div>
       </div>
 
-      {toRule > 0 && <div className="note amber" style={{ marginBottom: 20 }}>{toRule} answers in an unusual form still need a ruling in Grading. Until then they count as wrong.</div>}
+      {toRule > 0 && (
+        <div className="note amber rs-note">
+          <span>{toRule} {toRule === 1 ? 'answer' : 'answers'} in an unusual form still {toRule === 1 ? 'needs' : 'need'} a ruling. Until then {toRule === 1 ? 'it counts' : 'they count'} as wrong.</span>
+          <Link className="btn btn-sm" to="/staff/grading">Rule on {toRule === 1 ? 'it' : 'them'}</Link>
+        </div>
+      )}
 
-      <div className="toolbar" style={{ marginBottom: 4 }}>
-        <Segmented label="Division" value={div} onChange={setDiv} items={contest.divisions.map((d) => ({ key: d.id, label: d.name }))} />
+      <div className="rs-bar">
+        <Tabs value={view} onChange={setView} items={[{ key: 'teams', label: 'Teams', count: teams.length }, { key: 'individuals', label: 'Individuals', count: inds.length }, { key: 'problems', label: 'Problems' }]} />
+        {contest.divisions.length > 1 && <Segmented label="Division" value={div} onChange={setDiv} items={contest.divisions.map((d) => ({ key: d.id, label: d.name }))} />}
       </div>
-      <Tabs value={view} onChange={setView} items={[{ key: 'teams', label: 'Teams', count: teams.length }, { key: 'individuals', label: 'Individuals', count: inds.length }, { key: 'problems', label: 'Problems' }]} />
 
-      {view === 'teams' && (
-        <div className="table-scroll card flush">
+      {view !== 'problems' && teams.length === 0 && inds.length === 0 ? (
+        <section className="card pp-empty">
+          <ArtEmpty kind="results" className="pp-art" />
+          <div className="stack" style={{ gap: 8 }}>
+            <h2>No scores yet</h2>
+            <p className="soft">Standings build themselves here as online tests are handed in and paper sheets are keyed. Nothing is public until you publish.</p>
+            <div className="row" style={{ marginTop: 6 }}><Link className="btn btn-primary" to="/staff/grading">Go to Grading</Link></div>
+          </div>
+        </section>
+      ) : view === 'teams' && (
+        <div className="card flush rs-table">
+          <div className="table-scroll">
           <table className="t">
             <thead>
               <tr>
@@ -54,24 +73,26 @@ export function Results() {
               </tr>
             </thead>
             <tbody>
-              {teams.length === 0 && <tr className="empty"><td colSpan={7}>No scores yet. Open the Demo menu and choose After the contest.</td></tr>}
+              {teams.length === 0 && <tr className="empty"><td colSpan={contest.rounds.length + 4}>No team scores yet.</td></tr>}
               {teams.map((t) => (
                 <tr key={t.team.id}>
                   <td className="strong">{t.tied ? '=' : ''}{t.place}</td>
                   <td><span className="code">{t.team.code}</span><span className="name">{t.team.name}</span></td>
                   {t.parts.map((p) => <td key={p.roundId} className="num" title={`${p.detail}${p.weight !== 1 ? `, × ${p.weight}` : ''}`}>{p.weighted}</td>)}
                   <td className="num strong">{t.total}</td>
-                  <td>{t.award && <span className="strong" style={{ color: 'var(--blue)' }}>{t.award}</span>}</td>
+                  <td>{t.award && <Award label={t.award} top={t.place <= 3} />}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {teams.length > 0 && <p className="muted small" style={{ marginTop: 10 }}>Hover a score to see how it was added up. Equal totals share a place.</p>}
+          </div>
+          {teams.length > 0 && <div className="rs-foot">Hover a score to see how it was added up. Equal totals share a place.</div>}
         </div>
       )}
 
-      {view === 'individuals' && (
-        <div className="table-scroll card flush">
+      {view === 'individuals' && (teams.length > 0 || inds.length > 0) && (
+        <div className="card flush rs-table">
+          <div className="table-scroll">
           <table className="t">
             <thead><tr><th style={{ width: 56 }}>Place</th><th>ID</th><th>Name</th><th>Team</th><th className="num">Score</th><th>By problem</th><th>Award</th></tr></thead>
             <tbody>
@@ -84,12 +105,13 @@ export function Results() {
                   <td><span className="ellipsis soft" style={{ maxWidth: 170 }}>{r.team.name}</span></td>
                   <td className="num strong">{r.score}</td>
                   <td><span className="mini-marks">{r.results.map((x) => <i key={x.problemId} className={x.status} title={`${x.number}: ${x.status}`} />)}</span></td>
-                  <td>{r.award && <span className={r.place <= 3 ? 'strong' : 'soft'} style={r.place <= 3 ? { color: 'var(--blue)' } : undefined}>{r.award}</span>}</td>
+                  <td>{r.award && <Award label={r.award} top={r.place <= 3} />}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {inds.some((r) => r.brokeTie) && <p className="muted small" style={{ marginTop: 10 }}>* Level on points with someone else, and placed higher for solving problems fewer people solved.</p>}
+          </div>
+          {inds.some((r) => r.brokeTie) && <div className="rs-foot">* Level on points with someone else, and placed higher for solving problems fewer people solved.</div>}
         </div>
       )}
 
@@ -139,6 +161,11 @@ export function Results() {
       )}
     </>
   );
+}
+
+/** An award as a quiet tag; the podium in warm gold, the rest neutral. Not a link. */
+function Award({ label, top }: { label: string; top: boolean }) {
+  return <span className={`rs-award ${top ? 'top' : ''}`}>{label}</span>;
 }
 
 function Recipe() {

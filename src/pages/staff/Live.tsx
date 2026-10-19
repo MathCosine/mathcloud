@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { answerClarification, broadcast, closeRound, lockAttempt, offers, openRound, setBoard, unlockAttempt } from '../../lib/actions';
+import { answerClarification, broadcast, closeRound, lockAttempt, modeOf, offers, openRound, setBoard, unlockAttempt } from '../../lib/actions';
 import { useBoard, useContest, useLookups } from '../../lib/hooks';
 import type { Attempt, IntegrityEvent, Round } from '../../lib/model';
 import { rareWrongCollisions } from '../../lib/scoring/engine';
 import { useUser } from '../../lib/session';
-import { useDB } from '../../lib/store';
-import { ago, clockSec, duration, roundEnds, roundState } from '../../lib/time';
+import { REMOTE, useDB } from '../../lib/store';
+import { ago, clockIn, clockSec, duration, roundEnds, roundState } from '../../lib/time';
 import { ScoreList } from '../../components/Scoreboard';
+import { ArtEmpty } from '../../components/art';
 import { Icon } from '../../components/icons';
 import { Drawer, Modal, ModeChip, Segmented, State, toast, useNow } from '../../components/ui';
+import '../../styles/people.css';
+import '../../styles/dayof.css';
 
 const EVENT: Record<IntegrityEvent['kind'], string> = {
   hidden: 'Left the test tab',
@@ -27,16 +30,52 @@ const FLAGS: IntegrityEvent['kind'][] = ['hidden', 'blur', 'fullscreen_exit', 'p
 
 export function Live() {
   const contest = useContest();
+  if (!contest.rounds.length) return <NoRounds />;
+  return <LiveRounds />;
+}
+
+function NoRounds() {
   const me = useUser()!;
+  const navigate = useNavigate();
+  const director = me.role === 'director' || me.role === 'staff';
+  return (
+    <>
+      <div className="page-head"><div><h1 className="page-title">Live</h1><p className="page-sub">Follow each round while it runs.</p></div></div>
+      <section className="card pp-empty">
+        <ArtEmpty kind="problems" className="pp-art" />
+        <div className="stack" style={{ gap: 8 }}>
+          <h2>No rounds yet</h2>
+          <p className="soft">Once the contest has rounds, this is where you open them, watch online tests and answer questions.</p>
+          {director && <div className="row" style={{ marginTop: 6 }}><button className="btn btn-primary" type="button" onClick={() => navigate('/staff/rounds')}><Icon name="plus" />Add rounds</button></div>}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function LiveRounds() {
+  const contest = useContest();
+  const me = useUser()!;
+  const navigate = useNavigate();
   const now = useNow(1000);
   const director = me.role === 'director' || me.role === 'staff';
   const openNow = contest.rounds.find((r) => roundState(r, now) === 'open');
   const [roundId, setRoundId] = useState(openNow?.id ?? contest.rounds[contest.rounds.length - 1].id);
-  const round = contest.rounds.find((r) => r.id === roundId)!;
+  const round = contest.rounds.find((r) => r.id === roundId) ?? contest.rounds[0];
   const state = roundState(round, now);
   const ends = roundEnds(round);
   const [confirm, setConfirm] = useState<'open' | 'close' | null>(null);
   const pct = ends ? Math.max(0, Math.min(100, ((now - (ends - round.minutes * 60000)) / (round.minutes * 60000)) * 100)) : 0;
+  const guts = round.kind === 'guts';
+  const online = offers(contest, 'online');
+
+  const board = guts && <BoardSection now={now} director={director} proctorId={director ? undefined : me.id} />;
+  const zoom = online && (
+    <div className="split">
+      <Rooms round={round} now={now} />
+      <Questions round={round} />
+    </div>
+  );
 
   return (
     <>
@@ -44,29 +83,24 @@ export function Live() {
         <div>
           <h1 className="page-title">Live</h1>
           <p className="page-sub">
-            {state === 'open' && ends ? <>{round.name} is open. <b>{duration(ends - now)}</b> left.</> : state === 'closed' ? `${round.name} has finished.` : `${round.name} has not started.`}
+            {state === 'open' && ends ? <>{round.name} is open · <b>{duration(ends - now)}</b> left</> : state === 'closed' ? `${round.name} has finished.` : `${round.name} has not started. It is set for ${clockIn(round.startsAt, contest.timeZone).replace(' PT', '')}.`}
           </p>
         </div>
         <div className="actions">
-          <Segmented label="Round" value={roundId} onChange={setRoundId} items={contest.rounds.map((r) => ({ key: r.id, label: r.short }))} />
-          {director && (state === 'open' ? (
-            <button className="btn btn-danger" type="button" onClick={() => setConfirm('close')}>Close round</button>
-          ) : (
-            <button className="btn btn-primary" type="button" onClick={() => setConfirm('open')}>{state === 'closed' ? 'Reopen' : 'Open'} {round.short}</button>
-          ))}
+          {contest.rounds.length > 1 && <Segmented label="Round" value={round.id} onChange={setRoundId} items={contest.rounds.map((r) => ({ key: r.id, label: r.short }))} />}
+          {director && state === 'open' && <button className="btn btn-danger" type="button" onClick={() => setConfirm('close')}>Close round</button>}
+          {director && state !== 'open' && (
+            <button className={`btn ${state === 'closed' ? '' : 'btn-primary'}`} type="button" onClick={() => setConfirm('open')}>{state === 'closed' ? 'Reopen' : 'Open'} {round.short}</button>
+          )}
+          {guts && (state === 'open' || !director) && <button className="btn btn-primary" type="button" onClick={() => navigate('/board')}><Icon name="board" />Show on projector</button>}
         </div>
       </div>
-      {state === 'open' && <div className="progress" style={{ marginTop: -14, marginBottom: 28 }}><i style={{ width: `${pct}%` }} /></div>}
+      {state === 'open' && <div className="progress" style={{ marginTop: -14, marginBottom: 24 }}><i style={{ width: `${pct}%` }} /></div>}
 
       <div className="stack-lg">
-        {round.kind === 'guts' && <BoardSection now={now} director={director} proctorId={director ? undefined : me.id} />}
+        <LiveFigures round={round} now={now} />
+        {director ? <>{board}{zoom}</> : <>{zoom}{board}</>}
         {director && offers(contest, 'in_person') && <VenueRooms round={round} />}
-        {offers(contest, 'online') && (
-          <div className="split">
-            <Rooms round={round} now={now} />
-            <Questions round={round} />
-          </div>
-        )}
       </div>
 
       {confirm && (
@@ -85,17 +119,81 @@ export function Live() {
             </>
           }
         >
-          <p>{confirm === 'open' ? `The ${round.minutes}-minute clock starts${contest.divisions.length > 1 ? ' for both divisions at once' : ''}.` : offers(contest, 'online') ? 'Every online test still open is handed in as it is.' : 'Collect the papers; graders key them under Grading.'}</p>
+          <p>{confirm === 'open' ? `The ${round.minutes}-minute clock starts${contest.divisions.length > 1 ? ' for both divisions at once' : ''}.` : online ? 'Every online test still open is handed in as it is. Students cannot change answers after this.' : 'Collect the papers; graders key them under Grading.'}</p>
         </Modal>
       )}
     </>
   );
 }
 
+/** The round at a glance: one number per thing someone might need to act on. */
+function LiveFigures({ round, now }: { round: Round; now: number }) {
+  const db = useDB();
+  const contest = useContest();
+  const me = useUser()!;
+  const director = me.role === 'director' || me.role === 'staff';
+  const state = roundState(round, now);
+  const live = db.teams.filter((t) => t.status !== 'withdrawn');
+  const proctorRoom = !director ? contest.rooms.find((r) => r.id === me.roomId || r.proctorId === me.id) : undefined;
+  const inScope = (teamId: string) => !proctorRoom || proctorRoom.teamIds.includes(teamId);
+  const here = live.filter((t) => modeOf(contest, t) === 'in_person');
+  const away = live.filter((t) => modeOf(contest, t) === 'online' && inScope(t.id));
+  const hereComps = db.competitors.filter((c) => here.some((t) => t.id === c.teamId));
+  const entrants = (teams: typeof live) => (round.kind === 'individual' ? db.competitors.filter((c) => teams.some((t) => t.id === c.teamId)).map((c) => c.id) : teams.map((t) => t.id));
+  const awayIds = new Set(entrants(away));
+  const hereIds = new Set(entrants(here));
+  const atts = db.attempts.filter((a) => a.roundId === round.id);
+  const onl = atts.filter((a) => a.source === 'online' && awayIds.has(a.entrantId));
+  const working = onl.filter((a) => a.startedAt && !a.submittedAt && !a.locked).length;
+  const handed = onl.filter((a) => a.submittedAt).length;
+  const locked = onl.filter((a) => a.locked && !a.submittedAt).length;
+  const paper = atts.filter((a) => a.source === 'paper' && hereIds.has(a.entrantId));
+  const keyed = round.kind === 'guts' ? paper.reduce((n, a) => n + (a.setsSubmitted ?? 0), 0) : paper.filter((a) => Object.keys(a.responses).length).length;
+  const totalSets = Math.max(1, ...round.problems.map((p) => p.set ?? 1));
+  const toKey = round.kind === 'guts' ? here.length * totalSets : hereIds.size;
+  const questions = db.clarifications.filter((c) => c.roundId === round.id && !c.answer).length;
+  const showHere = director && offers(contest, 'in_person') && here.length > 0;
+  const showAway = offers(contest, 'online') && away.length > 0;
+  if (!showHere && !showAway) return null;
+  return (
+    <div className="figures lv-figs">
+      {showHere && (
+        <div className="figure">
+          <div className="top-label"><ModeChip mode="in_person">Checked in</ModeChip></div>
+          <b>{hereComps.filter((c) => c.checkedInAt).length}</b><span>of {hereComps.length} students</span>
+        </div>
+      )}
+      {showHere && state !== 'scheduled' && (
+        <div className="figure">
+          <div className="top-label"><ModeChip mode="in_person">{round.kind === 'guts' ? 'Sets keyed' : 'Sheets keyed'}</ModeChip></div>
+          <b>{keyed}</b><span>of {toKey}</span>
+        </div>
+      )}
+      {showAway && (
+        <div className="figure">
+          <div className="top-label"><ModeChip mode="online">{state === 'scheduled' ? 'Waiting' : state === 'closed' ? 'Handed in' : 'Working'}</ModeChip></div>
+          {state === 'closed' ? <><b>{handed}</b><span>of {awayIds.size} {round.kind === 'individual' ? 'students' : 'teams'}</span></> : <><b>{state === 'scheduled' ? awayIds.size : working}</b><span>{state === 'scheduled' ? (round.kind === 'individual' ? 'students' : 'teams') : `${handed} handed in · ${awayIds.size - working - handed - locked} not started`}</span></>}
+        </div>
+      )}
+      {showAway && (
+        <div className="figure">
+          <div className="top-label">Questions</div>
+          <b className={questions ? 'wait' : ''}>{questions}</b><span>{questions ? 'waiting for an answer' : 'none waiting'}</span>
+        </div>
+      )}
+      {showAway && state !== 'scheduled' && (
+        <div className="figure">
+          <div className="top-label">Locked tests</div>
+          <b className={locked ? 'bad' : ''}>{locked}</b><span>{locked ? 'need you to unlock' : 'none locked'}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BoardSection({ now, director, proctorId }: { now: number; director: boolean; proctorId?: string }) {
   const contest = useContest();
   const db = useDB();
-  const navigate = useNavigate();
   // A proctor starts on the division their own room is in.
   const room = proctorId ? contest.rooms.find((r) => r.proctorId === proctorId) : undefined;
   const roomTeam = room ? db.teams.find((t) => room.teamIds.includes(t.id)) : undefined;
@@ -107,30 +205,27 @@ function BoardSection({ now, director, proctorId }: { now: number; director: boo
     <section className="section">
       <div className="section-head">
         <h2>Guts scoreboard</h2>
-        <div className="actions">
-          <Segmented label="Division" value={div} onChange={setDiv} items={contest.divisions.map((d) => ({ key: d.id, label: d.name }))} />
-          <button className="btn btn-primary" type="button" onClick={() => navigate('/board')}>Show on projector</button>
-        </div>
+        {contest.divisions.length > 1 && <Segmented label="Division" value={div} onChange={setDiv} items={contest.divisions.map((d) => ({ key: d.id, label: d.name }))} />}
       </div>
-      <div className="split">
-        <ScoreList board={board} limit={8} />
-        <div className="stack small">
+      <div className="lv-board">
+        <ScoreList board={board} limit={10} />
+        <div className="lv-side">
           {board.frozen ? (
             <div className="note amber">Frozen {contest.board.freezeMinutes} minutes before the end. The projector and students keep seeing the standings from that moment.</div>
           ) : freezeIn !== null && freezeIn > 0 ? (
-            <div className="note">Freezes in {duration(freezeIn)}, at {contest.board.freezeMinutes} minutes left.</div>
+            <div className="note">Freezes in <b>{duration(freezeIn)}</b>, with {contest.board.freezeMinutes} minutes left.</div>
           ) : (
             <div className="note">Live. Every set handed in or keyed appears straight away.</div>
           )}
           {director && (
             <>
               <label className="field">
-                <span>Freeze before the end</span>
-                <select className="select" value={contest.board.freezeMinutes} onChange={(e) => setBoard({ freezeMinutes: Number(e.target.value) })}>
+                <span>Freeze the board</span>
+                <select className="select" value={contest.board.freezeMinutes} onChange={(e) => { setBoard({ freezeMinutes: Number(e.target.value) }); toast(Number(e.target.value) ? `Freezes with ${e.target.value} minutes left` : 'The board will not freeze'); }}>
                   <option value={0}>Never</option>
-                  <option value={5}>5 minutes</option>
-                  <option value={10}>10 minutes</option>
-                  <option value={15}>15 minutes</option>
+                  <option value={5}>5 minutes before the end</option>
+                  <option value={10}>10 minutes before the end</option>
+                  <option value={15}>15 minutes before the end</option>
                 </select>
               </label>
               {(board.frozen || contest.board.revealed) && (
@@ -210,14 +305,14 @@ function Rooms({ round, now }: { round: Round; now: number }) {
   return (
     <section className="section" style={{ minWidth: 0 }}>
       <div className="section-head">
-        <span className="row" style={{ gap: 10 }}><ModeChip mode="online" /><h2>On Zoom</h2></span>
+        <span className="row" style={{ gap: 10 }}><ModeChip mode="online" /><h2>{me.role === 'proctor' ? 'Your Zoom room' : 'On Zoom'}</h2></span>
         {rooms.length > 1 && <Segmented label="Room" value={room?.id ?? ''} onChange={setRoomId} items={rooms.map((r) => ({ key: r.id, label: r.name }))} />}
       </div>
       {room && (
-        <div className="row wrap soft small" style={{ marginBottom: 6, gap: 14 }}>
-          <span>{room.name} · proctor {db.users.find((u) => u.id === room.proctorId)?.name ?? 'none'}</span>
-          <span className="mono muted">{room.url}</span>
-          <button className="linkbtn" type="button" onClick={() => toast('Opens Zoom', 'The demo meeting links are not real.')}>Open Zoom</button>
+        <div className="lv-room-meta">
+          <span>{room.name} · {room.proctorId ? `proctor ${db.users.find((u) => u.id === room.proctorId)?.name ?? ''}` : <span className="wait">no proctor</span>}</span>
+          {room.url && <span className="mono" title={room.url}>{room.url}</span>}
+          {room.url && (REMOTE ? <a href={room.url} target="_blank" rel="noreferrer">Open Zoom</a> : <button className="linkbtn" type="button" onClick={() => toast('Opens Zoom', 'The sandbox meeting links are not real.')}>Open Zoom</button>)}
         </div>
       )}
       <div className="table-scroll">
@@ -232,13 +327,13 @@ function Rooms({ round, now }: { round: Round; now: number }) {
               const answered = a ? Object.values(a.responses).filter((r) => r.value.trim()).length : 0;
               const last = a ? Object.values(a.responses).reduce((m, r) => (r.savedAt > m ? r.savedAt : m), '') : '';
               return (
-                <tr key={e.id} className={`click ${openId === e.id ? 'current' : ''}`} onClick={() => setOpenId(e.id)}>
+                <tr key={e.id} className={`click ${openId === e.id ? 'current' : ''} ${a?.locked && !a.submittedAt ? 'lv-locked' : ''}`} onClick={() => setOpenId(e.id)}>
                   <td className="mono soft">{e.code}</td>
                   <td className="name">{e.name}</td>
                   <td>{!a?.startedAt ? <State tone="off">Not started</State> : a.submittedAt ? <State tone="ok">Handed in</State> : a.locked ? <State tone="wait">Locked</State> : <State tone="go">Working</State>}</td>
                   <td className="num">{round.kind === 'guts' ? `${a?.setsSubmitted ?? 0} of 6` : `${answered} of ${round.problems.length}`}</td>
                   <td className="muted">{last ? ago(last, now) : '–'}</td>
-                  <td>{flags.length ? <span className={flags.length >= 3 ? 'wait' : 'soft'}>{flags.length} · {EVENT[flags[flags.length - 1].kind].toLowerCase()}</span> : <span className="muted">–</span>}</td>
+                  <td>{flags.length ? <span className={flags.length >= 3 ? 'lv-flag' : 'soft'}>{flags.length} · {EVENT[flags[flags.length - 1].kind].toLowerCase()}</span> : <span className="muted">–</span>}</td>
                   <td className="num">
                     {a?.locked && !a.submittedAt && <button className="btn btn-sm btn-primary" type="button" onClick={(ev) => { ev.stopPropagation(); unlockAttempt(a.id, me.name); toast(`${e.code} unlocked`, undefined, 'g'); }}>Unlock</button>}
                   </td>
@@ -316,7 +411,7 @@ function Questions({ round }: { round: Round }) {
     <aside className="stack-lg" style={{ gap: 28 }}>
       <section className="section">
         <div className="section-head"><h2>Questions</h2>{pending.length > 0 && <span className="badge">{pending.length}</span>}</div>
-        {pending.length === 0 && <p className="muted small">None waiting.</p>}
+        {pending.length === 0 && <p className="muted small">None waiting. Questions students ask from their test screen appear here.</p>}
         {pending.map((c) => {
           const who = c.fromCompetitorId ? competitor.get(c.fromCompetitorId) : undefined;
           return <Reply key={c.id} id={c.id} who={who ? `${who.publicId} ${who.name}` : 'A competitor'} question={c.question} at={c.at} />;
@@ -326,7 +421,7 @@ function Questions({ round }: { round: Round }) {
         <div className="section-head"><h2>Announce</h2></div>
         <div className="stack" style={{ gap: 8 }}>
           <textarea className="textarea" style={{ minHeight: 72 }} placeholder="Shown on every online test screen" value={text} onChange={(e) => setText(e.target.value)} />
-          <button className="btn" type="button" disabled={!text.trim()} onClick={() => { broadcast(round.id, text); setText(''); toast('Announcement sent', undefined, 'g'); }}>Send to everyone</button>
+          <button className="btn" type="button" disabled={!text.trim()} onClick={() => { broadcast(round.id, text); setText(''); toast('Announcement sent', 'It shows on every online test screen.', 'g'); }}>Send to every online test</button>
         </div>
         {sent.slice(0, 3).map((b) => (
           <div key={b.id} className="qa"><small>{clockSec(b.answeredAt ?? b.at)}</small>{b.question && <span className="soft">{b.question} </span>}{b.answer}</div>
@@ -339,9 +434,9 @@ function Questions({ round }: { round: Round }) {
 function Reply({ id, who, question, at }: { id: string; who: string; question: string; at: string }) {
   const [text, setText] = useState('');
   return (
-    <div className="qa new">
+    <div className="lv-q">
       <small>{who} · {clockSec(at)}</small>
-      <p style={{ margin: '2px 0 8px' }}>{question}</p>
+      <p>{question}</p>
       <textarea className="textarea" style={{ minHeight: 56 }} placeholder="Answer" value={text} onChange={(e) => setText(e.target.value)} />
       <div className="row" style={{ marginTop: 8 }}>
         <button className="btn btn-sm" type="button" disabled={!text.trim()} onClick={() => answerClarification(id, text, false)}>Reply to them</button>

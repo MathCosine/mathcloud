@@ -23,8 +23,9 @@ import '../../styles/portal.css';
  */
 export function StudentHome() {
   const me = useStudent();
-  const contest = useContest();
+  const contest = useContest() as ReturnType<typeof useContest> | undefined;
   if (!me) return <Navigate to="/sign-in" replace />;
+  if (!contest) return <NoContest />;
   const mode = modeOf(contest, me.team);
   return (
     <PortalLayout mode={mode}>
@@ -37,6 +38,23 @@ export function StudentHome() {
 }
 
 // ------------------------------------------------------------------ shared
+
+/** Connected, before this person's contest has loaded (or if it has gone). */
+function NoContest() {
+  return (
+    <PortalLayout>
+      <div className="pt stack-lg">
+        <section className="section pt-empty">
+          <div>
+            <h2>Your contest is not here yet</h2>
+            <p className="soft">It may still be loading, or the organisers have not opened it yet. Try again in a moment.</p>
+          </div>
+          <button className="btn btn-primary" type="button" onClick={() => location.reload()}>Try again</button>
+        </section>
+      </div>
+    </PortalLayout>
+  );
+}
 
 function zoneLabel(tz: string, at: string) {
   const part = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'long' }).formatToParts(new Date(at)).find((p) => p.type === 'timeZoneName')?.value ?? tz;
@@ -75,12 +93,16 @@ function Identity({ competitor, team, mode }: { competitor: Competitor; team: Te
   );
 }
 
-function WaiverNote({ competitor }: { competitor: Competitor }) {
-  if (competitor.waiverSignedAt) return null;
+/** The waiver as the one thing to do: the guardian has the link, the student can nudge them. */
+function WaiverHero({ competitor, mode }: { competitor: Competitor; mode: DivisionMode }) {
   return (
-    <div className="note amber row wrap" style={{ justifyContent: 'space-between' }}>
-      <span><b>Your waiver is not signed yet.</b> We emailed {competitor.guardianName || 'your guardian'}{competitor.guardianEmail ? ` at ${competitor.guardianEmail}` : ''}. You cannot compete without it.</span>
-      {!REMOTE && <Link to={`/waiver/${competitor.id}`} className="btn btn-sm">Open the waiver</Link>}
+    <div className={`pt-hero todo ${mode}`}>
+      <div className="pt-hero-main">
+        <span className="pt-hero-kicker"><State tone="wait">To do first</State></span>
+        <h2>Your waiver is not signed yet</h2>
+        <p>We emailed {competitor.guardianName || 'your guardian'}{competitor.guardianEmail ? ` at ${competitor.guardianEmail}` : ''}. Ask them to open that email and sign. You cannot compete without it.</p>
+      </div>
+      {!REMOTE && <div className="pt-hero-side"><Link to={`/waiver/${competitor.id}`} className="btn btn-primary btn-lg">Open the waiver<Icon name="arrow" /></Link></div>}
     </div>
   );
 }
@@ -102,11 +124,11 @@ function Results({ competitor, team }: { competitor: Competitor; team: Team }) {
   );
 }
 
-function TeamCard({ team, inPerson }: { team: Team; inPerson: boolean }) {
+function TeamCard({ team, inPerson, className }: { team: Team; inPerson: boolean; className?: string }) {
   const db = useDB();
   const mates = db.competitors.filter((c) => c.teamId === team.id).sort((a, b) => a.slot.localeCompare(b.slot));
   return (
-    <section className="section">
+    <section className={`section ${className ?? ''}`}>
       <div className="section-head"><h2>Your team</h2><span className="label">Team {team.code}</span></div>
       <ul className="pt-mates">
         {mates.map((c) => (
@@ -124,9 +146,9 @@ function TeamCard({ team, inPerson }: { team: Team; inPerson: boolean }) {
 }
 
 type Step = { done: boolean; title: string; sub: ReactNode; action?: ReactNode };
-function Ready({ title, steps }: { title: string; steps: Step[] }) {
+function Ready({ title, steps, className }: { title: string; steps: Step[]; className?: string }) {
   return (
-    <section className="section">
+    <section className={`section ${className ?? ''}`}>
       <div className="section-head"><h2>{title}</h2><span className="label">{steps.filter((s) => s.done).length} of {steps.length} done</span></div>
       <ul className="checklist">
         {steps.map((s) => (
@@ -142,16 +164,20 @@ function Ready({ title, steps }: { title: string; steps: Step[] }) {
 }
 
 /** Answers from the proctors: to everyone, and to this student's own questions. */
-function Announcements({ competitorId, tz }: { competitorId: string; tz: string }) {
+function Announcements({ competitorId, tz, now, className }: { competitorId: string; tz: string; now: number; className?: string }) {
   const db = useDB();
   const contest = useContest();
+  const started = (roundId?: string | null) => {
+    const r = roundId ? contest.rounds.find((x) => x.id === roundId) : undefined;
+    return !r || roundState(r, now) !== 'scheduled';
+  };
   const items = db.clarifications
-    .filter((c) => (c.broadcast && c.answer) || c.fromCompetitorId === competitorId)
+    .filter((c) => ((c.broadcast && c.answer) || c.fromCompetitorId === competitorId) && started(c.roundId))
     .sort((a, b) => (b.answeredAt ?? b.at).localeCompare(a.answeredAt ?? a.at))
     .slice(0, 6);
   if (!items.length) return null;
   return (
-    <section className="section">
+    <section className={`section ${className ?? ''}`}>
       <div className="section-head"><h2>Announcements</h2><span className="label">{items.length}</span></div>
       <ul className="pt-news">
         {items.map((c) => (
@@ -167,12 +193,12 @@ function Announcements({ competitorId, tz }: { competitorId: string; tz: string 
 }
 
 /** The Guts standings while the round runs. Connected, a student's board comes from the server every 15 seconds. */
-function GutsNow({ team, now }: { team: Team; now: number }) {
+function GutsNow({ team, now, className }: { team: Team; now: number; className?: string }) {
   const contest = useContest();
   const board = useBoard(team.divisionId, now);
   if (!board || roundState(board.round, now) !== 'open') return null;
   return (
-    <section className="section">
+    <section className={`section ${className ?? ''}`}>
       <div className="section-head"><h2>Guts scoreboard</h2><span className="label">{board.frozen ? 'Frozen' : 'Live'} · {contest.divisions.find((d) => d.id === team.divisionId)?.name}</span></div>
       <ScoreList board={board} mine={team.id} limit={5} />
     </section>
@@ -182,8 +208,8 @@ function GutsNow({ team, now }: { team: Team; now: number }) {
 function DemoOpen({ round }: { round: Round }) {
   if (REMOTE) return null;
   return (
-    <button className="btn btn-sm btn-quiet" type="button" onClick={() => { openRound(round.id); toast(`${round.name} is open`, 'In the sandbox you can open a round yourself.'); }}>
-      Open it now (sandbox)
+    <button className="btn btn-sm btn-quiet pt-demo" type="button" title="Sandbox only" onClick={() => { openRound(round.id); toast(`${round.name} is open`, 'In the sandbox you can open a round yourself.'); }}>
+      Open it now
     </button>
   );
 }
@@ -222,6 +248,7 @@ function InPersonHome({ competitor, team }: { competitor: Competitor; team: Team
         </div>
       );
     }
+    if (!competitor.waiverSignedAt) return <WaiverHero competitor={competitor} mode="in_person" />;
     if (!started && !competitor.checkedInAt) {
       return (
         <div className="pt-hero in_person">
@@ -242,9 +269,9 @@ function InPersonHome({ competitor, team }: { competitor: Competitor; team: Team
           <div className="pt-hero-main">
             <span className="pt-hero-kicker label">Next</span>
             <h2>{name[0].toUpperCase() + name.slice(1)} at {at(next.startsAt)}, {where(item?.where)}</h2>
-            <p>Be in your seat five minutes before. <DemoOpen round={next} /></p>
+            <p>Be in your seat five minutes before.</p>
           </div>
-          <div className="pt-hero-clock"><span className="label">Starts</span><b>{until(new Date(next.startsAt).getTime() - now)}</b></div>
+          <div className="pt-hero-clock"><span className="label">Starts</span><b>{until(new Date(next.startsAt).getTime() - now)}</b><DemoOpen round={next} /></div>
         </div>
       );
     }
@@ -273,53 +300,45 @@ function InPersonHome({ competitor, team }: { competitor: Competitor; team: Team
           {r ? <span>{r.mystery && s === 'next' ? 'Format revealed when it starts' : `${r.kind === 'individual' ? 'On your own' : 'With your team'}, ${r.minutes} minutes, on paper`}</span> : a.note && <span>{a.note}</span>}
         </>
       ),
-      side: s === 'now' ? <State tone="go">Now</State> : s === 'past' ? <State tone="off">Done</State> : null,
+      side: s === 'now' ? <State tone="go">Now</State> : null,
     };
   });
 
-  const steps: Step[] = [
-    { done: !!competitor.waiverSignedAt, title: 'Waiver signed', sub: competitor.waiverSignedAt ? `By ${competitor.waiverSignedBy || competitor.guardianName}` : `Emailed to ${competitor.guardianName || 'your guardian'}` },
-    { done: !!competitor.checkedInAt, title: 'Checked in', sub: competitor.checkedInAt ? `At ${at(competitor.checkedInAt)}` : checkIn ? `From ${at(checkIn.at)}, ${checkIn.where ?? 'at the desk'}` : 'At the desk on the day' },
-    { done: !!room, title: room ? `Room: ${room.name}` : 'Your room', sub: room ? `Individual and Mystery rounds. Guts and awards in ${venue?.hall ?? 'the hall'}.` : 'Given at check-in' },
-  ];
-
   return (
     <>
-      <WaiverNote competitor={competitor} />
       {hero()}
       <Results competitor={competitor} team={team} />
-      <div className="split">
-        <div className="stack-lg">
-          <GutsNow team={team} now={now} />
-          <section className="section">
+      <div className="split pt-split">
+        <div className="stack-lg pt-col">
+          <GutsNow team={team} now={now} className="pt-o1" />
+          <section className="section pt-o4">
             <div className="section-head"><h2>Your day</h2><span className="label">{contest.dateLabel} · {venue?.name}</span></div>
             <Timeline items={timeline} />
           </section>
         </div>
-        <div className="stack-lg">
-          <div className="pass">
+        <div className="stack-lg pt-col">
+          <div className="pass pt-o2">
             <div style={{ minWidth: 0 }}>
               <span className="label">Competitor ID</span>
               <div className="pass-id">{competitor.publicId}</div>
               <dl>
-                <dt>Name</dt><dd>{competitor.name}</dd>
                 <dt>Team</dt><dd>{team.code} · {team.name}</dd>
-                <dt>Room</dt><dd>{room?.name ?? 'Given at check-in'}</dd>
+                <dt>Room</dt><dd>{room ? `${room.name}` : 'Given at check-in'}</dd>
+                <dt>Waiver</dt><dd>{competitor.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone="wait">Not signed</State>}</dd>
               </dl>
             </div>
             <span className={`stamp ${competitor.checkedInAt ? 'in' : ''}`}>
               {competitor.checkedInAt ? <><Icon name="check" size={13} />In, {at(competitor.checkedInAt)}</> : 'Not checked in'}
             </span>
           </div>
-          <Ready title="Ready for the day" steps={steps} />
-          <Announcements competitorId={competitor.id} tz={tz} />
-          {venue && venue.bring.filter(Boolean).length > 0 && (
-            <section className="section">
+          <Announcements competitorId={competitor.id} tz={tz} now={now} className="pt-o1" />
+          {venue && venue.bring.filter(Boolean).length > 0 && !contest.resultsPublished && (
+            <section className="section pt-o5">
               <div className="section-head"><h2>Bring</h2></div>
               <ul className="bring">{venue.bring.filter(Boolean).map((b) => <li key={b}>{b}</li>)}</ul>
             </section>
           )}
-          <TeamCard team={team} inPerson />
+          <TeamCard team={team} inPerson className="pt-o5" />
         </div>
       </div>
     </>
@@ -349,6 +368,9 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
   const home = contest.timeZone === 'America/Los_Angeles' ? 'San Francisco' : contest.timeZone.split('/').pop()!.replace(/_/g, ' ');
   const zoomItem = items.find((a) => /zoom/i.test(a.title));
 
+  const started = contest.rounds.some((r) => roundState(r, now) !== 'scheduled');
+  const zoomLink = room && <a className="btn btn-sm" href={room.url} target="_blank" rel="noreferrer"><Icon name="video" />Join Zoom</a>;
+
   const hero = () => {
     if (contest.resultsPublished) return null;
     if (open) {
@@ -365,10 +387,26 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
           <div className="pt-hero-side">
             <div className="pt-hero-clock"><span className="label">Time left</span><b className="mono">{duration(ends - now)}</b></div>
             {!a?.submittedAt && (
-              <button className="btn btn-primary btn-lg" type="button" disabled={!canStart} onClick={() => navigate(`/me/test/${open.id}`)}>
+              <button className="btn btn-primary btn-lg pt-start" type="button" disabled={!canStart} onClick={() => navigate(`/me/test/${open.id}`)}>
                 {a?.startedAt ? 'Back to the test' : `Start ${open.name}`}<Icon name="arrow" />
               </button>
             )}
+          </div>
+        </div>
+      );
+    }
+    if (!competitor.waiverSignedAt) return <WaiverHero competitor={competitor} mode="online" />;
+    if (next && !competitor.deviceCheckedAt) {
+      return (
+        <div className="pt-hero todo online">
+          <div className="pt-hero-main">
+            <span className="pt-hero-kicker"><State tone="wait">To do before the day</State></span>
+            <h2>Run the device check</h2>
+            <p>Two minutes, on the computer you will use. {next.mystery ? 'The first round' : next.name} opens {dayIn(next.startsAt, tz)} at {hm(next.startsAt, tz)}{sameZone ? '' : ' your time'}.</p>
+          </div>
+          <div className="pt-hero-side">
+            <button className="btn btn-primary btn-lg pt-start" type="button" onClick={() => setChecking(true)}>Run the device check<Icon name="arrow" /></button>
+            <DemoOpen round={next} />
           </div>
         </div>
       );
@@ -381,11 +419,10 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
             <span className="pt-hero-kicker label">Next · {dayIn(next.startsAt, tz)}</span>
             <h2>{name[0].toUpperCase() + name.slice(1)} at {hm(next.startsAt, tz)}{sameZone ? '' : ' your time'}</h2>
             <p>
-              {sameZone ? `Join Zoom${zoomItem ? ` at ${hm(zoomItem.at, tz)}` : ' 20 minutes before'}. The start button appears here when it opens.` : `${hm(next.startsAt, contest.timeZone)} in ${home}: everyone starts at the same moment.`}
-              {' '}<DemoOpen round={next} />
+              {sameZone ? `Join Zoom${zoomItem ? ` at ${hm(zoomItem.at, tz)}` : ' 20 minutes before'}. The start button appears here when it opens.` : `${hm(next.startsAt, contest.timeZone)} in ${home}: everyone starts at the same moment. The start button appears here when it opens.`}
             </p>
           </div>
-          <div className="pt-hero-clock"><span className="label">Opens</span><b>{until(new Date(next.startsAt).getTime() - now)}</b></div>
+          <div className="pt-hero-clock"><span className="label">Opens</span><b>{until(new Date(next.startsAt).getTime() - now)}</b><DemoOpen round={next} /></div>
         </div>
       );
     }
@@ -396,6 +433,7 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
           <h2>Awards are streamed into your Zoom room</h2>
           <p>Your results appear here once the organisers publish them.</p>
         </div>
+        {zoomLink && <div className="pt-hero-side">{zoomLink}</div>}
       </div>
     );
   };
@@ -408,28 +446,28 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
     return {
       id: a.id,
       state: s,
-      time: <>{hm(a.at, tz)}{!sameZone && <small>{hm(a.at, contest.timeZone)} {contest.timeZone === 'America/Los_Angeles' ? 'PT' : ''}{nextDay ? ' · next day' : ''}</small>}</>,
+      time: <>{hm(a.at, tz)}{!sameZone && <small>{hm(a.at, contest.timeZone)}{contest.timeZone === 'America/Los_Angeles' ? '\u00a0PT' : ''}{nextDay ? ' · next day' : ''}</small>}</>,
       title: r?.mystery && s === 'next' ? 'Mystery Dive' : a.title,
       detail: r ? (r.mystery && s === 'next' ? 'Format revealed when it starts' : `${r.kind === 'individual' ? 'On your own' : 'With your team'}, ${r.minutes} minutes, in the browser`) : a.note,
-      side: att?.submittedAt ? <State tone="ok">Handed in</State> : s === 'now' ? <State tone="go">Open</State> : s === 'past' ? <State tone="off">Done</State> : null,
+      side: att?.submittedAt ? <State tone="ok">Handed in</State> : s === 'now' ? <State tone="go">Open</State> : null,
     };
   });
 
   const steps: Step[] = [
     { done: !!competitor.waiverSignedAt, title: 'Waiver signed', sub: competitor.waiverSignedAt ? `By ${competitor.waiverSignedBy || competitor.guardianName}` : `Emailed to ${competitor.guardianName || 'your guardian'}`, action: !competitor.waiverSignedAt && !REMOTE && <Link to={`/waiver/${competitor.id}`} className="btn btn-sm">Open</Link> },
-    { done: !!competitor.deviceCheckedAt, title: 'Device check', sub: competitor.deviceCheckedAt ? 'This computer is ready' : 'Two minutes, on the computer you will use', action: !competitor.deviceCheckedAt ? <button className="btn btn-sm btn-primary" type="button" onClick={() => setChecking(true)}>Run it</button> : <button className="btn btn-sm btn-quiet" type="button" onClick={() => setChecking(true)}>Again</button> },
-    { done: !!room, title: room ? `Zoom ${room.name}` : 'A Zoom room', sub: room ? `Proctor ${proctor?.name ?? 'to be named'}${zoomItem ? `, join at ${hm(zoomItem.at, tz)}` : ''}` : 'Assigned a week before', action: room && <a className="btn btn-sm" href={room.url} target="_blank" rel="noreferrer"><Icon name="video" />Join</a> },
+    { done: !!competitor.deviceCheckedAt, title: 'Device check', sub: competitor.deviceCheckedAt ? 'This computer is ready' : 'Two minutes, on the computer you will use', action: !competitor.deviceCheckedAt ? <button className="btn btn-sm" type="button" onClick={() => setChecking(true)}>Run it</button> : <button className="btn btn-sm btn-quiet" type="button" onClick={() => setChecking(true)}>Run again</button> },
+    { done: !!room, title: room ? `Zoom ${room.name}` : 'A Zoom room', sub: room ? `Proctor ${proctor?.name ?? 'to be named'}${zoomItem ? `, join at ${hm(zoomItem.at, tz)}` : ''}` : 'Assigned a week before', action: zoomLink },
   ];
+  const ready = steps.every((x) => x.done);
 
   return (
     <>
-      <WaiverNote competitor={competitor} />
       {hero()}
       <Results competitor={competitor} team={team} />
-      <div className="split">
-        <div className="stack-lg">
-          <GutsNow team={team} now={now} />
-          <section className="section">
+      <div className="split pt-split">
+        <div className="stack-lg pt-col">
+          <GutsNow team={team} now={now} className="pt-o1" />
+          <section className="section pt-o4">
             <div className="section-head">
               <h2>Your day</h2>
               <span className="label row" style={{ gap: 6 }}><Icon name="globe" size={13} />{sameZone ? zoneLabel(tz, items[0]?.at ?? new Date().toISOString()) : `Your time: ${zoneLabel(tz, items[0]?.at ?? new Date().toISOString())}`}</span>
@@ -437,10 +475,23 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
             <Timeline items={timeline} />
           </section>
         </div>
-        <div className="stack-lg">
-          <Ready title={contest.rounds.some((r) => roundState(r, now) !== 'scheduled') ? 'Ready to take part' : 'Before the day'} steps={steps} />
-          <Announcements competitorId={competitor.id} tz={tz} />
-          <TeamCard team={team} inPerson={false} />
+        <div className="stack-lg pt-col">
+          {started && ready ? (
+            room && (
+              <section className="section pt-zoom pt-o2">
+                <div className="pt-zoom-ic"><Icon name="video" /></div>
+                <div style={{ minWidth: 0 }}>
+                  <b>Zoom {room.name}</b>
+                  <small>Proctor {proctor?.name ?? 'to be named'}. Camera on, showing you and your desk.</small>
+                </div>
+                {zoomLink}
+              </section>
+            )
+          ) : (
+            <Ready title={started ? 'Ready to take part' : 'Before the day'} steps={steps} className="pt-o2" />
+          )}
+          <Announcements competitorId={competitor.id} tz={tz} now={now} className="pt-o1" />
+          <TeamCard team={team} inPerson={false} className="pt-o5" />
         </div>
       </div>
       {checking && <DeviceCheck onDone={() => { markDeviceCheck(competitor.id); setChecking(false); toast('This computer is ready', 'See you on Zoom.', 'g'); }} onClose={() => setChecking(false)} />}

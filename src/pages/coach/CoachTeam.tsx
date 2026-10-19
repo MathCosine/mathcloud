@@ -59,7 +59,7 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
   };
 
   return (
-    <section className="card flush pt-team">
+    <section className="card flush pt-team" id={`team-${team.id}`}>
       <div className="card-head pt-team-head">
         <div className="stack" style={{ gap: 6, minWidth: 0 }}>
           <div className="row wrap" style={{ gap: 10 }}>
@@ -107,8 +107,8 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
         <table className="t pt-roster">
           <thead>
             <tr>
-              <th>ID</th><th>Student</th><th>Grade</th>
-              <th>{online ? 'Signs in as' : 'Checked in'}</th>
+              <th>ID</th><th>Student</th><th className="num hide-sm">Grade</th>
+              <th className="hide-sm">{online ? 'Signs in as' : 'Checked in'}</th>
               <th>Waiver</th>
               {online && <th>Device</th>}
               <th />
@@ -121,11 +121,11 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
             {members.map((m) => {
               const acct = db.users.find((u) => u.competitorId === m.id);
               return (
-                <tr key={m.id}>
+                <tr key={m.id} className="pt-row">
                   <td className="mono soft">{m.publicId}</td>
                   <td className="name">{m.name}<div className="tiny muted pt-guardian">{m.guardianName || 'No guardian'}{m.guardianEmail ? `, ${m.guardianEmail}` : ''}</div></td>
-                  <td className="soft">{m.grade || '–'}</td>
-                  <td className="soft">
+                  <td className="soft num hide-sm">{m.grade || '–'}</td>
+                  <td className="soft hide-sm">
                     {online
                       ? (acct ? <span className="mono small">{acct.email}</span> : REMOTE ? <span className="muted small">Not made yet</span> : <span className="mono small">{`${contest.slug.split('-')[0]}-${m.publicId.toLowerCase()}`}</span>)
                       : m.checkedInAt ? at(m.checkedInAt) : <span className="muted">Not yet</span>}
@@ -133,10 +133,7 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
                   <td><WaiverCell c={m} by={user.name} /></td>
                   {online && <td>{m.deviceCheckedAt ? <State tone="ok">Ready</State> : <State tone="off">Not yet</State>}</td>}
                   <td className="num">
-                    <span className="row" style={{ gap: 2, justifyContent: 'flex-end' }}>
-                      <button className="btn btn-sm btn-quiet" type="button" onClick={() => setEditing(m)} aria-label={`Edit ${m.name}`}><Icon name="pencil" />Edit</button>
-                      <button className="btn btn-sm btn-quiet pt-remove" type="button" onClick={() => setRemoving(m)} aria-label={`Remove ${m.name}`}>Remove</button>
-                    </span>
+                    <button className="btn btn-sm btn-quiet pt-row-act" type="button" onClick={() => setEditing(m)} aria-label={`Edit ${m.name}`} title={`Edit or remove ${m.name}`}><Icon name="pencil" />Edit</button>
                   </td>
                 </tr>
               );
@@ -158,12 +155,12 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
       )}
 
       {switching && <SwitchMode team={team} to={other} onClose={() => setSwitching(false)} />}
-      {editing && <EditStudent c={editing} onClose={() => setEditing(null)} />}
+      {editing && <EditStudent c={editing} onClose={() => setEditing(null)} onRemove={() => { setRemoving(editing); setEditing(null); }} />}
       {removing && (
         <Modal
           title={`Remove ${removing.name}?`}
           onClose={() => setRemoving(null)}
-          actions={<><button className="btn btn-quiet" type="button" onClick={() => setRemoving(null)}>Keep</button><button className="btn btn-danger" type="button" onClick={() => { removeCompetitor(removing.id, user.name); toast(`${removing.name} removed`, `${removing.publicId} is free for someone else.`); setRemoving(null); }}>Remove</button></>}
+          actions={<><button className="btn btn-quiet" type="button" onClick={() => setRemoving(null)}>Keep {removing.name.split(' ')[0]}</button><button className="btn btn-danger" type="button" onClick={() => { removeCompetitor(removing.id, user.name); toast(`${removing.name} removed`, `${removing.publicId} is free for someone else.`); setRemoving(null); }}>Remove {removing.name.split(' ')[0]}</button></>}
         >
           <p>{removing.publicId} leaves {team.name}{removing.waiverSignedAt ? ' and the signed waiver goes with them' : ''}. {online ? 'Their sign-in stops working.' : ''} You can add someone else in their place.</p>
         </Modal>
@@ -185,12 +182,10 @@ function WaiverCell({ c, by }: { c: Competitor; by: string }) {
     toast(ok ? 'Waiver link copied' : 'Could not copy', ok ? `Send it to ${c.guardianName || 'the guardian'}.` : link, ok ? 'g' : 'a');
   };
   return (
-    <span className="row" style={{ gap: 2 }}>
-      <State tone="wait">Waiting</State>
-      {c.reminderSentAt
-        ? <span className="muted tiny" style={{ marginLeft: 6 }}>reminded</span>
-        : <button className="btn btn-sm btn-quiet" type="button" onClick={() => { remindWaiver(c.id, by); toast('Reminder sent', `To ${c.guardianName || c.guardianEmail}.`); }}>Remind</button>}
-      <button className="btn btn-sm btn-quiet" type="button" disabled={busy} onClick={copy} title="Copy the waiver link"><Icon name="link" />Link</button>
+    <span className="row pt-waiver" style={{ gap: 2 }}>
+      <State tone="wait">{c.reminderSentAt ? 'Reminded' : 'Waiting'}</State>
+      {!c.reminderSentAt && <button className="btn btn-sm btn-quiet" type="button" onClick={() => { remindWaiver(c.id, by); toast('Reminder sent', `To ${c.guardianName || c.guardianEmail}.`, 'g'); }}>Remind</button>}
+      <button className="btn btn-sm btn-quiet pt-icon-btn" type="button" disabled={busy} onClick={copy} title="Copy the waiver link, to send it yourself" aria-label={`Copy the waiver link for ${c.name}`}><Icon name="link" /></button>
     </span>
   );
 }
@@ -234,7 +229,7 @@ function AddStudent({ team, onClose }: { team: Team; onClose: () => void }) {
   );
 }
 
-function EditStudent({ c, onClose }: { c: Competitor; onClose: () => void }) {
+function EditStudent({ c, onClose, onRemove }: { c: Competitor; onClose: () => void; onRemove: () => void }) {
   const user = useUser()!;
   const [form, setForm] = useState<StudentForm>({ name: c.name, grade: c.grade || 9, guardianName: c.guardianName, guardianEmail: c.guardianEmail });
   const save = () => {
@@ -245,7 +240,7 @@ function EditStudent({ c, onClose }: { c: Competitor; onClose: () => void }) {
     onClose();
   };
   return (
-    <Modal title={`Edit ${c.publicId}`} onClose={onClose} actions={<><button className="btn btn-quiet" type="button" onClick={onClose}>Cancel</button><button className="btn btn-primary" type="button" onClick={save}>Save</button></>}>
+    <Modal title={`Edit ${c.publicId} ${c.name}`} onClose={onClose} actions={<><button className="btn btn-quiet pt-remove" type="button" style={{ marginRight: 'auto' }} onClick={onRemove}>Remove from team</button><button className="btn btn-quiet" type="button" onClick={onClose}>Cancel</button><button className="btn btn-primary" type="button" onClick={save}>Save</button></>}>
       <div className="stack">
         <StudentFields form={form} set={setForm} />
         {c.guardianEmail !== form.guardianEmail.trim() && !c.waiverSignedAt && <p className="small soft">Use Remind afterwards to send the waiver to the new address.</p>}

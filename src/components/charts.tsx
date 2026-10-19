@@ -4,19 +4,33 @@
  * hard?"), with the number written beside it so nobody has to read a bar.
  */
 
-/** A progress ring: part of a whole, with the count in the middle. */
+/**
+ * A progress ring: part of a whole. Big rings carry the percentage in the
+ * middle; small ones (under 64px, beside a number that already says it) show
+ * only a tick when complete, so the text never spills over the stroke.
+ */
 export function Ring({ value, total, size = 64, tone = 'green', label }: { value: number; total: number; size?: number; tone?: 'green' | 'blue' | 'amber'; label?: string }) {
-  const r = (size - 8) / 2;
+  const stroke = Math.max(4, Math.round(size / 11));
+  const r = (size - stroke - 2) / 2;
   const c = 2 * Math.PI * r;
   const share = total ? Math.min(1, value / total) : 0;
+  const pct = total ? Math.round(share * 100) : 0;
+  const mid = size / 2;
+  // "100%" is about 2.5 em wide; keep it inside the hole with some air.
+  const font = Math.min(size / 4.4, ((r - stroke / 2) * 2 * 0.78) / 2.5);
+  const t = size * 0.16;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={label ?? `${value} of ${total}`} className="ring">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--bg-3)" strokeWidth="6" />
+      <circle cx={mid} cy={mid} r={r} fill="none" stroke="var(--bg-3)" strokeWidth={stroke} />
       <circle
-        cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`var(--${tone})`} strokeWidth="6" strokeLinecap="round"
-        strokeDasharray={`${share * c} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} style={{ transition: 'stroke-dasharray .6s var(--ease)' }}
+        cx={mid} cy={mid} r={r} fill="none" stroke={`var(--${tone})`} strokeWidth={stroke} strokeLinecap="round"
+        strokeDasharray={`${share * c} ${c}`} transform={`rotate(-90 ${mid} ${mid})`} style={{ transition: 'stroke-dasharray .6s var(--ease)' }}
       />
-      <text x="50%" y="50%" dy=".35em" textAnchor="middle" fontSize={size / 4.2} fontWeight="700" fill="var(--ink)" fontFamily="var(--sans)">{total ? Math.round(share * 100) : 0}%</text>
+      {size >= 64 ? (
+        <text x="50%" y="50%" dy=".35em" textAnchor="middle" fontSize={font} fontWeight="700" fill="var(--ink)" fontFamily="var(--sans)">{pct}%</text>
+      ) : share >= 1 ? (
+        <path d={`M${mid - t} ${mid + t * 0.05} L${mid - t * 0.3} ${mid + t * 0.7} L${mid + t} ${mid - t * 0.65}`} fill="none" stroke={`var(--${tone})`} strokeWidth={Math.max(2, stroke * 0.55)} strokeLinecap="round" strokeLinejoin="round" />
+      ) : null}
     </svg>
   );
 }

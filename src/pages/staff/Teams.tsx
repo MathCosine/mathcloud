@@ -12,6 +12,7 @@ import { Icon } from '../../components/icons';
 import { Checkbox, downloadCsv, ModeChip, SearchBox, Segmented, State, toast } from '../../components/ui';
 import { STATUS, TeamDrawer, useConfirm } from './PeopleParts';
 import '../../styles/people.css';
+import '../../styles/dayof.css';
 
 type SortKey = 'team' | 'size' | 'waivers' | 'status' | 'reg';
 
@@ -181,12 +182,12 @@ export function Teams() {
             {contest.divisions.length > 1 && (
               <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setFocus(-1); }} items={[{ key: 'all', label: 'All' }, ...contest.divisions.map((d) => ({ key: d.id, label: d.name }))]} />
             )}
-            <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Search teams, students, IDs  /" inputRef={search} />
+            <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Search teams, students, IDs" inputRef={search} />
             <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}>Waiver missing</button>
             <button type="button" className="filter" aria-pressed={onlyPending} onClick={() => setOnlyPending((x) => !x)}>Pending</button>
             <button type="button" className="filter" aria-pressed={hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}>Hide withdrawn</button>
             <span className="grow" />
-            <span className="muted small hide-sm">{rows.length} shown · <kbd>j</kbd> <kbd>k</kbd> move, <kbd>x</kbd> select, <kbd>Enter</kbd> open</span>
+            <span className="muted small hide-sm" title="Keyboard: / search, j and k move, x selects, Enter opens">{rows.length} shown</span>
           </div>
           <div className="table-scroll">
             <table className="t">
@@ -216,7 +217,7 @@ export function Teams() {
                       <td><span className="code">{t.code}</span><span className="name">{t.name}</span><div className="muted tiny pp-sub">{t.school}{t.city ? `, ${t.city}` : ''}</div></td>
                       {contest.divisions.length > 1 && <td><ModeChip mode={modeOf(contest, t)} /></td>}
                       <td className={`num ${off && live(t) ? 'wait' : 'soft'}`}>{n}</td>
-                      <td>{!live(t) ? <span className="muted">–</span> : miss ? <span className="wait">{miss} missing</span> : n ? <span className="ok">All {n} in</span> : <span className="muted">–</span>}</td>
+                      <td>{!live(t) || !n ? <span className="muted">–</span> : <WaiverMark list={members(t)} miss={miss} />}</td>
                       <td className="soft"><span className="ellipsis">{t.contactName}</span></td>
                       <td><State tone={STATUS[t.status][0]}>{STATUS[t.status][1]}</State></td>
                       <td className="num muted">{day(t.registeredAt)}</td>
@@ -242,5 +243,15 @@ export function Teams() {
         <button type="button" onClick={() => setSelected(new Set())}>Clear</button>
       </div>
     </>
+  );
+}
+
+/** One dot per student: filled when their waiver is in, hollow amber when not. */
+function WaiverMark({ list, miss }: { list: { id: string; waiverSignedAt: string | null }[]; miss: number }) {
+  return (
+    <span className="tm-wv" title={miss ? `${miss} of ${list.length} waivers missing` : `All ${list.length} waivers signed`}>
+      <span className="pp-pips" aria-hidden="true">{list.map((c) => <i key={c.id} className={c.waiverSignedAt ? 'ok' : 'wait'} />)}</span>
+      {miss ? <span className="wait">{miss} missing</span> : <span className="tm-wv-n">{list.length}/{list.length}</span>}
+    </span>
   );
 }

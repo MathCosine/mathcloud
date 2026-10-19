@@ -66,9 +66,17 @@ export function reloadSoon(ms = 1500) {
   }, ms);
 }
 
-async function signedIn(session: Session | null) {
+let pending: Promise<void> = Promise.resolve();
+
+/** Load for whoever is signed in now. A second call for the same person waits for the first load instead of skipping it. */
+function signedIn(session: Session | null): Promise<void> {
   const next = session?.user?.id ?? null;
-  if (next === uid) return;
+  if (next === uid) return pending;
+  pending = load(session, next);
+  return pending;
+}
+
+async function load(session: Session | null, next: string | null) {
   uid = next;
   email = session?.user?.email ?? null;
   if (!uid) {
@@ -83,7 +91,14 @@ async function signedIn(session: Session | null) {
 }
 
 /** Start the connected app: restore the session, load, and follow sign-ins and sign-outs. */
-export async function boot() {
+let booted: Promise<void> | null = null;
+
+export function boot(): Promise<void> {
+  booted ??= start();
+  return booted;
+}
+
+async function start() {
   const sbc = client();
   setContestSwitchHook((id) => {
     setReady(false);
