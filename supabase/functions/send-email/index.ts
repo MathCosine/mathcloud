@@ -68,7 +68,8 @@ Deno.serve(async (req) => {
   try {
     const auth = req.headers.get('Authorization') ?? '';
     const { contest_id: contestId } = await req.json();
-    if (!contestId || !(await isStaff(auth, contestId))) return json({ error: 'Only the organisers can send email for this contest.' }, 403);
+    const valid = typeof contestId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contestId);
+    if (!valid || !(await isStaff(auth, contestId))) return json({ error: 'Only the organisers can send email for this contest.' }, 403);
 
     const [contest] = await rest(`contests?id=eq.${contestId}&select=org_id`);
     const keys: Key[] = await rest(`email_keys?org_id=eq.${contest.org_id}&active=eq.true&select=id,label,from_address,daily_limit&order=created_at`);

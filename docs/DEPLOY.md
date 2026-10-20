@@ -177,6 +177,25 @@ themselves, so nothing else is needed.
 More than 100 emails a day: a second Resend account with its own subdomain (e.g. `mail2.sfmathopen.org`), its key
 added the same way. MathCloud uses each key up to its limit and keeps the rest for the next day.
 
+## Updating a live site
+
+Pushing to the branch rebuilds the site by itself (*Deploy site*). When an update adds a file under
+`supabase/migrations/` or changes `supabase/functions/`, also run **Actions → Set up Supabase → Run workflow** with
+demo **none**: it applies only the new migrations and redeploys the two functions, and leaves your contests, teams and
+results as they are. Run it before contest day after every such update, and open the site once afterwards.
+
+## Before contest day
+
+- **Overview → Ready for the day**: every check green (answer keys, sending key, Zoom links, sign-ins, problem text
+  for online rounds).
+- **Problems**: each round's problems and answers; *Preview* takes the round exactly as a student would, with
+  nothing saved.
+- **Students**: send everyone to `/practice` the week before. It runs a ten-minute practice test with the real
+  test screen, the fullscreen and tab-switch notices, and a device check; nothing is recorded.
+- **Public page** (Settings → Public page): what the event page at `/c/<your-contest>` says, and whether the live
+  Guts leaderboard at `/c/<your-contest>/board` is public. That leaderboard is the only result anyone can see without
+  signing in; every other result stays with its own student and team, and the organisers.
+
 ## 7. Staying inside the free plans
 
 Free limits at the time of writing (check the pricing pages before the contest):

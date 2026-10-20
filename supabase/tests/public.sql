@@ -58,7 +58,18 @@ set role authenticated;
 select pg_temp.become('00000000-0000-0000-0000-0000000000d1');
 select pg_temp.refused($$select waiver_token('70000000-0000-0000-0000-00000000016c')$$, 'collected by the organisers', 'no waiver link is handed out');
 reset role;
+update competitors set waiver_signed_at = null where id = '70000000-0000-0000-0000-00000000016a';
+update rounds set opened_at = now(), status = 'open' where id = '40000000-0000-0000-0000-000000000001';
+set role authenticated;
+select pg_temp.become('00000000-0000-0000-0000-000000000051');
+select pg_temp.expect((select (start_attempt('40000000-0000-0000-0000-000000000001', 'Carter')).id) is not null, 'a student with no waiver on file can still start the test');
+reset role;
 update contests set registration = registration - 'coaches' where id = '20000000-0000-0000-0000-000000000001';
+set role authenticated;
+select pg_temp.become('00000000-0000-0000-0000-000000000051');
+select pg_temp.refused($$select start_attempt('40000000-0000-0000-0000-000000000001', 'Carter')$$, 'waiver', 'where MathCloud collects waivers, the test still waits for one');
+reset role;
+update competitors set waiver_signed_at = now() where id = '70000000-0000-0000-0000-00000000016a';
 select pg_temp.expect((select count(*) from waiver_tokens where token ~ '[+/]') = 0, 'waiver links are URL-safe');
 
 \echo ALL PUBLIC CHECKS PASSED

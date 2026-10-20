@@ -85,7 +85,7 @@ export function UserMenu({ wide }: { wide?: boolean } = {}) {
               <div className="menu-sep" />
               <div className="menu-title">Sandbox: moment of the day</div>
               {MOMENTS.map((m) => (
-                <button key={m.key} type="button" role="menuitem" className={`menu-item ${db.moment === m.key ? 'on' : ''}`} onClick={() => { loadMoment(m.key); setOpen(false); navigate(homeFor(user)); toast(m.label, 'The sandbox has been reset to this moment.'); }}>
+                <button key={m.key} type="button" role="menuitem" className={`menu-item ${db.moment === m.key ? 'on' : ''}`} onClick={() => { loadMoment(m.key); enterAs(user.id); setOpen(false); navigate(homeFor(user)); toast(m.label, 'The sandbox has been reset to this moment.'); }}>
                   {m.label}
                   <small>{m.hint}</small>
                 </button>

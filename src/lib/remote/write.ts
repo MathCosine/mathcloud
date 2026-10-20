@@ -71,7 +71,13 @@ export const roundProblems = (attemptId: string) => attempt<Row[]>(rpc('round_pr
 export const saveResponse = (attemptId: string, problemId: string, value: string, normalized: string) =>
   attempt<string>(rpc('save_response', { p_attempt: attemptId, p_problem: problemId, p_value: value, p_normalized: normalized }));
 
-export const submitGutsSet = (attemptId: string) => attempt<number>(rpc('submit_guts_set', { p_attempt: attemptId }));
+/** Hand in set `set`. A second press for the same set (a teammate, a retry) changes nothing. */
+export async function submitGutsSet(attemptId: string, set: number) {
+  const r = await attempt<number>(rpc('submit_guts_set', { p_attempt: attemptId, p_set: set }));
+  // A database not yet updated to 0005 knows only the one-argument version.
+  if (r.error && /submit_guts_set|function/i.test(r.error) && /find|exist|schema cache/i.test(r.error)) return attempt<number>(rpc('submit_guts_set', { p_attempt: attemptId }));
+  return r;
+}
 export const submitAttempt = (attemptId: string) => ok('Not handed in', rpc('submit_attempt', { p_attempt: attemptId }));
 export const logEvent = (attemptId: string, kind: string, ms?: number) => attempt<string>(rpc('log_integrity_event', { p_attempt: attemptId, p_kind: kind, p_ms: ms ?? null }));
 export const setLock = (attemptId: string, locked: boolean) => ok(locked ? 'Not locked' : 'Not unlocked', rpc('set_attempt_lock', { p_attempt: attemptId, p_locked: locked }));

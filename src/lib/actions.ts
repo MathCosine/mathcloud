@@ -213,9 +213,11 @@ function remoteRefused(title: string, reason: string) {
 }
 
 export function submitGutsSet(attemptId: string) {
+  // Which set this press hands in, so a second press for it changes nothing.
+  const set = (getDB().attempts.find((x) => x.id === attemptId)?.setsSubmitted ?? 0) + 1;
   update((db) => {
     const a = db.attempts.find((x) => x.id === attemptId);
-    if (!a || a.submittedAt || deadlinePassed(db, a)) return;
+    if (!a || a.submittedAt || deadlinePassed(db, a) || (a.setsSubmitted ?? 0) + 1 !== set) return;
     const round = roundIn(db, a.roundId);
     const sets = Math.max(...round.problems.map((p) => p.set ?? 1), REMOTE ? 6 : 1);
     a.setsSubmitted = Math.min(sets, (a.setsSubmitted ?? 0) + 1);
@@ -224,7 +226,7 @@ export function submitGutsSet(attemptId: string) {
   });
   if (!REMOTE) return;
   const roundId = getDB().attempts.find((a) => a.id === attemptId)?.roundId;
-  void W.submitGutsSet(attemptId).then(async (r) => {
+  void W.submitGutsSet(attemptId, set).then(async (r) => {
     if (r.error) return remoteRefused('Set not handed in', r.error);
     const served = await W.roundProblems(attemptId);
     if (roundId && served.data) servedProblems(roundId, served.data);
@@ -557,7 +559,7 @@ export async function addCompetitor(teamId: string, input: { name: string; grade
     const id = `c${team.code}${slot}-${Math.random().toString(36).slice(2, 5)}`;
     db.competitors.push({ id, teamId, slot, publicId: `${team.code}${slot}`, name: input.name.trim(), grade: input.grade, guardianName: input.guardianName.trim(), guardianEmail: input.guardianEmail.trim(), waiverSignedAt: null });
     // No sign-in yet: the organisers make them (People, Sign-ins), as when connected.
-    logActivity(db, teamId, `${input.name.trim()} added as ${team.code}${slot} by ${by}; waiver request sent to ${input.guardianName.trim() || input.guardianEmail.trim()}`, 'b');
+    logActivity(db, teamId, `${input.name.trim()} added as ${team.code}${slot} by ${by}${usesWaivers(contestOf(db)) ? `; waiver request sent to ${input.guardianName.trim() || input.guardianEmail.trim()}` : ''}`, 'b');
   });
   return error;
 }

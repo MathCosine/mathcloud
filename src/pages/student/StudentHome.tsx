@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { markDeviceCheck, modeOf, openRound } from '../../lib/actions';
+import { markDeviceCheck, modeOf, openRound, usesWaivers } from '../../lib/actions';
 import { useBoard, useContest } from '../../lib/hooks';
 import type { AgendaItem, Competitor, DivisionMode, Round, Team } from '../../lib/model';
-import { useStudent } from '../../lib/session';
+import { enterAs, useStudent, useUser } from '../../lib/session';
+import { loadTex } from '../../lib/tex';
 import { REMOTE, useDB } from '../../lib/store';
 import { roundEnds, roundState } from '../../lib/time';
 import { PortalLayout } from '../../layouts/PortalLayout';
@@ -23,7 +24,22 @@ import '../../styles/portal.css';
  */
 export function StudentHome() {
   const me = useStudent();
+  const user = useUser();
   const contest = useContest() as ReturnType<typeof useContest> | undefined;
+  // Sandbox: signed in, but the page is on another contest (the sandbox was
+  // reset to another moment): go back to the student's own contest once.
+  const [retried, setRetried] = useState(false);
+  // The test is one click away: have the maths typesetter ready.
+  useEffect(() => {
+    void loadTex();
+  }, []);
+  useEffect(() => {
+    if (!REMOTE && !me && user?.competitorId && !retried) {
+      setRetried(true);
+      enterAs(user.id);
+    }
+  }, [me, user, retried]);
+  if (!REMOTE && !me && user?.competitorId) return retried ? <NoContest /> : null;
   if (!me) return <Navigate to="/sign-in" replace />;
   if (!contest) return <NoContest />;
   const mode = modeOf(contest, me.team);
@@ -149,6 +165,7 @@ function Results({ competitor, team }: { competitor: Competitor; team: Team }) {
 
 function TeamCard({ team, inPerson, className }: { team: Team; inPerson: boolean; className?: string }) {
   const db = useDB();
+  const waivers = usesWaivers(useContest());
   const mates = db.competitors.filter((c) => c.teamId === team.id).sort((a, b) => a.slot.localeCompare(b.slot));
   return (
     <section className={`card pt-card ${className ?? ''}`}>
@@ -158,7 +175,7 @@ function TeamCard({ team, inPerson, className }: { team: Team; inPerson: boolean
           <li key={c.id}>
             <span className="mono muted">{c.publicId}</span>
             <span className="pt-mate-name">{c.name}</span>
-            {!c.waiverSignedAt ? <State tone="wait">Waiver</State>
+            {waivers && !c.waiverSignedAt ? <State tone="wait">Waiver</State>
               : inPerson ? (c.checkedInAt ? <State tone="ok">Here</State> : <State tone="off">Not here yet</State>)
               : c.deviceCheckedAt ? <State tone="ok">Ready</State> : <State tone="off">Device check</State>}
           </li>
@@ -280,7 +297,7 @@ function InPersonHome({ competitor, team }: { competitor: Competitor; team: Team
         </Now>
       );
     }
-    if (!competitor.waiverSignedAt) return <WaiverHero competitor={competitor} />;
+    if (usesWaivers(contest) && !competitor.waiverSignedAt) return <WaiverHero competitor={competitor} />;
     if (!started && !competitor.checkedInAt) {
       return (
         <Now tone="calm" kicker={<span className="label">First thing on {checkIn ? dayIn(checkIn.at, tz) : contest.dateLabel}</span>}
@@ -349,7 +366,7 @@ function InPersonHome({ competitor, team }: { competitor: Competitor; team: Team
             <dl>
               <dt>Team</dt><dd>{team.code} · {team.name}</dd>
               <dt>Room</dt><dd>{room ? room.name : 'Given at check-in'}</dd>
-              <dt>Waiver</dt><dd>{competitor.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone="wait">Not signed</State>}</dd>
+              {usesWaivers(contest) && <><dt>Waiver</dt><dd>{competitor.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone="wait">Not signed</State>}</dd></>}
             </dl>
           </section>
           <Announcements competitorId={competitor.id} tz={tz} now={now} className="pt-o1" />
@@ -385,7 +402,8 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
   const next = contest.rounds.find((r) => roundState(r, now) === 'scheduled');
   const contestDay = ymd(contest.rounds[0]?.startsAt ?? new Date().toISOString(), contest.timeZone);
   const sameZone = tz === contest.timeZone;
-  const canStart = !!competitor.waiverSignedAt;
+  // Where the organisers collected waivers themselves, nothing here waits for one.
+  const canStart = !usesWaivers(contest) || !!competitor.waiverSignedAt;
   const home = contest.timeZone === 'America/Los_Angeles' ? 'San Francisco' : contest.timeZone.split('/').pop()!.replace(/_/g, ' ');
   const zoomItem = items.find((a) => /zoom/i.test(a.title));
 
@@ -420,7 +438,7 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
         </Now>
       );
     }
-    if (!competitor.waiverSignedAt) return <WaiverHero competitor={competitor} />;
+    if (usesWaivers(contest) && !competitor.waiverSignedAt) return <WaiverHero competitor={competitor} />;
     if (next && !competitor.deviceCheckedAt) {
       return (
         <Now tone="todo" kicker={<State tone="wait">To do before the day</State>} title="Run the device check"
@@ -463,7 +481,7 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
   });
 
   const steps: Step[] = [
-    { done: !!competitor.waiverSignedAt, title: 'Waiver signed', sub: competitor.waiverSignedAt ? `By ${competitor.waiverSignedBy || competitor.guardianName}` : `Emailed to ${competitor.guardianName || 'your guardian'}`, action: !competitor.waiverSignedAt && !REMOTE && <Link to={`/waiver/${competitor.id}`} className="btn btn-sm">Open</Link> },
+    ...(usesWaivers(contest) ? [{ done: !!competitor.waiverSignedAt, title: 'Waiver signed', sub: competitor.waiverSignedAt ? `By ${competitor.waiverSignedBy || competitor.guardianName}` : `Emailed to ${competitor.guardianName || 'your guardian'}`, action: !competitor.waiverSignedAt && !REMOTE && <Link to={`/waiver/${competitor.id}`} className="btn btn-sm">Open</Link> }] : []),
     { done: !!competitor.deviceCheckedAt, title: 'Device check', sub: competitor.deviceCheckedAt ? 'This computer is ready' : 'Two minutes, on the computer you will use', action: !competitor.deviceCheckedAt ? <button className="btn btn-sm" type="button" onClick={() => setChecking(true)}>Run it</button> : <button className="btn btn-sm btn-quiet" type="button" onClick={() => setChecking(true)}>Run again</button> },
     { done: !!room, title: room ? `Zoom ${room.name}` : 'A Zoom room', sub: room ? `Proctor ${proctor?.name ?? 'to be named'}${zoomItem ? `, join at ${hm(zoomItem.at, tz)}` : ''}` : 'Assigned a week before', action: zoomLink },
   ];
@@ -495,6 +513,17 @@ function OnlineHome({ competitor, team }: { competitor: Competitor; team: Team }
             )
           ) : (
             <Ready title={started ? 'Ready to take part' : 'Before the day'} steps={steps} className="pt-o2" />
+          )}
+          {/* Practice test: a client-side copy of the test screen (src/pages/student/Practice.tsx). */}
+          {!open && !contest.resultsPublished && (
+            <section className="card pt-card pt-zoom pt-o2">
+              <span className="pt-zoom-ic"><Icon name="pencil" size={18} /></span>
+              <div style={{ minWidth: 0 }}>
+                <b>Practice test</b>
+                <small>Ten minutes on the same screen as the real rounds, with sample problems. Nothing is saved.</small>
+              </div>
+              <Link className="btn btn-sm" to="/practice">Try it<Icon name="arrow" /></Link>
+            </section>
           )}
           <Announcements competitorId={competitor.id} tz={tz} now={now} className="pt-o1" />
           <TeamCard team={team} inPerson={false} className="pt-o5" />

@@ -80,7 +80,7 @@ export async function fetchPublicContest(slug: string): Promise<{ contest: Conte
   const sb = client();
   const { data, error } = await sb
     .from('contests')
-    .select('id,org_id,name,short_name,slug,time_zone,starts_on,date_label,registration,venue,board,results_published,linked_id')
+    .select('id,org_id,name,short_name,slug,time_zone,starts_on,date_label,registration,venue,board,results_published,linked_id,details')
     .eq('slug', slug)
     .order('created_at', { ascending: false })
     .limit(1);

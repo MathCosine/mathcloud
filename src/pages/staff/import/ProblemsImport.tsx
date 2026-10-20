@@ -73,7 +73,7 @@ export function ProblemsImport({ initialRound }: { initialRound?: string }) {
       <>
         <Steps at={4} skip={skip} />
         <Done title={`${round.name} now has ${saved.total} problems`} body={saved.detail ? `${saved.detail[0].toUpperCase()}${saved.detail.slice(1)}. Edit any of them in Rounds.` : 'Edit any of them in Rounds.'}>
-          <Link className="btn btn-primary" to={`/staff/rounds?round=${round.id}`}>Open {round.name} in Rounds</Link>
+          <Link className="btn btn-primary" to={`/staff/problems?round=${round.id}`}>Open {round.name} in Problems</Link>
           <button className="btn" type="button" onClick={reset}>Import another file</button>
         </Done>
       </>

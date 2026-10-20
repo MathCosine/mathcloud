@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { Link, useNavigate } from 'react-router-dom';
 import {
   addVenueRoom, addZoomRoom, copyProblemsFrom, createEdition, divisionFor, linkedEdition, MODE_LABEL, offers, removeRoom, saveDivision, saveRound, saveVenue,
-  setCoachesUseMathCloud, setMode, setRegistration, setRoomProctor,
+  saveContestDetails, setCoachesUseMathCloud, setMode, setRegistration, setRoomProctor,
 } from '../../lib/actions';
 import { saveContestBasics, saveSlug, slugProblem, toSlug } from '../../lib/contestSettings';
 import { useContest } from '../../lib/hooks';
@@ -33,12 +33,13 @@ const zoneNow = (tz: string) => {
   }
 };
 
-type SectionId = 'contest' | 'registration' | 'taking-part' | 'in-person' | 'online' | 'staff';
+type SectionId = 'contest' | 'public' | 'registration' | 'taking-part' | 'in-person' | 'online' | 'staff';
 
 export function Settings() {
   const contest = useContest();
   const sections: { id: SectionId; label: string; icon: IconName; show: boolean }[] = [
     { id: 'contest', label: 'Contest', icon: 'calendar', show: true },
+    { id: 'public', label: 'Public page', icon: 'globe', show: true },
     { id: 'registration', label: 'Registration', icon: 'ticket', show: true },
     { id: 'taking-part', label: 'How teams take part', icon: 'both', show: true },
     { id: 'in-person', label: 'Venue and rooms', icon: 'pin', show: offers(contest, 'in_person') && !!contest.venue },
@@ -87,6 +88,7 @@ export function Settings() {
         </nav>
         <div className="set-main">
           <ContestSection />
+          <PublicSection />
           <RegistrationSection />
           <TakingPart />
           {offers(contest, 'in_person') && contest.venue && <VenueSection />}
@@ -117,6 +119,65 @@ function Section({ id, title, note, children, aside }: { id: SectionId; title: s
 }
 
 // ---------------------------------------------------------------- contest
+
+// ---------------------------------------------------------- public page
+
+const NO_FAQ: { q: string; a: string }[] = [];
+
+/** What anyone can see: the event page and the live Guts leaderboard. Results stay private. */
+function PublicSection() {
+  const contest = useContest();
+  const d = contest.details ?? {};
+  const [about, setAbout, flushAbout] = useDraft(d.about ?? '', (v) => saveContestDetails({ about: v }));
+  const [contact, setContact, flushContact] = useDraft(d.contactEmail ?? '', (v) => saveContestDetails({ contactEmail: v.trim() }));
+  const [website, setWebsite, flushWebsite] = useDraft(d.website ?? '', (v) => saveContestDetails({ website: v.trim() }));
+  // Blank questions are kept while being written; the event page skips them.
+  const [faq, setFaq, flushFaq] = useDraft(d.faq ?? NO_FAQ, (v) => saveContestDetails({ faq: v }));
+  const pageOn = d.public !== false;
+  const boardOn = d.publicBoard !== false;
+  const base = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}`;
+  const setRow = (i: number, patch: Partial<{ q: string; a: string }>) => setFaq(faq.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+  return (
+    <Section id="public" title="Public page" note="What anyone can see, signed in or not. Results stay private.">
+      <div className="card stack">
+        <div className="set-switches">
+          <label className="check"><input type="checkbox" checked={pageOn} onChange={(e) => { saveContestDetails({ public: e.target.checked }); toast(e.target.checked ? 'Event page is public' : 'Event page is private', e.target.checked ? undefined : 'Only signed-in organisers can open it now.'); }} />Event page: schedule, rounds, where, questions</label>
+          <label className="check"><input type="checkbox" checked={boardOn} onChange={(e) => { saveContestDetails({ publicBoard: e.target.checked }); toast(e.target.checked ? 'Live Guts leaderboard is public' : 'Live Guts leaderboard is private'); }} />Live Guts leaderboard: team names and Guts scores, frozen at the end like the projector</label>
+        </div>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <a className="btn btn-sm" href={`${base}/c/${contest.slug}`} target="_blank" rel="noreferrer"><Icon name="external" size={14} />Open the event page</a>
+          <a className="btn btn-sm" href={`${base}/c/${contest.slug}/board`} target="_blank" rel="noreferrer"><Icon name="board" size={14} />Open the public leaderboard</a>
+          <button className="btn btn-sm btn-quiet" type="button" onClick={() => { void navigator.clipboard?.writeText(`${base}/c/${contest.slug}`); toast('Link copied'); }}><Icon name="copy" size={14} />Copy link</button>
+        </div>
+        <label className="field">
+          <span>About</span>
+          <textarea className="textarea" value={about} onChange={(e) => setAbout(e.target.value)} onBlur={flushAbout} placeholder="Who it is for, what the rounds are like, anything families should know." />
+        </label>
+        <div className="form-grid">
+          <label className="field">
+            <span>Contact email</span>
+            <input className="input" type="email" value={contact} onChange={(e) => setContact(e.target.value)} onBlur={flushContact} placeholder="hello@sfmathopen.org" />
+          </label>
+          <label className="field">
+            <span>Website</span>
+            <input className="input" value={website} onChange={(e) => setWebsite(e.target.value)} onBlur={flushWebsite} placeholder="https://sfmathopen.org" />
+          </label>
+        </div>
+        <div className="stack" style={{ gap: 8 }}>
+          <span className="soft small" style={{ fontWeight: 500 }}>Questions and answers</span>
+          {faq.map((x, i) => (
+            <div key={i} className="set-faq">
+              <input className="input" value={x.q} onChange={(e) => setRow(i, { q: e.target.value })} onBlur={flushFaq} placeholder="Question" aria-label="Question" />
+              <textarea className="textarea" style={{ minHeight: 64 }} value={x.a} onChange={(e) => setRow(i, { a: e.target.value })} onBlur={flushFaq} placeholder="Answer" aria-label="Answer" />
+              <button className="icon-btn" type="button" aria-label="Remove this question" title="Remove" onClick={() => { const next = faq.filter((_, k) => k !== i); setFaq(next); saveContestDetails({ faq: next }); }}><Icon name="trash" size={15} /></button>
+            </div>
+          ))}
+          <div><button className="btn btn-sm" type="button" onClick={() => setFaq([...faq, { q: '', a: '' }])}><Icon name="plus" size={14} />Add a question</button></div>
+        </div>
+      </div>
+    </Section>
+  );
+}
 
 function ContestSection() {
   const contest = useContest();

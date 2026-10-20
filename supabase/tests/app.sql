@@ -42,6 +42,9 @@ select pg_temp.become('00000000-0000-0000-0000-000000000051');
 select save_response((select id from attempts where team_id = '60000000-0000-0000-0000-000000000016' and round_id = '40000000-0000-0000-0000-000000000002'), '50000000-0000-0000-0000-000000000012', ' \dfrac12 ', '1/2');
 select pg_temp.expect(submit_guts_set((select id from attempts where team_id = '60000000-0000-0000-0000-000000000016' and round_id = '40000000-0000-0000-0000-000000000002')) = 2, 'the online team hands in set 2');
 select pg_temp.expect((select cardinality(set_times) from attempts where team_id = '60000000-0000-0000-0000-000000000016' and round_id = '40000000-0000-0000-0000-000000000002') = 2, 'each set''s time is kept for the board');
+select pg_temp.expect(submit_guts_set((select id from attempts where team_id = '60000000-0000-0000-0000-000000000016' and round_id = '40000000-0000-0000-0000-000000000002'), 2) = 2, 'a teammate pressing "hand in set 2" again changes nothing');
+select pg_temp.expect((select sets_submitted from attempts where team_id = '60000000-0000-0000-0000-000000000016' and round_id = '40000000-0000-0000-0000-000000000002') = 2
+  and (select cardinality(set_times) from attempts where team_id = '60000000-0000-0000-0000-000000000016' and round_id = '40000000-0000-0000-0000-000000000002') = 2, 'so set 3 is not handed in empty');
 
 reset role;
 insert into contest_roles (contest_id, user_id, role, round_ids) values ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000a1', 'grader', '{40000000-0000-0000-0000-000000000002}')

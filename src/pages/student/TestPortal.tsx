@@ -12,6 +12,10 @@ import { Icon, type IconName } from '../../components/icons';
 import { AnswerPreview, MathText, Modal, Segmented, toast, useNow } from '../../components/ui';
 import { Tick } from './parts';
 import '../../styles/portal.css';
+import { loadTex } from '../../lib/tex';
+
+// Start loading the maths typesetter with the test, so problems appear typeset.
+void loadTex();
 
 export function TestPortal() {
   const { roundId } = useParams();

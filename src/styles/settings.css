@@ -100,3 +100,6 @@ button.nc-step:not(:disabled):hover { color: var(--ink); }
   .nc-step .lab span { display: none; }
   .nc-step.now .lab span { display: inline; }
 }
+.set-switches { display: flex; flex-direction: column; gap: 10px; }
+.set-faq { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 8px; align-items: start; }
+@media (max-width: 760px) { .set-faq { grid-template-columns: minmax(0, 1fr) auto; } .set-faq textarea { grid-column: 1; } }

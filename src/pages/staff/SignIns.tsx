@@ -4,7 +4,7 @@ import { useContest } from '../../lib/hooks';
 import { loginEmail, makeLoginsForTeams, type TeamLogins } from '../../lib/people-actions';
 import { useDB } from '../../lib/store';
 import { Icon } from '../../components/icons';
-import { Modal, Roll, toast } from '../../components/ui';
+import { csvCell, Modal, Roll, toast } from '../../components/ui';
 
 /**
  * Every student's sign-in, made by the organisers in one go. Coaches never
@@ -56,7 +56,7 @@ export function SignIns() {
 
   const csv = () => {
     const lines = [['team', 'student', 'username', 'password'], ...accounts.map((a) => [live.find((t) => t.id === a.teamId)?.code ?? '', a.name, a.username, a.password])];
-    const blob = new Blob([lines.map((l) => l.map((x) => (/[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x)).join(',')).join('\n')], { type: 'text/csv' });
+    const blob = new Blob([lines.map((l) => l.map(csvCell).join(',')).join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `${contest.slug}-sign-ins.csv`;

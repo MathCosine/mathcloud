@@ -1,8 +1,8 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import katex from 'katex';
 import type { DivisionMode } from '../lib/model';
 import { Icon, type IconName } from './icons';
+import { useTex } from '../lib/tex';
 
 // ------------------------------------------------------------------- Roll
 
@@ -121,12 +121,13 @@ export function Choice({
 // ------------------------------------------------------------------- Math
 
 export function MathText({ text, className }: { text: string; className?: string }) {
+  const katex = useTex();
   const parts = text.split(/(\$[^$]+\$)/g);
   return (
     <span className={className}>
       {parts.map((part, i) =>
         part.length > 2 && part.startsWith('$') && part.endsWith('$') ? (
-          <span key={i} dangerouslySetInnerHTML={{ __html: katex.renderToString(part.slice(1, -1), { throwOnError: false }) }} />
+          katex ? <span key={i} dangerouslySetInnerHTML={{ __html: katex.renderToString(part.slice(1, -1), { throwOnError: false }) }} /> : <span key={i} className="tex-wait">{part.slice(1, -1)}</span>
         ) : (
           <span key={i}>{part}</span>
         ),
@@ -137,9 +138,11 @@ export function MathText({ text, className }: { text: string; className?: string
 
 /** A typed answer shown as maths when it is more than a plain number. */
 export function AnswerPreview({ value }: { value: string }) {
+  const katex = useTex();
   const v = value.trim();
   if (!v || /^-?\d+$/.test(v)) return null;
   const tex = v.includes('\\') ? v : v.replace(/^(-?\d+)\/(\d+)$/, '\\frac{$1}{$2}').replace(/sqrt\(([^)]*)\)/g, '\\sqrt{$1}');
+  if (!katex) return <span className="tex-wait">{v}</span>;
   return <span dangerouslySetInnerHTML={{ __html: katex.renderToString(`\\displaystyle ${tex}`, { throwOnError: false }) }} />;
 }
 
@@ -439,12 +442,19 @@ export function SearchBox({ value, onChange, placeholder, inputRef }: { value: s
   );
 }
 
+/**
+ * One spreadsheet cell. Text a team typed that starts like a formula (=, +,
+ * -, @) gets a leading apostrophe, so Excel and Sheets show it instead of
+ * running it. Numbers stay numbers.
+ */
+export function csvCell(v: unknown): string {
+  let s = v === null || v === undefined ? '' : String(v);
+  if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 export function downloadCsv(filename: string, header: string[], rows: (string | number | null | undefined)[][]) {
-  const cell = (v: unknown) => {
-    const s = v === null || v === undefined ? '' : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const csv = [header, ...rows].map((r) => r.map(cell).join(',')).join('\n');
+  const csv = [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   a.download = filename;

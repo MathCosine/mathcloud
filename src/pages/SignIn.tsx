@@ -115,6 +115,7 @@ export function SignIn() {
           <div className="au-links">
             <span>New to MathCloud? <Link to="/sign-up">Create an account</Link></span>
             {!REMOTE && <Link to="/register/sfmo-2027" className="row"><Icon name="plus" size={14} />Register a team for SFMO 2027</Link>}
+            <Link to="/practice" className="row"><Icon name="pencil" size={14} />Students: try a practice test first</Link>
           </div>
         </div>
         <p className="au-foot">Younger students sign in with the username their coach set up.</p>

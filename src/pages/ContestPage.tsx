@@ -4,7 +4,7 @@ import '../styles/public.css';
 import type { Contest, DivisionMode, Round } from '../lib/model';
 import { fetchPublicContest } from '../lib/public';
 import { contestInitials, useUser } from '../lib/session';
-import { REMOTE, setActiveContest, useAllDB } from '../lib/store';
+import { REMOTE, useAllDB } from '../lib/store';
 import { clockIn, roundState } from '../lib/time';
 import { TopBar } from '../layouts/StaffLayout';
 import { ArtEmpty } from '../components/art';
@@ -41,6 +41,8 @@ export function ContestPage() {
   const contest = cached ?? fetched?.contest ?? null;
   const orgName = (contest && all.orgs.find((o) => o.id === contest.orgId)?.name) || fetched?.orgName || null;
   const loading = REMOTE && !cached && !fetched;
+  // Organisers always see their own page, public or not.
+  const staffView = !!user && ['director', 'staff'].includes(user.role) && !!cached;
 
   return (
     <div className="pub">
@@ -56,7 +58,16 @@ export function ContestPage() {
             <div><Link className="btn" to="/">MathCloud home</Link></div>
           </div>
         ) : (
-          <ContestBody contest={contest} orgName={orgName} inCache={!!cached} remoteTwin={fetched?.twin} />
+          contest.details?.public === false && !staffView ? (
+            <div className="card cp-missing">
+              <ArtEmpty kind="search" />
+              <h1 className="page-title">This event page is private</h1>
+              <p className="soft">The organisers have not made this page public. If you are taking part, they will send you everything you need.</p>
+              <div><Link className="btn" to="/">MathCloud home</Link></div>
+            </div>
+          ) : (
+            <ContestBody contest={contest} orgName={orgName} remoteTwin={fetched?.twin} />
+          )
         )}
       </main>
       <PublicFooter />
@@ -64,7 +75,7 @@ export function ContestPage() {
   );
 }
 
-function ContestBody({ contest, orgName, inCache, remoteTwin }: { contest: Contest; orgName: string | null; inCache: boolean; remoteTwin?: { slug: string; mode: string } | null }) {
+function ContestBody({ contest, orgName, remoteTwin }: { contest: Contest; orgName: string | null; remoteTwin?: { slug: string; mode: string } | null }) {
   const now = useNow(15000);
   const modes = contest.divisions.map((d) => d.mode);
   const both = modes.includes('in_person') && modes.includes('online');
@@ -75,6 +86,9 @@ function ContestBody({ contest, orgName, inCache, remoteTwin }: { contest: Conte
   const twinMode = twin?.divisions[0]?.mode;
   const organisersOnly = reg.coaches === false;
   const guts = contest.rounds.find((r) => r.kind === 'guts' && roundState(r, now) === 'open');
+  const details = contest.details ?? {};
+  const faq = (details.faq ?? []).filter((f) => f.q.trim() && f.a.trim());
+  const website = details.website && /^https?:\/\//i.test(details.website) ? details.website : details.website ? `https://${details.website}` : '';
   const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const otherZone = local !== contest.timeZone;
   const localClock = (iso: string) => new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', timeZone: local }).format(new Date(iso));
@@ -109,8 +123,8 @@ function ContestBody({ contest, orgName, inCache, remoteTwin }: { contest: Conte
           </div>
         </div>
         <div className="cp-hero-side">
-          {guts && (
-            <Link className="live-pill" to="/board" onClick={() => inCache && setActiveContest(contest.id)}>Guts is live: open the board<Icon name="arrow-up-right" size={14} /></Link>
+          {guts && details.publicBoard !== false && (
+            <Link className="live-pill" to={`/c/${contest.slug}/board`}>Guts is live: follow the leaderboard<Icon name="arrow-up-right" size={14} /></Link>
           )}
           {organisersOnly ? (
             <span className="cp-reg">Teams are entered by the organisers. Students get their sign-in details before the contest.</span>
@@ -126,7 +140,10 @@ function ContestBody({ contest, orgName, inCache, remoteTwin }: { contest: Conte
         </div>
       </section>
 
+      {details.about?.trim() && <p className="cp-about">{details.about.trim()}</p>}
+
       <div className="cp-grid">
+        <div className="stack-lg">
         <section className="card flush">
           <div className="card-head">
             <h2><Icon name="calendar" size={16} />Schedule</h2>
@@ -162,6 +179,21 @@ function ContestBody({ contest, orgName, inCache, remoteTwin }: { contest: Conte
             {agenda.length === 0 && <li><span /><span className="muted">The schedule has not been published yet.</span></li>}
           </ol>
         </section>
+
+        {faq.length > 0 && (
+          <section className="card">
+            <div className="section-head"><h2><Icon name="help" size={16} />Questions</h2></div>
+            <div className="cp-faq">
+              {faq.map((f, i) => (
+                <details key={i} open={i === 0}>
+                  <summary>{f.q}</summary>
+                  <p className="soft">{f.a}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+        )}
+        </div>
 
         <div className="stack-lg">
           <section className="card">
@@ -202,6 +234,16 @@ function ContestBody({ contest, orgName, inCache, remoteTwin }: { contest: Conte
               {contest.rounds.length === 0 && <li className="muted small">Rounds will be announced.</li>}
             </ul>
           </section>
+
+          {(details.contactEmail || website) && (
+            <section className="card">
+              <div className="section-head"><h2><Icon name="mail" size={16} />Contact</h2></div>
+              <div className="stack" style={{ gap: 8 }}>
+                {details.contactEmail && <a className="row small" style={{ gap: 8 }} href={`mailto:${details.contactEmail}`}><Icon name="mail" size={14} />{details.contactEmail}</a>}
+                {website && <a className="row small" style={{ gap: 8 }} href={website} target="_blank" rel="noopener noreferrer"><Icon name="external" size={14} />{website.replace(/^https?:\/\//i, '').replace(/\/$/, '')}</a>}
+              </div>
+            </section>
+          )}
 
           {contest.venue && contest.venue.bring.length > 0 && modes.includes('in_person') && (
             <section className="card">

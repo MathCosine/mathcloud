@@ -42,6 +42,8 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+/** Every id a request names must be a plain uuid before it goes near a query. */
+const isId = (v: unknown) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
 
 const service = { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, 'content-type': 'application/json' };
@@ -52,11 +54,48 @@ async function asCaller(auth: string, path: string) {
   return res.ok ? res.json() : [];
 }
 
-const WORDS = ['maple', 'river', 'comet', 'prism', 'cedar', 'orbit', 'tulip', 'delta', 'ember', 'harbor', 'lunar', 'pixel', 'quartz', 'sable', 'tidal', 'vivid', 'willow', 'zephyr', 'atlas', 'bloom'];
+// 64 short, plain words and a three-digit number: easy to read off a slip of
+// paper, and about 3.7 million combinations, which with Supabase's sign-in
+// rate limits is far beyond guessing.
+const WORDS = [
+  'maple', 'river', 'comet', 'prism', 'cedar', 'orbit', 'tulip', 'delta', 'ember', 'harbor', 'lunar', 'pixel', 'quartz', 'sable', 'tidal', 'vivid',
+  'willow', 'zephyr', 'atlas', 'bloom', 'acorn', 'badge', 'cobalt', 'dune', 'falcon', 'glacier', 'hazel', 'iris', 'jasper', 'kite', 'lotus', 'meadow',
+  'nectar', 'olive', 'pebble', 'quill', 'raven', 'spruce', 'thistle', 'umber', 'velvet', 'walnut', 'yonder', 'zenith', 'amber', 'birch', 'canyon', 'drift',
+  'fable', 'grove', 'heron', 'indigo', 'juniper', 'koala', 'lagoon', 'marble', 'nova', 'opal', 'plume', 'ripple', 'summit', 'tundra', 'violet', 'wren',
+];
 function password() {
   const b = new Uint32Array(3);
   crypto.getRandomValues(b);
-  return `${WORDS[b[0] % WORDS.length]}-${WORDS[b[1] % WORDS.length]}-${10 + (b[2] % 90)}`;
+  return `${WORDS[b[0] % WORDS.length]}-${WORDS[b[1] % WORDS.length]}-${100 + (b[2] % 900)}`;
+}
+
+/**
+ * A sign-in for one student: sfmo-05a, or sfmo-05a-2 when that name is taken
+ * by a student in another contest (last year's team 05, say). An account
+ * left over from a student who was removed, or a team imported again, is
+ * reused with a new password rather than refused.
+ */
+async function studentAccount(s: { name: string; public_id: string }, prefix: string): Promise<{ id: string; username: string; password: string } | { error: string }> {
+  const base = `${prefix}-${s.public_id}`.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  for (let n = 1; n <= 9; n++) {
+    const username = n === 1 ? base : `${base}-${n}`;
+    const email = `${username}@${STUDENT_DOMAIN}`;
+    const pw = password();
+    const meta = { name: s.name, username, managed: true };
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, { method: 'POST', headers: service, body: JSON.stringify({ email, password: pw, email_confirm: true, user_metadata: meta }) });
+    if (res.ok) return { id: (await res.json()).id, username, password: pw };
+    const text = await res.text();
+    if (!/email_exists|already been registered|already registered/i.test(text)) return { error: text };
+    const [found] = await (await fetch(`${SUPABASE_URL}/rest/v1/profiles?username=eq.${encodeURIComponent(username)}&managed=eq.true&select=id`, { headers: service })).json();
+    if (!found?.id) continue;
+    const [taken] = await (await fetch(`${SUPABASE_URL}/rest/v1/competitors?user_id=eq.${found.id}&select=id&limit=1`, { headers: service })).json();
+    if (taken) continue;
+    const reset = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${found.id}`, { method: 'PUT', headers: service, body: JSON.stringify({ password: pw, user_metadata: meta }) });
+    if (!reset.ok) return { error: await reset.text() };
+    await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${found.id}`, { method: 'PATCH', headers: { ...service, Prefer: 'return=minimal' }, body: JSON.stringify({ name: s.name }) });
+    return { id: found.id, username, password: pw };
+  }
+  return { error: 'Could not find a free username.' };
 }
 
 Deno.serve(async (req) => {
@@ -64,6 +103,10 @@ Deno.serve(async (req) => {
   try {
     const auth = req.headers.get('Authorization') ?? '';
     const body = await req.json();
+    for (const k of ['team_id', 'competitor_id', 'contest_id', 'user_id', 'room_id']) {
+      if (body[k] != null && !isId(body[k])) return json({ error: 'That request is not valid.' }, 400);
+    }
+    if (body.round_ids != null && (!Array.isArray(body.round_ids) || !body.round_ids.every(isId))) return json({ error: 'That request is not valid.' }, 400);
 
     if (body.action === 'student_logins') {
       const [team] = await asCaller(auth, `teams?id=eq.${body.team_id}&select=id,contest_id,code`);
@@ -73,17 +116,10 @@ Deno.serve(async (req) => {
       const students = await (await fetch(`${SUPABASE_URL}/rest/v1/competitors?team_id=eq.${team.id}&user_id=is.null&select=id,name,public_id`, { headers: service })).json();
       const accounts: { name: string; username: string; password: string }[] = [];
       for (const s of students) {
-        const username = `${prefix}-${s.public_id}`.toLowerCase();
-        const pw = password();
-        const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
-          method: 'POST',
-          headers: service,
-          body: JSON.stringify({ email: `${username}@${STUDENT_DOMAIN}`, password: pw, email_confirm: true, user_metadata: { name: s.name, username, managed: true } }),
-        });
-        if (!res.ok) return json({ error: `${s.name}: ${await res.text()}`, accounts }, 400);
-        const user = await res.json();
-        await fetch(`${SUPABASE_URL}/rest/v1/competitors?id=eq.${s.id}`, { method: 'PATCH', headers: { ...service, Prefer: 'return=minimal' }, body: JSON.stringify({ user_id: user.id }) });
-        accounts.push({ name: s.name, username, password: pw });
+        const made = await studentAccount(s, prefix);
+        if ('error' in made) return json({ error: `${s.name}: ${made.error}`, accounts }, 400);
+        await fetch(`${SUPABASE_URL}/rest/v1/competitors?id=eq.${s.id}`, { method: 'PATCH', headers: { ...service, Prefer: 'return=minimal' }, body: JSON.stringify({ user_id: made.id }) });
+        accounts.push({ name: s.name, username: made.username, password: made.password });
       }
       return json({ accounts });
     }
@@ -119,7 +155,7 @@ Deno.serve(async (req) => {
 
       const email = String(body.email ?? '').trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'Enter an email address.' }, 400);
-      const [found] = await (await fetch(`${SUPABASE_URL}/rest/v1/profiles?email=eq.${encodeURIComponent(email)}&select=id`, { headers: service })).json();
+      const [found] = await (await fetch(`${SUPABASE_URL}/rest/v1/profiles?username=eq.${encodeURIComponent(username)}&managed=eq.true&select=id`, { headers: service })).json();
       let userId: string | undefined = found?.id;
       let pw: string | undefined;
       if (!userId) {

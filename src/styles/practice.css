@@ -1,0 +1,110 @@
+/* ==========================================================================
+   The practice test and the organisers' preview. Both draw the real test's
+   screens (.ex-* in portal.css); this file only adds what a simulation needs:
+   a ribbon saying what it is, the device check, the marked answers, and the
+   framed screen inside the organiser frame. Classes are .ps-* and .pv-*.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- ribbon */
+.ps-ribbon { position: sticky; top: 0; z-index: 21; display: flex; align-items: center; justify-content: center; gap: 8px 16px; min-height: 36px; padding: 6px 16px; background: #121216; color: #D4D4DA; font-size: 13px; line-height: 1.35; }
+.ps-ribbon b { color: #fff; font-weight: 600; }
+.ps-ribbon .icon { color: #9DB0F5; }
+.ps-ribbon-t { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.ps-ribbon a, .ps-ribbon .linkbtn { flex: none; display: inline-flex; align-items: center; gap: 5px; color: #fff; font-weight: 550; text-decoration: underline; text-decoration-color: rgba(255, 255, 255, .35); text-underline-offset: 3px; transition: text-decoration-color .15s; }
+.ps-ribbon a:hover { text-decoration-color: #fff; }
+.ex-sim.has-ribbon > .ex-bar { top: 36px; }
+.ex-sim.has-ribbon .ex-aside { top: 132px; }
+
+/* Notes that say what would happen on the real day. */
+.ps-real { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--bg-2); font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+.ps-real .icon { margin-top: 2px; color: var(--ink-3); }
+.ex-lock .ps-real { text-align: left; margin: 4px 0 6px; }
+.ps-real-inline { color: #6E4300; opacity: .85; }
+.ps-board-note { margin-top: 10px; line-height: 1.5; }
+
+/* ---------------------------------------------------- get ready (practice) */
+.ps-ready { gap: 36px; }
+.ps-ready > :nth-child(4) { animation-delay: .15s; }
+.ps-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; font-size: 15px; font-weight: 600; letter-spacing: -.015em; }
+.ps-h > span:first-child, .ps-h-t { display: inline-flex; align-items: center; gap: 9px; }
+.ps-h .icon { color: var(--ink-3); }
+.ps-h .label { font-weight: 400; letter-spacing: 0; }
+.ps-device { padding: 4px 18px; border-radius: 16px; box-shadow: var(--card-shadow); }
+.ps-device li { min-height: 64px; padding: 12px 0; }
+.ps-device li:first-child { padding-top: 12px; }
+.ps-device li:last-child { padding-bottom: 12px; }
+.ps-device small.wait { color: var(--amber); }
+.ps-device small.bad { color: var(--red); }
+.ps-device .ok { font-size: 13px; font-weight: 500; }
+.ps-device .btn { flex: none; }
+.ps-meter { height: 3px; margin: -4px 0 14px; border-radius: 2px; background: var(--bg-3); overflow: hidden; }
+.ps-meter i { display: block; height: 100%; border-radius: 2px; background: var(--green); transition: width .6s var(--out); }
+.ps-pending { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--amber-soft); color: var(--amber); animation: pop .4s var(--spring) both; }
+
+/* ---------------------------------------------------------------- results */
+.ps-results { max-width: 880px; margin: 0 auto; padding: 48px 24px 120px; display: flex; flex-direction: column; gap: 40px; }
+.ps-score { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 8px 24px; align-items: center; animation: rise .45s var(--out) both; }
+.ps-score h1 { font-size: 32px; font-weight: 650; letter-spacing: -.04em; line-height: 1.1; }
+.ps-score .lede { margin-top: 6px; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+.ps-score-act { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.ps-stage { animation: rise .45s var(--out) .06s both; }
+.ps-list { list-style: none; margin: 0; padding: 0; }
+.ps-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) 150px; gap: 20px; padding: 20px 0; border-top: 1px solid var(--line); align-items: start; animation: rise .4s var(--out) both; }
+.ps-row:first-child { border-top: 0; padding-top: 6px; }
+.ps-row.correct .ex-num { background: var(--green-soft); color: var(--green); box-shadow: none; }
+.ps-row.incorrect .ex-num { background: var(--red-soft); color: var(--red); box-shadow: none; }
+.ps-row.unreviewed .ex-num { background: var(--amber-soft); color: var(--amber); box-shadow: none; }
+.ps-text { display: block; padding-top: 3px; font-size: 15.5px; line-height: 1.6; }
+.ps-pair { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 12px; }
+.ps-cell { display: inline-flex; align-items: baseline; gap: 10px; min-width: 0; }
+.ps-cell > .label { flex: none; }
+.ps-yours, .ps-key { display: inline-flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 15px; }
+.ps-yours .mono, .ps-key .mono { font-weight: 600; overflow-wrap: anywhere; }
+.ps-render { color: var(--ink-2); }
+.ps-row.incorrect .ps-yours .mono { color: var(--red); text-decoration: line-through; text-decoration-color: rgba(196, 54, 42, .45); }
+.ps-key-one { display: inline-flex; align-items: baseline; gap: 4px; }
+.ps-why { margin-top: 8px; font-size: 13px; line-height: 1.5; color: var(--amber); }
+.ps-status { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; padding-top: 4px; }
+.ps-status small { font: 600 12px var(--mono); color: var(--green); }
+.ps-events { list-style: none; margin: 0 0 12px; padding: 0; }
+.ps-events li { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 44px; border-top: 1px solid var(--line); font-size: 14px; }
+.ps-events li:first-child { border-top: 0; }
+.ps-clean { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; color: var(--ink-2); }
+
+/* ------------------------------------------------ preview (organiser frame) */
+.pv-tools { display: flex; align-items: center; gap: 12px 20px; flex-wrap: wrap; margin: -8px 0 20px; }
+.pv-tool { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.pv-tool > .label { flex: none; }
+.pv-tools .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.ex-sim.inline { min-height: 0; border-radius: var(--r-lg); overflow: clip; box-shadow: var(--card-shadow); }
+.ex-sim.inline:not(.ex-takeover) > .ps-ribbon, .ex-sim.inline:not(.ex-takeover) > .ex-bar { position: relative; top: auto; }
+.ex-sim.inline:not(.ex-takeover) .ex-intro { padding-top: 48px; padding-bottom: 64px; }
+.ex-sim.inline:not(.ex-takeover) .ex-done { padding-top: 56px; padding-bottom: 64px; }
+.ex-sim.inline:not(.ex-takeover) .ps-results { padding-bottom: 64px; }
+/* While the test runs it covers the organiser frame, as it covers a student's screen. */
+.ex-sim.ex-takeover { position: fixed; inset: 0; z-index: 45; overflow-y: auto; overscroll-behavior: contain; border-radius: 0; box-shadow: none; animation: fade .2s var(--ease) both; }
+.pv-empty { border-radius: var(--r-lg); box-shadow: var(--card-shadow); }
+
+/* ------------------------------------------------------------------ phones */
+@media (max-width: 1000px) {
+  .ex-sim.has-ribbon .ex-aside { top: auto; }
+}
+@media (max-width: 600px) {
+  .ps-ribbon { justify-content: space-between; font-size: 12.5px; }
+  .ps-wide { display: none; }
+  .ps-results { padding: 32px 16px 96px; gap: 32px; }
+  .ps-score { grid-template-columns: 64px minmax(0, 1fr); gap: 4px 16px; }
+  .ps-score .ring { width: 64px; height: 64px; }
+  .ps-score h1 { font-size: 24px; }
+  .ps-score .lede { font-size: 14px; }
+  .ps-score-act { grid-column: 1 / -1; justify-content: stretch; margin-top: 12px; }
+  .ps-score-act > * { flex: 1 1 0; justify-content: center; }
+  .ps-row { grid-template-columns: 30px minmax(0, 1fr); gap: 14px; }
+  .ps-status { grid-column: 2; flex-direction: row; align-items: baseline; gap: 8px; padding-top: 0; }
+  .ps-events li { grid-template-columns: 64px minmax(0, 1fr); padding: 8px 0; }
+  .ps-events li > .state { grid-column: 2; }
+  .ps-device { padding: 2px 14px; }
+  .ps-device li { grid-template-columns: 22px minmax(0, 1fr); }
+  .ps-device li > :last-child:not(:nth-child(2)) { grid-column: 2; justify-self: start; }
+  .pv-tools { margin-top: -4px; }
+}
