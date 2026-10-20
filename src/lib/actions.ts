@@ -556,7 +556,7 @@ export async function addCompetitor(teamId: string, input: { name: string; grade
     if (!slot) return void (error = 'The team is full.');
     const id = `c${team.code}${slot}-${Math.random().toString(36).slice(2, 5)}`;
     db.competitors.push({ id, teamId, slot, publicId: `${team.code}${slot}`, name: input.name.trim(), grade: input.grade, guardianName: input.guardianName.trim(), guardianEmail: input.guardianEmail.trim(), waiverSignedAt: null });
-    db.users.push({ id: `u-${id}`, email: `${contestOf(db).slug.split('-')[0]}-${team.code}${slot}`.toLowerCase(), name: input.name.trim(), role: 'student', password: 'demo', competitorId: id, managed: true });
+    // No sign-in yet: the organisers make them (People, Sign-ins), as when connected.
     logActivity(db, teamId, `${input.name.trim()} added as ${team.code}${slot} by ${by}; waiver request sent to ${input.guardianName.trim() || input.guardianEmail.trim()}`, 'b');
   });
   return error;
@@ -927,7 +927,6 @@ function addTeam(db: DB, c: Contest, input: NewTeam, status: TeamStatus, how: st
       guardianName: s.guardianName.trim() || 'Parent or guardian', guardianEmail: s.guardianEmail.trim(),
       waiverSignedAt: s.waiverSignedBy ? nowIso() : null, waiverSignedBy: s.waiverSignedBy || null, externalId: s.externalId || undefined,
     });
-    db.users.push({ id: `u-${id}`, email: `${prefix}-${code}${slot}`.toLowerCase(), name: s.name.trim(), role: 'student', password: 'demo', competitorId: id, managed: true });
   });
   placeTeam(c, team);
   if (coachId) {

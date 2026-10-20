@@ -121,11 +121,10 @@ export async function studentLogins(teamId: string): Promise<{ accounts: Login[]
   update((d) => {
     for (const c of d.competitors.filter((x) => x.teamId === teamId)) {
       const password = `${word()}-${word()}-${Math.floor(10 + Math.random() * 90)}`;
-      let u = d.users.find((x) => x.competitorId === c.id);
-      if (!u) {
-        u = { id: `u-${c.id}`, email: `${prefix}-${c.publicId}`.toLowerCase(), name: c.name, role: 'student', password, competitorId: c.id, managed: true };
-        d.users.push(u);
-      } else u.password = password;
+      // Like the server: only students without a sign-in get one; nobody's password changes behind their back.
+      if (d.users.some((x) => x.competitorId === c.id)) continue;
+      const u = { id: `u-${c.id}`, email: `${prefix}-${c.publicId}`.toLowerCase(), name: c.name, role: 'student' as const, password, competitorId: c.id, managed: true };
+      d.users.push(u);
       accounts.push({ name: c.name, username: u.email, password });
     }
   });
@@ -189,4 +188,38 @@ export async function removeStaff(userId: string, role: StaffRole): Promise<stri
     for (const r of contestOf(d).rooms) if (r.proctorId === userId) r.proctorId = undefined;
   });
   return null;
+}
+
+// ------------------------------------------------------- sign-ins, in bulk
+
+export type TeamLogins = { teamId: string; accounts: Login[]; error: string | null };
+
+/**
+ * Sign-ins for many teams at once (the organisers hand them out; coaches
+ * never need to). Connected, only students without a sign-in get one, so
+ * running it again after adding students is safe. Calls onProgress after
+ * each team.
+ */
+export async function makeLoginsForTeams(teamIds: string[], onProgress: (done: number) => void): Promise<TeamLogins[]> {
+  const out: TeamLogins[] = [];
+  for (const [i, teamId] of teamIds.entries()) {
+    const r = await studentLogins(teamId);
+    out.push({ teamId, ...r });
+    onProgress(i + 1);
+  }
+  if (REMOTE) {
+    const { reload } = await import('./remote/live');
+    await reload();
+  }
+  return out;
+}
+
+/** The email a team contact or guardian gets with sign-in details. */
+export function loginEmail(contestName: string, teamName: string, accounts: Login[], origin: string): { subject: string; html: string } {
+  const e = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]!);
+  const rows = accounts.map((a) => `<tr><td style="padding:6px 12px 6px 0">${e(a.name)}</td><td style="padding:6px 12px 6px 0;font-family:monospace">${e(a.username)}</td><td style="padding:6px 0;font-family:monospace">${e(a.password)}</td></tr>`).join('');
+  return {
+    subject: `${contestName}: sign-in details for ${teamName}`,
+    html: `<p>Here are the sign-in details for ${e(teamName)}. Each student signs in at <a href="${e(origin)}">${e(origin)}</a> with their own username and password to take the tests.</p><table style="border-collapse:collapse"><tr><th align="left" style="padding:6px 12px 6px 0">Student</th><th align="left" style="padding:6px 12px 6px 0">Username</th><th align="left">Password</th></tr>${rows}</table><p>Keep these private: anyone with a password can take that student's test.</p>`,
+  };
 }

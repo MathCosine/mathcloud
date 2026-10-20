@@ -12,9 +12,10 @@ import { ArtEmpty } from '../../components/art';
 import { Icon, type IconName } from '../../components/icons';
 import { downloadCsv, Modal, Roll, SearchBox, State, Tabs, toast } from '../../components/ui';
 import { copy, StudentDrawer, TeamDrawer, useConfirm } from './PeopleParts';
+import { SignIns } from './SignIns';
 import '../../styles/people.css';
 
-type Tab = 'students' | 'contacts' | 'staff' | 'checkin' | 'check';
+type Tab = 'students' | 'contacts' | 'staff' | 'checkin' | 'check' | 'signins';
 
 export function People() {
   const db = useDB();
@@ -22,7 +23,9 @@ export function People() {
   const [params, setParams] = useSearchParams();
   const hasCheckin = offers(contest, 'in_person');
   const raw = params.get('tab') as Tab | null;
-  const tab: Tab = raw && ['students', 'contacts', 'staff', 'check'].concat(hasCheckin ? ['checkin'] : []).includes(raw) ? raw : 'students';
+  // Online students sign in to take their tests; in person, answers are on paper.
+  const hasOnline = offers(contest, 'online');
+  const tab: Tab = raw && ['students', 'contacts', 'staff', 'check'].concat(hasCheckin ? ['checkin'] : [], hasOnline ? ['signins'] : []).includes(raw) ? raw : 'students';
   const [student, setStudent] = useState<string | null>(null);
   const [team, setTeam] = useState<string | null>(null);
   const health = useMemo(() => rosterHealth(db.teams, db.competitors, contest.registration), [db, contest.registration]);
@@ -60,8 +63,9 @@ export function People() {
         onChange={go}
         items={[
           { key: 'students', label: 'Students', count: db.competitors.length },
-          { key: 'contacts', label: 'Coaches and contacts', count: contacts.length },
+          { key: 'contacts', label: contest.registration.coaches === false ? 'Contacts' : 'Coaches and contacts', count: contacts.length },
           { key: 'staff', label: 'Staff', count: staffCount },
+          ...(hasOnline ? [{ key: 'signins' as Tab, label: 'Sign-ins' }] : []),
           ...(hasCheckin ? [{ key: 'checkin' as Tab, label: 'Check-in' }] : []),
           { key: 'check', label: health.total ? <span className="pp-tab-warn">ID check</span> : 'ID check', count: health.total },
         ]}
@@ -70,6 +74,7 @@ export function People() {
       {tab === 'contacts' && <Contacts onOpenTeam={openTeam} />}
       {tab === 'staff' && <Staff />}
       {tab === 'checkin' && <CheckIn onOpen={openStudent} />}
+      {tab === 'signins' && <SignIns />}
       {tab === 'check' && <IdCheck onOpenStudent={openStudent} onOpenTeam={openTeam} />}
       <StudentDrawer id={student} onClose={() => setStudent(null)} onOpenTeam={openTeam} />
       <TeamDrawer id={team} onClose={() => setTeam(null)} />

@@ -215,3 +215,5 @@ tr:hover .pp-fade, tr:focus-within .pp-fade, .pp-row:hover .pp-fade, .pp-row:foc
   .card-head { flex-wrap: wrap; }
   .card-head .search { max-width: none; flex: 1; }
 }
+.si-big { font-size: 26px; font-weight: 600; letter-spacing: -.03em; }
+.si-big .muted { font-size: 16px; font-weight: 500; letter-spacing: 0; }
