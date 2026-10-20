@@ -17,6 +17,7 @@ export const STAFF_PAGES: { to: string; label: string; icon: IconName; group: st
   { to: '/staff/people', label: 'People', icon: 'people', group: 'Before', roles: ['director', 'staff'], words: 'students coaches staff check-in id check duplicates' },
   { to: '/staff/waivers', label: 'Waivers', icon: 'waivers', group: 'Before', roles: ['director', 'staff'], words: 'guardians sign remind' },
   { to: '/staff/import', label: 'Import', icon: 'import', group: 'Before', roles: ['director', 'staff'], words: 'csv excel spreadsheet google form old sign-up waivers problems answers' },
+  { to: '/staff/problems', label: 'Problems', icon: 'sigma', group: 'Before', roles: ['director', 'staff'], words: 'answers answer key questions latex enter type paste' },
   { to: '/staff/rounds', label: 'Rounds', icon: 'rounds', group: 'On the day', roles: ['director', 'staff'], words: 'problems answer key open close' },
   { to: '/staff/live', label: 'Live', icon: 'live', group: 'On the day', roles: ['director', 'staff', 'proctor'], words: 'questions zoom proctor locked' },
   { to: '/staff/grading', label: 'Grading', icon: 'grading', group: 'On the day', roles: ['director', 'staff', 'grader'], words: 'key sheets rulings paper' },

@@ -28,6 +28,10 @@ const People = page(() => import('./pages/staff/People'), 'People');
 const Waivers = page(() => import('./pages/staff/Waivers'), 'Waivers');
 const Import = page(() => import('./pages/staff/Import'), 'Import');
 const Rounds = page(() => import('./pages/staff/Rounds'), 'Rounds');
+const Problems = page(() => import('./pages/staff/Problems'), 'Problems');
+const RoundPreview = page(() => import('./pages/staff/RoundPreview'), 'RoundPreview');
+const Practice = page(() => import('./pages/student/Practice'), 'Practice');
+const PublicBoard = page(() => import('./pages/PublicBoard'), 'PublicBoard');
 const Live = page(() => import('./pages/staff/Live'), 'Live');
 const Grading = page(() => import('./pages/staff/Grading'), 'Grading');
 const Results = page(() => import('./pages/staff/Results'), 'Results');
@@ -70,6 +74,8 @@ export function App() {
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/account" element={<Account />} />
           <Route path="/c/:slug" element={<ContestPage />} />
+          <Route path="/c/:slug/board" element={<PublicBoard />} />
+          <Route path="/practice" element={<Practice />} />
           <Route path="/board" element={<BoardPage />} />
           <Route path="/waiver/:token" element={<WaiverPage />} />
           <Route path="/register" element={<Register />} />
@@ -81,7 +87,9 @@ export function App() {
             <Route path="people" element={<People />} />
             <Route path="waivers" element={<Waivers />} />
             <Route path="import" element={<Import />} />
+            <Route path="problems" element={<Problems />} />
             <Route path="rounds" element={<Rounds />} />
+            <Route path="preview/:roundId" element={<RoundPreview />} />
             <Route path="live" element={<Live />} />
             <Route path="grading" element={<Grading />} />
             <Route path="results" element={<Results />} />
