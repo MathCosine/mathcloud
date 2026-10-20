@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { contestOf, signOut } from '../lib/actions';
+import { contestOf, signOut, usesWaivers } from '../lib/actions';
 import { enterAs, useUser } from '../lib/session';
 import { setActiveContest, useAllDB, useDB } from '../lib/store';
 import { Icon, type IconName } from './icons';
@@ -67,12 +67,14 @@ export function CommandPalette() {
     const go = (to: string) => () => navigate(to);
     const contest = contestOf(db) as ReturnType<typeof contestOf> | undefined;
     const director = user.role === 'director' || user.role === 'staff';
-    const out: Item[] = STAFF_PAGES.filter((p) => p.roles.includes(user.role)).map((p) => ({ id: p.to, group: 'Go to', label: p.label, icon: p.icon, words: p.words, run: go(p.to) }));
+    const out: Item[] = STAFF_PAGES.filter((p) => p.roles.includes(user.role) && (p.to !== '/staff/waivers' || !contest || usesWaivers(contest))).map((p) => ({ id: p.to, group: 'Go to', label: p.label, icon: p.icon, words: p.words, run: go(p.to) }));
     if (director && contest) {
       out.push(
         { id: 'a-team', group: 'Do', label: 'Add a team', icon: 'plus', words: 'register new', run: go(`/register/${contest.slug}`) },
         { id: 'a-import', group: 'Do', label: 'Import a spreadsheet', icon: 'upload', words: 'csv teams students problems answers', run: go('/staff/import') },
-        { id: 'a-remind', group: 'Do', label: 'Remind guardians about waivers', icon: 'send', words: 'email', run: go('/staff/waivers') },
+        ...(usesWaivers(contest) ? [{ id: 'a-remind', group: 'Do', label: 'Remind guardians about waivers', icon: 'send' as const, words: 'email', run: go('/staff/waivers') }] : []),
+        { id: 'a-problems', group: 'Do', label: 'Enter problems and answers', icon: 'sigma', words: 'key latex', run: go('/staff/problems') },
+        { id: 'a-signins', group: 'Do', label: 'Make student sign-ins', icon: 'key', words: 'logins passwords usernames', run: go('/staff/people?tab=signins') },
         { id: 'a-board', group: 'Do', label: 'Show the Guts board on a projector', icon: 'board', words: 'scoreboard live screen', run: go('/board') },
         { id: 'a-public', group: 'Do', label: 'Open the public contest page', icon: 'external', words: 'link share', run: go(`/c/${contest.slug}`) },
         { id: 'a-new', group: 'Do', label: 'Start a new contest', icon: 'plus', words: 'create', run: go('/staff/new') },

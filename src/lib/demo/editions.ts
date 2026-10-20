@@ -22,12 +22,25 @@ export function splitEditions(db: DB): DB {
   const onlineRounds: Round[] = both.rounds.map((r) => ({ ...r, id: remap(r.id), problems: r.problems.map((p) => ({ ...p, id: remap(p.id), answers: [...p.answers] })) }));
   // SFMO's organisers enter every team; coaches never need an account.
   const registration = { ...both.registration, coaches: false };
+  const details = {
+    about: 'The San Francisco Math Open is a free contest for middle and high school students: an Individual round, a team round whose format is a surprise, and Guts, played against the clock on a live leaderboard. Students in the Bay Area come to the Embarcadero; everyone else takes part online at the same moment.',
+    contactEmail: 'hello@sfmathopen.org',
+    website: 'https://sfmathopen.org',
+    faq: [
+      { q: 'Who can take part?', a: 'Students in grades 6 to 12, in teams of one to four.' },
+      { q: 'Are calculators allowed?', a: 'No calculators, notes or other tabs. Pencil and paper are fine.' },
+      { q: 'When are results out?', a: 'Each student gets their score report by email the week after.' },
+    ],
+    public: true,
+    publicBoard: true,
+  };
   const inPerson: Contest = {
     ...both,
     registration,
     divisions: [inPersonDivision],
     rooms: [],
     agenda: both.agenda.filter((a) => a.modes.includes('in_person')).map((a) => ({ ...a, modes: ['in_person'] })),
+    details,
     linkedId: ONLINE_ID,
   };
   const online: Contest = {
@@ -35,6 +48,7 @@ export function splitEditions(db: DB): DB {
     id: ONLINE_ID,
     slug: ONLINE_ID,
     registration,
+    details,
     divisions: [onlineDivision],
     rounds: onlineRounds,
     recipe: { ...both.recipe, weights: Object.fromEntries(Object.entries(both.recipe.weights).map(([k, v]) => [remap(k), v])), awards: both.recipe.awards.map((a) => ({ ...a, id: remap(a.id) })) },

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { deleteTeam, modeOf, setTeamStatus } from '../../lib/actions';
+import { deleteTeam, modeOf, setTeamStatus, usesWaivers } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { Team } from '../../lib/model';
 import { rosterHealth } from '../../lib/people';
@@ -19,6 +19,8 @@ type SortKey = 'team' | 'size' | 'waivers' | 'status' | 'reg';
 export function Teams() {
   const db = useDB();
   const contest = useContest();
+  // Waivers only where MathCloud collects them.
+  const waivers = usesWaivers(contest);
   const me = useUser()!;
   const navigate = useNavigate();
   const [ask, confirmNode] = useConfirm();
@@ -191,7 +193,7 @@ export function Teams() {
               <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setFocus(-1); }} items={[{ key: 'all', label: 'All' }, ...contest.divisions.map((d) => ({ key: d.id, label: d.name }))]} />
             )}
             <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Search teams, students, IDs" inputRef={search} />
-            <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}><Icon name="check" size={13} />Waiver missing</button>
+            {waivers && <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}><Icon name="check" size={13} />Waiver missing</button>}
             <button type="button" className="filter" aria-pressed={onlyPending} onClick={() => setOnlyPending((x) => !x)}><Icon name="check" size={13} />Pending</button>
             <button type="button" className="filter" aria-pressed={hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}><Icon name="check" size={13} />Hide withdrawn</button>
             <span className="grow" />
@@ -205,7 +207,7 @@ export function Teams() {
                   <th><Sort k="team">Team</Sort></th>
                   {contest.divisions.length > 1 && <th>Takes part</th>}
                   <th className="num"><Sort k="size">Students</Sort></th>
-                  <th><Sort k="waivers">Waivers</Sort></th>
+                  {waivers && <th><Sort k="waivers">Waivers</Sort></th>}
                   <th>Contact</th>
                   <th><Sort k="status">Status</Sort></th>
                   <th className="num"><Sort k="reg">Registered</Sort></th>
@@ -226,7 +228,7 @@ export function Teams() {
                       <td><span className="code">{t.code}</span><span className="name">{t.name}</span><div className="muted tiny pp-sub">{t.school}{t.city ? `, ${t.city}` : ''}</div></td>
                       {contest.divisions.length > 1 && <td><ModeChip mode={modeOf(contest, t)} /></td>}
                       <td className={`num ${off && live(t) ? 'wait' : 'soft'}`}>{n}</td>
-                      <td>{!live(t) || !n ? <span className="muted">–</span> : <WaiverMark list={members(t)} miss={miss} />}</td>
+                      {waivers && <td>{!live(t) || !n ? <span className="muted">–</span> : <WaiverMark list={members(t)} miss={miss} />}</td>}
                       <td className="soft"><span className="ellipsis">{t.contactName}</span></td>
                       <td><State tone={STATUS[t.status][0]}>{STATUS[t.status][1]}</State></td>
                       <td className="num muted">{day(t.registeredAt)}</td>

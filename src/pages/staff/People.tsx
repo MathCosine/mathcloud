@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { checkIn, deleteTeam, modeOf, offers } from '../../lib/actions';
+import { checkIn, deleteTeam, modeOf, offers, usesWaivers } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { Competitor, Team, User } from '../../lib/model';
 import { contactsOf, rosterHealth, type DupStudent, type DupTeam } from '../../lib/people';
@@ -87,6 +87,7 @@ export function People() {
 function Students({ onOpen, initialQ }: { onOpen: (id: string) => void; initialQ: string }) {
   const db = useDB();
   const contest = useContest();
+  const waivers = usesWaivers(contest);
   const [q, setQ] = useState(initialQ);
   const [onlyMissing, setOnlyMissing] = useState(false);
   const [hideWithdrawn, setHideWithdrawn] = useState(true);
@@ -128,7 +129,7 @@ function Students({ onOpen, initialQ }: { onOpen: (id: string) => void; initialQ
     <section className="card flush">
       <div className="toolbar pp-toolbar">
         <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Name, ID, team, guardian" inputRef={search} />
-        <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}><Icon name="check" size={13} />Waiver missing</button>
+        {waivers && <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}><Icon name="check" size={13} />Waiver missing</button>}
         <button type="button" className="filter" aria-pressed={!hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}><Icon name="check" size={13} />Include withdrawn</button>
         <span className="grow" />
         <span className="pp-count-label" title="Keyboard: / search, j and k move, Enter opens">{rows.length} shown</span>
@@ -137,7 +138,7 @@ function Students({ onOpen, initialQ }: { onOpen: (id: string) => void; initialQ
       <div className="table-scroll">
         <table className="t">
           <thead>
-            <tr><th>ID</th><th>Name</th><th className="num">Grade</th><th>Team</th><th>Guardian</th><th>Waiver</th><th>Checked in</th><th>Signs in with</th></tr>
+            <tr><th>ID</th><th>Name</th><th className="num">Grade</th><th>Team</th><th>Guardian</th>{waivers && <th>Waiver</th>}<th>Checked in</th><th>Signs in with</th></tr>
           </thead>
           <tbody>
             {rows.length === 0 && <tr className="empty"><td colSpan={8}>Nobody matches. <button className="linkbtn" type="button" onClick={() => { setQ(''); setOnlyMissing(false); }}>Clear filters</button></td></tr>}
@@ -154,7 +155,7 @@ function Students({ onOpen, initialQ }: { onOpen: (id: string) => void; initialQ
                     <span className="soft">{c.guardianName || <span className="muted">No name</span>}</span>
                     {c.guardianEmail ? <small>{c.guardianEmail}</small> : <small className="wait">No email</small>}
                   </td>
-                  <td>{c.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone={t.status === 'withdrawn' ? 'off' : 'wait'}>Missing</State>}</td>
+                  {waivers && <td>{c.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone={t.status === 'withdrawn' ? 'off' : 'wait'}>Missing</State>}</td>}
                   <td className="pp-time">{!inPerson ? <span className="muted">Online</span> : c.checkedInAt ? <span className="row" style={{ gap: 6 }}><Icon name="check-circle" size={14} className="ok" />{clock(c.checkedInAt)}</span> : <span className="muted">–</span>}</td>
                   <td className="soft">{acct ? <span className={`ellipsis ${acct.managed ? 'mono' : ''}`} title={acct.email}>{acct.email}</span> : <span className="muted">–</span>}</td>
                 </tr>
@@ -355,6 +356,7 @@ function Staff() {
 function CheckIn({ onOpen }: { onOpen: (id: string) => void }) {
   const db = useDB();
   const contest = useContest();
+  const waivers = usesWaivers(contest);
   const [q, setQ] = useState('');
   const search = useRef<HTMLInputElement>(null);
   const rows = useMemo(() => {
@@ -374,7 +376,7 @@ function CheckIn({ onOpen }: { onOpen: (id: string) => void }) {
     const c = rows.find(({ c }) => c.publicId.toLowerCase() === needle)?.c ?? (shown.length === 1 ? shown[0].c : undefined);
     if (!c) return toast('No such ID', q, 'a');
     if (c.checkedInAt) toast(`${c.publicId} is already here`, `Since ${clock(c.checkedInAt)}.`);
-    else if (!c.waiverSignedAt) toast(`${c.publicId} has no signed waiver`, 'A guardian can sign on a phone at the desk, or record a paper copy.', 'a');
+    else if (waivers && !c.waiverSignedAt) toast(`${c.publicId} has no signed waiver`, 'A guardian can sign on a phone at the desk, or record a paper copy.', 'a');
     else { checkIn(c.id); toast(`${c.publicId} ${c.name} checked in`, undefined, 'g'); }
     setQ('');
   };
@@ -390,7 +392,7 @@ function CheckIn({ onOpen }: { onOpen: (id: string) => void }) {
       </div>
       <div className="table-scroll">
         <table className="t">
-          <thead><tr><th>ID</th><th>Name</th><th>Team</th><th>Waiver</th><th>Arrived</th><th /></tr></thead>
+          <thead><tr><th>ID</th><th>Name</th><th>Team</th>{waivers && <th>Waiver</th>}<th>Arrived</th><th /></tr></thead>
           <tbody>
             {shown.length === 0 && <tr className="empty"><td colSpan={6}>{rows.length ? 'Nobody matches.' : 'No in-person students.'}</td></tr>}
             {shown.map(({ c, t }) => (
@@ -398,13 +400,13 @@ function CheckIn({ onOpen }: { onOpen: (id: string) => void }) {
                 <td className="mono">{c.publicId}</td>
                 <td className="name"><button className="linkbtn pp-plain" type="button" onClick={() => onOpen(c.id)}>{c.name}</button></td>
                 <td className="soft"><span className="ellipsis">{t.name}</span></td>
-                <td>{c.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone="wait">Missing</State>}</td>
+                {waivers && <td>{c.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone="wait">Missing</State>}</td>}
                 <td className="pp-time">{c.checkedInAt ? <span className="row" style={{ gap: 8 }}><span className="pp-tick"><Icon name="check" size={12} /></span>{clock(c.checkedInAt)}</span> : <span className="muted">–</span>}</td>
                 <td className="num">
                   {c.checkedInAt ? (
                     <span className="pp-acts pp-fade"><button className="icon-btn" type="button" aria-label={`Undo check-in for ${c.name}`} title="Undo check-in" onClick={() => checkIn(c.id)}><Icon name="undo" size={15} /></button></span>
                   ) : (
-                    <button className="btn btn-sm" type="button" disabled={!c.waiverSignedAt} title={c.waiverSignedAt ? undefined : 'No signed waiver yet'} onClick={() => checkIn(c.id)}><Icon name="check" size={13} />Check in</button>
+                    <button className="btn btn-sm" type="button" disabled={waivers && !c.waiverSignedAt} title={!waivers || c.waiverSignedAt ? undefined : 'No signed waiver yet'} onClick={() => checkIn(c.id)}><Icon name="check" size={13} />Check in</button>
                   )}
                 </td>
               </tr>
@@ -421,6 +423,7 @@ function CheckIn({ onOpen }: { onOpen: (id: string) => void }) {
 function IdCheck({ onOpenStudent, onOpenTeam }: { onOpenStudent: (id: string) => void; onOpenTeam: (id: string) => void }) {
   const db = useDB();
   const contest = useContest();
+  const waivers = usesWaivers(contest);
   const me = useUser()!;
   const [ask, confirmNode] = useConfirm();
   const h = useMemo(() => rosterHealth(db.teams, db.competitors, contest.registration), [db, contest.registration]);
@@ -491,7 +494,7 @@ function IdCheck({ onOpenStudent, onOpenTeam }: { onOpenStudent: (id: string) =>
     <div className="stack-lg">
       <div className={`pp-banner ${h.total ? 'amber' : 'green'}`}>
         <Icon name={h.total ? 'warning' : 'check-circle'} size={18} />
-        {h.total ? <span><b>{h.total} {h.total === 1 ? 'thing' : 'things'} to look at.</b> Click a name to open it and fix it there.</span> : <span><b>The roster looks clean.</b> No duplicates, IDs match, and every student can get a waiver.</span>}
+        {h.total ? <span><b>{h.total} {h.total === 1 ? 'thing' : 'things'} to look at.</b> Click a name to open it and fix it there.</span> : <span><b>The roster looks clean.</b> No duplicates, IDs match, and every student has a guardian email.</span>}
       </div>
 
       <section className="card flush pp-checks">
@@ -540,7 +543,7 @@ function IdCheck({ onOpenStudent, onOpenTeam }: { onOpenStudent: (id: string) =>
         {h.sizes.map((s) => <Line key={s.team.id}><T t={s.team} /><span className="wait">{s.count} {s.count === 1 ? 'student' : 'students'}, {s.kind === 'over' ? `more than ${s.limit}` : `fewer than ${s.limit}`}</span></Line>)}
       </Check>
 
-      <Check title="No guardian email" n={h.noGuardianEmail.length} hint="Nobody can be sent their waiver. Add an email, or record a paper copy.">
+      <Check title="No guardian email" n={h.noGuardianEmail.length} hint={waivers ? 'Nobody can be sent their waiver. Add an email, or record a paper copy.' : 'Nobody can be sent their score report or sign-in. Add an email.'}>
         {h.noGuardianEmail.map((c) => <Line key={c.id}><S c={c} /><span className="soft">{c.guardianName || 'No guardian name'}</span></Line>)}
       </Check>
 

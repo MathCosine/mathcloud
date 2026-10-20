@@ -490,7 +490,7 @@ SF Math Initiative`,
   ];
 
   return {
-    schema: 5,
+    schema: 6,
     gen: `${moment}-${now.getTime()}`,
     moment,
     seededAt: now.toISOString(),

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { importStudents, importTeams, linkedEdition, offers, saveTeam, undoImport, type NewTeam } from '../../../lib/actions';
+import { importStudents, importTeams, linkedEdition, offers, saveTeam, undoImport, usesWaivers, type NewTeam } from '../../../lib/actions';
 import { buildPlan, guessMapping, parseCsv, SAMPLE_CSV, STUDENT_FIELDS, TEAM_FIELDS, type Mapping, type StudentField, type TeamField } from '../../../lib/csv';
 import { dedupeTeams, defaultTeamAction, isDuplicate, summarizeTeams, type TeamAction, type TeamRow } from '../../../lib/importers';
 import { useContest } from '../../../lib/hooks';
@@ -26,6 +26,8 @@ export function TeamsImport() {
   // Rows for the other way of taking part go to the linked edition.
   const offered = [...new Set([...contest.divisions, ...(other?.divisions ?? [])].map((d) => d.mode))];
   const [waivers, setWaivers] = useState<'none' | 'all' | 'file'>('none');
+  // Organisers who enter every team collected waivers themselves: nothing to bring over.
+  const collects = usesWaivers(contest);
   const [waiverNote, setWaiverNote] = useState('Collected before MathCloud');
   const [numbering, setNumbering] = useState<'ours' | 'file'>('file');
   const [defaultMode, setDefaultMode] = useState<DivisionMode | null>(offered.length === 1 ? offered[0] : null);
@@ -72,7 +74,7 @@ export function TeamsImport() {
       code: numbering === 'file' && t.code && !takenCodes.has(t.code.toUpperCase()) ? t.code : undefined,
       externalId: t.externalId,
       allowDuplicate: !!(t.existing || t.fileDupOf),
-      students: t.students.map(({ fileWaiver, ...s }) => ({ ...s, waiverSignedBy: waivers === 'all' || (waivers === 'file' && fileWaiver) ? waiverNote.trim() || 'Collected before MathCloud' : null })),
+      students: t.students.map(({ fileWaiver, ...s }) => ({ ...s, waiverSignedBy: collects && (waivers === 'all' || (waivers === 'file' && fileWaiver)) ? waiverNote.trim() || 'Collected before MathCloud' : null })),
     });
     let made = 0;
     let teamIds: string[] = [];
@@ -117,7 +119,7 @@ export function TeamsImport() {
           body={<>{result.added ? `${result.added} ${result.added === 1 ? 'student' : 'students'} added to existing teams. ` : ''}Every student has a competitor ID.{[result.skipped && ` ${result.skipped} skipped as duplicates`, result.blocked && ` ${result.blocked} left out with problems`].filter(Boolean).join(',')}{result.skipped || result.blocked ? '.' : ''}</>}
         >
           <Link className="btn btn-primary" to="/staff/teams">Go to Teams</Link>
-          {waivers === 'none' && result.made > 0 && <Link className="btn" to="/staff/waivers"><Icon name="send" />Ask guardians for waivers</Link>}
+          {collects && waivers === 'none' && result.made > 0 && <Link className="btn" to="/staff/waivers"><Icon name="send" />Ask guardians for waivers</Link>}
           <button className="btn" type="button" onClick={restart}>Import another file</button>
           {result.teamIds.length > 0 && (
             <button className="btn btn-quiet" type="button" onClick={() => {
@@ -221,7 +223,8 @@ export function TeamsImport() {
   return (
     <>
       <Steps at={3} onGo={setStep} onRestart={restart} />
-      <section className="card imp-options">
+      {(collects || hasCodes || !!other) && <section className="card imp-options">
+        {collects && (
         <div className="imp-opt">
           <div className="imp-opt-label"><Icon name="waivers" /><span><b>Waivers</b><small>{newStudents} students in new teams</small></span></div>
           <div className="stack" style={{ gap: 8 }}>
@@ -240,6 +243,7 @@ export function TeamsImport() {
             )}
           </div>
         </div>
+        )}
         {hasCodes && (
           <div className="imp-opt">
             <div className="imp-opt-label"><Icon name="ticket" /><span><b>Team numbers</b><small>Student IDs follow them: 07A, 07B…</small></span></div>
@@ -255,7 +259,7 @@ export function TeamsImport() {
             </p>
           </div>
         )}
-      </section>
+      </section>}
       <Duplicates<TeamAction>
         title={dups.length === 1 ? 'row looks like a team you already have' : 'rows look like teams you already have'}
         note="Nothing is merged without you. Skip a row, update the team that is there, or add it anyway."

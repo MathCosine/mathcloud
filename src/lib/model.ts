@@ -162,6 +162,19 @@ export type Contest = {
    * two contests, each the other's edition: problems copied once, results apart.
    */
   linkedId?: string;
+  /** The public event page, and whether the live Guts leaderboard is public. */
+  details?: ContestDetails;
+};
+
+export type ContestDetails = {
+  about?: string;
+  contactEmail?: string;
+  website?: string;
+  faq?: { q: string; a: string }[];
+  /** The event page at /c/<slug>. On unless turned off. */
+  public?: boolean;
+  /** The live Guts leaderboard at /c/<slug>/board, for anyone. On unless turned off. */
+  publicBoard?: boolean;
 };
 
 export type TeamStatus = 'pending' | 'confirmed' | 'withdrawn';

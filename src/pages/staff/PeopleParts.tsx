@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  addCompetitor, checkIn, deleteTeam, MODE_LABEL, modeOf, moveCompetitor, removeCompetitor, saveCompetitor, saveTeam, setTeamMode, setTeamStatus,
+  addCompetitor, checkIn, deleteTeam, MODE_LABEL, modeOf, moveCompetitor, removeCompetitor, saveCompetitor, saveTeam, setTeamMode, setTeamStatus, usesWaivers,
 } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { Competitor, Team } from '../../lib/model';
@@ -121,6 +121,8 @@ export function copy(text: string, what: string) {
 export function WaiverLine({ c, live = true, compact }: { c: Competitor; live?: boolean; compact?: boolean }) {
   const me = useUser()!;
   const [busy, setBusy] = useState(false);
+  // Organisers who enter every team collected waivers themselves.
+  if (!usesWaivers(useContest())) return null;
   if (c.waiverSignedAt) {
     const { who, how } = waiverHow(c);
     return (
@@ -206,6 +208,7 @@ function StudentCard({ c, live, onRemove, fresh }: { c: Competitor; live: boolea
 
 function AddStudent({ team, full }: { team: Team; full: boolean }) {
   const me = useUser()!;
+  const contest = useContest();
   const blank = { name: '', grade: '', guardianName: '', guardianEmail: '' };
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
@@ -221,7 +224,7 @@ function AddStudent({ team, full }: { team: Team; full: boolean }) {
     }
     setBusy(false);
     if (err) return toast('Not added', err, 'r');
-    toast(`${f.name.trim()} added to ${team.name}`, f.guardianEmail ? 'The guardian gets a waiver request.' : 'Add a guardian email so they can sign the waiver.', 'g');
+    toast(`${f.name.trim()} added to ${team.name}`, !usesWaivers(contest) ? undefined : f.guardianEmail ? 'The guardian gets a waiver request.' : 'Add a guardian email so they can sign the waiver.', 'g');
     setF(blank);
   };
   if (full) return <p className="pp-full"><Icon name="info" size={15} />The team is full. Move or remove a student to add another.</p>;
@@ -518,11 +521,13 @@ export function StudentDrawer({ id, onClose, onOpenTeam }: { id: string | null; 
                 <dt>Move</dt><dd><MoveSelect c={c} /></dd>
               </dl>
             </section>
-            <section>
-              <h3><Icon name="waivers" size={15} />Waiver</h3>
-              <WaiverLine c={c} live={t.status !== 'withdrawn'} />
-              {!c.guardianEmail && <p className="wait small" style={{ marginTop: 8 }}>No guardian email: add one so the waiver can be sent.</p>}
-            </section>
+            {usesWaivers(contest) && (
+              <section>
+                <h3><Icon name="waivers" size={15} />Waiver</h3>
+                <WaiverLine c={c} live={t.status !== 'withdrawn'} />
+                {!c.guardianEmail && <p className="wait small" style={{ marginTop: 8 }}>No guardian email: add one so the waiver can be sent.</p>}
+              </section>
+            )}
             <section>
               <h3><Icon name="calendar" size={15} />Contest day</h3>
               <dl className="dl">
@@ -530,7 +535,7 @@ export function StudentDrawer({ id, onClose, onOpenTeam }: { id: string | null; 
                   <>
                     <dt>Check-in</dt>
                     <dd className="row">{c.checkedInAt ? <State tone="ok">Here since {stamp(c.checkedInAt)}</State> : <span className="muted">Not yet</span>}
-                      <button className={`btn btn-sm ${c.checkedInAt ? 'btn-quiet' : ''}`} type="button" disabled={!c.waiverSignedAt && !c.checkedInAt} onClick={() => checkIn(c.id)}>{c.checkedInAt ? 'Undo' : <><Icon name="check" size={13} />Check in</>}</button>
+                      <button className={`btn btn-sm ${c.checkedInAt ? 'btn-quiet' : ''}`} type="button" disabled={usesWaivers(contest) && !c.waiverSignedAt && !c.checkedInAt} onClick={() => checkIn(c.id)}>{c.checkedInAt ? 'Undo' : <><Icon name="check" size={13} />Check in</>}</button>
                     </dd>
                   </>
                 ) : (

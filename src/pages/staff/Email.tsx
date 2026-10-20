@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
-import { addEmailKey, removeEmailKey, saveEmailKey, saveTemplate } from '../../lib/actions';
+import { addEmailKey, removeEmailKey, saveEmailKey, saveTemplate, usesWaivers } from '../../lib/actions';
 import { useContest, useStandings } from '../../lib/hooks';
 import type { EmailKey, EmailSend, EmailTemplate } from '../../lib/model';
 import { useDB, REMOTE } from '../../lib/store';
@@ -65,10 +65,10 @@ export function Email() {
 
 // -------------------------------------------------------------------- compose
 
-function filterItems(divisions: { id: string; name: string }[]): { key: Filter; label: string }[] {
+function filterItems(divisions: { id: string; name: string }[], waivers = true): { key: Filter; label: string }[] {
   return [
     { key: 'all', label: 'Everyone' },
-    { key: 'missing_waivers', label: 'Missing waivers' },
+    ...(waivers ? [{ key: 'missing_waivers' as Filter, label: 'Missing waivers' }] : []),
     { key: 'pending', label: 'Pending teams' },
     ...divisions.map((d) => ({ key: `div:${d.id}` as Filter, label: `${d.name} division` })),
   ];
@@ -191,7 +191,7 @@ function Compose({ initial, slot }: { initial: string | null; slot: HTMLElement 
           <div className="row wrap" style={{ gap: 12 }}>
             <Segmented label="Audience" value={audience} onChange={(a) => { setAudience(a); setWho(0); }} items={(['contacts', 'guardians', 'students'] as Audience[]).map((a) => ({ key: a, label: AUDIENCE_LABEL[a] }))} />
             <select className="select" style={{ width: 'auto' }} aria-label="Filter" value={filter} onChange={(e) => { setFilter(e.target.value as Filter); setWho(0); }}>
-              {filterItems(contest.divisions).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+              {filterItems(contest.divisions, usesWaivers(contest)).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
             </select>
           </div>
           <small className="ml-count"><b><Roll value={targets.length} /></b> of {list.length} {AUDIENCE_LABEL[audience].toLowerCase()} get this.{have.size > 0 && !again ? ` ${have.size} already have it and are skipped.` : ''}</small>

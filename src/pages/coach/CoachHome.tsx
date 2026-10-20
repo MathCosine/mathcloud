@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { modeOf, remindWaiver } from '../../lib/actions';
+import { modeOf, remindWaiver, usesWaivers } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { Contest, Round, Team, User } from '../../lib/model';
 import { useUser } from '../../lib/session';
@@ -61,6 +61,7 @@ function CoachPage({ user }: { user: User }) {
   const phase = contest.resultsPublished ? 'after' : states.some((s) => s !== 'scheduled') ? 'day' : 'before';
   const students = db.competitors.filter((c) => teams.some((t) => t.id === c.teamId));
   const signed = students.filter((c) => c.waiverSignedAt).length;
+  const waivers = usesWaivers(contest);
 
   return (
     <PortalLayout>
@@ -70,7 +71,7 @@ function CoachPage({ user }: { user: User }) {
             <h1 className="pt-title">{teams.length === 1 ? teams[0].name : 'Your teams'}</h1>
             <p className="pt-meta">
               <span>{teams.length} {teams.length === 1 ? 'team' : 'teams'}, {students.length} students</span>
-              {students.length > 0 && phase !== 'after' && (signed === students.length ? <State tone="ok">All waivers signed</State> : <State tone="wait">{students.length - signed} {students.length - signed === 1 ? 'waiver' : 'waivers'} missing</State>)}
+              {waivers && students.length > 0 && phase !== 'after' && (signed === students.length ? <State tone="ok">All waivers signed</State> : <State tone="wait">{students.length - signed} {students.length - signed === 1 ? 'waiver' : 'waivers'} missing</State>)}
               {modes.map((m) => <ModeChip key={m} mode={m} />)}
             </p>
           </div>
@@ -144,7 +145,7 @@ function Checklist({ teams, now }: { teams: Team[]; now: number }) {
 
   const items: NextItem[] = [
     { done: !contest.registration.open, title: contest.registration.open ? 'Finish the roster' : 'Roster set', sub: contest.registration.open ? 'Add, edit or move students, or switch in person / online.' : 'Registration closed. The organisers can still make changes.', when: contest.registration.open ? `Until ${contest.registration.closesLabel}` : `Closed ${contest.registration.closesLabel}`, ongoing: true, action: <button className="btn" type="button" onClick={() => jump(`team-${teams[0].id}`)}>Open the roster</button> },
-    { done: all.length > 0 && all.every((c) => c.waiverSignedAt), title: 'Waivers signed', sub: `${all.length - unsigned.length} of ${all.length}. Nobody competes without one.${unsigned.length ? ` Waiting: ${unsigned.map((c) => c.name).join(', ')}.` : ''}`, when: `Before ${day}`, action: toRemind.length ? <button className="btn btn-primary" type="button" onClick={remindAll}><Icon name="mail" />Remind {toRemind.length} {toRemind.length === 1 ? 'guardian' : 'guardians'}</button> : <span className="pt-sent"><Icon name="check" size={14} />Reminders sent</span> },
+    ...(!usesWaivers(contest) ? [] : [{ done: all.length > 0 && all.every((c) => c.waiverSignedAt), title: 'Waivers signed', sub: `${all.length - unsigned.length} of ${all.length}. Nobody competes without one.${unsigned.length ? ` Waiting: ${unsigned.map((c) => c.name).join(', ')}.` : ''}`, when: `Before ${day}`, action: toRemind.length ? <button className="btn btn-primary" type="button" onClick={remindAll}><Icon name="mail" />Remind {toRemind.length} {toRemind.length === 1 ? 'guardian' : 'guardians'}</button> : <span className="pt-sent"><Icon name="check" size={14} />Reminders sent</span> }]),
     ...(online.length ? [
       { done: onl.length > 0 && onl.every((c) => c.deviceCheckedAt), title: 'Device checks', sub: `${onl.filter((c) => c.deviceCheckedAt).length} of ${onl.length}. Each student runs it from their own page, on the computer they will use.`, when: `Before ${day}` },
       { done: onl.length > 0 && onl.every((c) => db.users.some((u) => u.competitorId === c.id)), title: 'Hand out sign-ins', sub: 'Print or copy each student’s username and password from Student sign-ins on each team.', when: `Before ${day}`, action: <button className="btn" type="button" onClick={() => jump(`team-${online[0].id}`)}><Icon name="ticket" />Student sign-ins</button> },

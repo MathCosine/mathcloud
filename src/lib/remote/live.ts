@@ -13,7 +13,7 @@ import { getDB, replaceDB, setActiveContest as storeSetActive, setReady, setSess
 import { setContestSwitchHook } from '../store-hooks';
 import { client, sb } from './client';
 import { loadAll } from './load';
-import { contestFlags, mapAttempt, mapClarification, mapCompetitor, mapEvent, mapResponse, mapResult, mapRows, mapTeam, roundFields, type Row } from './map';
+import { contestFlags, detailsOf, mapAttempt, mapClarification, mapCompetitor, mapEvent, mapResponse, mapResult, mapRows, mapTeam, roundFields, type Row } from './map';
 
 let uid: string | null = null;
 let email: string | null = null;
@@ -157,7 +157,7 @@ function patch(table: string, type: string, row: Row, old: Row) {
     switch (table) {
       case 'contests': {
         const c = d.contests.find((x) => x.id === row.id);
-        if (c && !del) Object.assign(c, contestFlags(row), { name: row.name, short: row.short_name, timeZone: row.time_zone });
+        if (c && !del) Object.assign(c, contestFlags(row), { name: row.name, short: row.short_name, timeZone: row.time_zone, details: detailsOf(row.details), linkedId: row.linked_id ?? undefined });
         if (c && !del && row.recipe?.teamIndividual) c.recipe = row.recipe;
         if (c && !del && row.venue && c.venue) Object.assign(c.venue, { name: row.venue.name ?? '', address: row.venue.address ?? '', hall: row.venue.hall ?? '', bring: row.venue.bring ?? [] });
         break;

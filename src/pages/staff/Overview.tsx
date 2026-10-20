@@ -4,7 +4,7 @@ import { useContest, useStandings } from '../../lib/hooks';
 import type { Round } from '../../lib/model';
 import { useDB } from '../../lib/store';
 import { clockIn, duration, roundEnds, roundState } from '../../lib/time';
-import { contestOf, modeOf, offers } from '../../lib/actions';
+import { contestOf, modeOf, offers, usesWaivers } from '../../lib/actions';
 import { Ring, Spark } from '../../components/charts';
 import { Icon, type IconName } from '../../components/icons';
 import { ModeChip, Roll, State, useNow } from '../../components/ui';
@@ -42,6 +42,14 @@ export function Overview() {
   const nextRound = contest.rounds.find((_, i) => states[i] === 'scheduled');
   const keyed = contest.rounds.flatMap((r) => r.problems).filter((p) => p.answers.join('').trim()).length;
   const problemCount = contest.rounds.flatMap((r) => r.problems).length;
+  // Waivers only where MathCloud collects them (not when the organisers enter every team).
+  const waivers = usesWaivers(contest);
+  // Contest-day readiness for online: every student can sign in, every problem has its text, every room a link.
+  const withLogin = new Set(db.users.filter((u) => u.competitorId).map((u) => u.competitorId!));
+  const noLogin = onlineComps.filter((c) => !withLogin.has(c.id)).length;
+  const textGaps = contest.rounds.flatMap((r) => r.problems).filter((p) => !p.text.trim() || /^Problem \d+$/.test(p.text.trim())).length;
+  const roomsNoLink = contest.rooms.filter((r) => !r.url.trim()).length;
+  const keysReady = (db.orgs.find((o) => o.id === contest.orgId)?.emailKeys ?? []).some((k) => k.active);
   const pending = teams.filter((t) => t.status === 'pending').length;
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -51,20 +59,24 @@ export function Overview() {
     { n: locked, text: plural(locked, 'online test locked', 'online tests locked'), to: '/staff/live', go: 'Unlock', icon: 'lock' },
     { n: allDone ? 0 : unreviewed, text: plural(unreviewed, 'answer needs a ruling', 'answers need a ruling'), to: '/staff/grading', go: 'Rule on them', icon: 'grading' },
     { n: started && !allDone ? hereComps.length - checkedIn : 0, text: plural(hereComps.length - checkedIn, 'in-person student not checked in', 'in-person students not checked in'), to: '/staff/people?tab=checkin', go: 'Check in', icon: 'pin' },
-    { n: comps.length - signed, text: plural(comps.length - signed, 'waiver not signed', 'waivers not signed'), to: '/staff/waivers', go: 'Remind', icon: 'waivers' },
+    { n: waivers ? comps.length - signed : 0, text: plural(comps.length - signed, 'waiver not signed', 'waivers not signed'), to: '/staff/waivers', go: 'Remind', icon: 'waivers' },
     { n: pending, text: plural(pending, 'team waiting to be confirmed', 'teams waiting to be confirmed'), to: '/staff/teams', go: 'Review', icon: 'roster' },
   ] as Todo[]).filter((t) => t.n > 0);
 
   const ready: { ok: boolean; text: string; to: string; mode?: 'in_person' | 'online' }[] = [
     { ok: teams.length > 0, text: teams.length ? `${teams.length} teams registered` : 'Teams registered or imported', to: '/staff/teams' },
-    { ok: keyGaps === 0, text: keyGaps ? `Answer keys: ${keyed} of ${problemCount} filled in` : 'Answer keys complete', to: '/staff/rounds' },
-    { ok: comps.length > 0 && signed === comps.length, text: 'Every waiver signed', to: '/staff/waivers' },
+    { ok: problemCount > 0 && keyGaps === 0, text: keyGaps || !problemCount ? `Answer keys: ${keyed} of ${problemCount} filled in` : 'Answer keys complete', to: '/staff/problems' },
+    ...(waivers ? [{ ok: comps.length > 0 && signed === comps.length, text: 'Every waiver signed', to: '/staff/waivers' }] : []),
+    { ok: keysReady, text: keysReady ? 'A sending key for emails' : 'Add a sending key for emails (score reports, sign-ins)', to: '/staff/email?tab=keys' },
     ...(offers(contest, 'in_person') ? [
       { ok: !!contest.venue?.name, text: contest.venue?.name ? `Venue: ${contest.venue.name}` : 'Venue named', to: '/staff/settings', mode: 'in_person' as const },
       { ok: seatless === 0, text: 'Every in-person team has a room', to: '/staff/settings', mode: 'in_person' as const },
     ] : []),
     ...(offers(contest, 'online') ? [
       { ok: contest.rooms.length > 0 && roomless === 0, text: 'Every online team in a Zoom room', to: '/staff/settings', mode: 'online' as const },
+      { ok: contest.rooms.length > 0 && roomsNoLink === 0, text: roomsNoLink ? `${roomsNoLink} Zoom ${roomsNoLink === 1 ? 'room has' : 'rooms have'} no link` : 'Every Zoom room has its link', to: '/staff/settings', mode: 'online' as const },
+      { ok: onlineComps.length > 0 && noLogin === 0, text: noLogin ? `${noLogin} online ${noLogin === 1 ? 'student has' : 'students have'} no sign-in` : 'Every online student can sign in', to: '/staff/people?tab=signins', mode: 'online' as const },
+      { ok: textGaps === 0, text: textGaps ? `${textGaps} ${textGaps === 1 ? 'problem has' : 'problems have'} no text for the online test` : 'Every problem has its text for the online test', to: '/staff/problems', mode: 'online' as const },
       { ok: contest.rooms.length > 0 && contest.rooms.every((r) => r.proctorId), text: 'Every Zoom room has a proctor', to: '/staff/settings', mode: 'online' as const },
     ] : []),
   ];
@@ -147,13 +159,23 @@ export function Overview() {
             <Spark dates={teams.map((t) => t.registeredAt)} width={96} height={34} />
           </div>
         </Link>
-        <Link to="/staff/waivers" className="figure fig-link">
-          <div className="top-label"><Icon name="waivers" size={14} />Waivers</div>
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span><b><Roll value={signed} /></b><span>of {comps.length} signed</span></span>
-            <Ring value={signed} total={comps.length} size={44} tone={signed === comps.length ? 'green' : 'amber'} label={`${signed} of ${comps.length} waivers signed`} />
-          </div>
-        </Link>
+        {waivers ? (
+          <Link to="/staff/waivers" className="figure fig-link">
+            <div className="top-label"><Icon name="waivers" size={14} />Waivers</div>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span><b><Roll value={signed} /></b><span>of {comps.length} signed</span></span>
+              <Ring value={signed} total={comps.length} size={44} tone={signed === comps.length ? 'green' : 'amber'} label={`${signed} of ${comps.length} waivers signed`} />
+            </div>
+          </Link>
+        ) : (
+          <Link to="/staff/problems" className="figure fig-link">
+            <div className="top-label"><Icon name="sigma" size={14} />Answer keys</div>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span><b><Roll value={keyed} /></b><span>of {problemCount} answered</span></span>
+              <Ring value={keyed} total={problemCount} size={44} tone={keyed === problemCount && problemCount > 0 ? 'green' : 'amber'} label={`${keyed} of ${problemCount} answers in`} />
+            </div>
+          </Link>
+        )}
         {offers(contest, 'in_person') && (
           <Link to="/staff/people?tab=checkin" className="figure fig-link">
             <div className="top-label"><ModeChip mode="in_person">{here.length} teams</ModeChip></div>
@@ -180,7 +202,7 @@ export function Overview() {
           )}
         </div>
         {allReady && (
-          <p className="row ov-allready"><span className="ov-tick"><Icon name="check" size={13} /></span>All {ready.length} checks pass: teams, answer keys, waivers and rooms.</p>
+          <p className="row ov-allready"><span className="ov-tick"><Icon name="check" size={13} /></span>All {ready.length} checks pass.</p>
         )}
         <div className={`ov-fold ${!allReady || showReady ? 'open' : ''}`} inert={allReady && !showReady}>
           <div>

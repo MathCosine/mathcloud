@@ -116,6 +116,11 @@ export const saveRegistration = (contestId: string, reg: Contest['registration']
 export const saveVenue = (contestId: string, venue: Contest['venue']) =>
   ok('Venue not saved', table('contests').update({ venue: venue ? { name: venue.name, address: venue.address, hall: venue.hall, bring: venue.bring } : null }).eq('id', contestId));
 
+export const saveDetails = (contestId: string, d: NonNullable<Contest['details']>) =>
+  ok('Event page not saved', table('contests').update({
+    details: { about: d.about ?? '', contact_email: d.contactEmail ?? '', website: d.website ?? '', faq: d.faq ?? [], public: d.public !== false, public_board: d.publicBoard !== false },
+  }).eq('id', contestId));
+
 export const saveContestBasics = (c: Contest) =>
   ok('Contest not saved', table('contests').update({ name: c.name, short_name: c.short, time_zone: c.timeZone, date_label: c.dateLabel }).eq('id', c.id));
 

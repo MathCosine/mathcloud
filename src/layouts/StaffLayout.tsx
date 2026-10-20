@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { contestOf } from '../lib/actions';
+import { contestOf, usesWaivers } from '../lib/actions';
 import { useStandings } from '../lib/hooks';
 import { contestInitials, homeFor, useUser } from '../lib/session';
 import { setActiveContest, useAllDB, useDB } from '../lib/store';
@@ -115,7 +115,8 @@ function SideNav() {
     '/staff/live': { n: waiting || undefined, hot: waiting > 0, live: isLive && !waiting },
     '/staff/grading': { n: toRule || undefined, hot: toRule > 0 },
   };
-  const pages = STAFF_PAGES.filter((p) => p.roles.includes(user.role));
+  // No Waivers page where the organisers collected waivers themselves.
+  const pages = STAFF_PAGES.filter((p) => p.roles.includes(user.role) && (p.to !== '/staff/waivers' || usesWaivers(contest)));
 
   useLayoutEffect(() => {
     const el = navRef.current?.querySelector<HTMLElement>('a.on');

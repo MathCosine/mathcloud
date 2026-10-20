@@ -38,7 +38,7 @@ function storageSet(key: string, value: string) {
 
 export function emptyDB(): DB {
   return {
-    schema: 5, gen: 'remote', moment: 'live', seededAt: new Date().toISOString(),
+    schema: 6, gen: 'remote', moment: 'live', seededAt: new Date().toISOString(),
     orgs: [], users: [], contests: [], teams: [], competitors: [], attempts: [], rulings: [],
     clarifications: [], templates: [], sends: [], activity: [], results: [],
   };
@@ -50,8 +50,8 @@ function load(): DB {
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as DB;
-      if (parsed.schema === 5 && Date.now() - new Date(parsed.seededAt).getTime() < 4 * 3600 * 1000) return parsed;
-      if (parsed.schema === 5 && parsed.moment !== 'live') return buildDemo(parsed.moment);
+      if (parsed.schema === 6 && Date.now() - new Date(parsed.seededAt).getTime() < 4 * 3600 * 1000) return parsed;
+      if (parsed.schema === 6 && parsed.moment !== 'live') return buildDemo(parsed.moment);
     } catch {
       /* fall through to a fresh sandbox */
     }

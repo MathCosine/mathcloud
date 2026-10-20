@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { modeOf } from '../../lib/actions';
+import { modeOf, usesWaivers } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { Competitor, Team } from '../../lib/model';
 import { normEmail } from '../../lib/people';
@@ -18,7 +18,28 @@ import '../../styles/dayof.css';
 
 type Row = { c: Competitor; t: Team };
 
+/** Where the organisers enter every team, they collected waivers themselves: MathCloud stays out of it. */
 export function Waivers() {
+  const contest = useContest();
+  if (!usesWaivers(contest)) {
+    return (
+      <div className="stack-lg">
+        <div className="page-head"><div><h1 className="page-title">Waivers</h1><p className="page-sub">Not used for {contest.short}.</p></div></div>
+        <section className="card stack" style={{ maxWidth: 640 }}>
+          <b>You collected waivers with your own sign-up</b>
+          <p className="soft" style={{ margin: 0 }}>
+            The organisers enter every team for this contest, so MathCloud sends no waiver links or reminders and checks nothing about waivers. To have
+            guardians sign online instead, let coaches register: Settings, Teams.
+          </p>
+          <div><Link className="btn" to="/staff/settings"><Icon name="settings" />Settings</Link></div>
+        </section>
+      </div>
+    );
+  }
+  return <WaiversPage />;
+}
+
+function WaiversPage() {
   const db = useDB();
   const contest = useContest();
   const me = useUser()!;

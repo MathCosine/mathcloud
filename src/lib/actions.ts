@@ -1247,6 +1247,25 @@ export function copyProblemsFrom(otherId: string): number {
   return n;
 }
 
+/**
+ * Does MathCloud collect waivers for this contest? Not when the organisers
+ * enter every team: they collected waivers with their own sign-up, so there
+ * are no waiver links, reminders or checks here.
+ */
+export const usesWaivers = (c: Pick<Contest, 'registration'>) => c.registration.coaches !== false;
+
+/** What the public event page says, and whether it (and the Guts leaderboard) is public. */
+export function saveContestDetails(patch: Partial<NonNullable<Contest['details']>>) {
+  update((db) => {
+    const c = contestOf(db);
+    c.details = { ...(c.details ?? {}), ...patch };
+  });
+  if (REMOTE) {
+    const c = contestOf(getDB());
+    void W.saveDetails(c.id, c.details ?? {});
+  }
+}
+
 /** Whether coaches use MathCloud (register, manage rosters) or the organisers enter everything. */
 export function setCoachesUseMathCloud(on: boolean) {
   setRegistration({ coaches: on });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { addCompetitor, modeOf, MODE_LABEL, offers, remindWaiver, removeCompetitor, saveCompetitor, setTeamMode } from '../../lib/actions';
+import { addCompetitor, modeOf, MODE_LABEL, offers, remindWaiver, removeCompetitor, saveCompetitor, setTeamMode, usesWaivers } from '../../lib/actions';
 import { ordinal, useContest } from '../../lib/hooks';
 import type { Competitor, DivisionMode, PublishedResult, Team } from '../../lib/model';
 import * as W from '../../lib/remote/write';
@@ -49,6 +49,7 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
   const full = members.length >= contest.registration.teamMax;
   const proctor = db.users.find((u) => u.id === zoom?.proctorId);
   const signed = members.filter((m) => m.waiverSignedAt).length;
+  const waivers = usesWaivers(contest);
   const devices = members.filter((m) => m.deviceCheckedAt).length;
   const teamRes = results.find((r) => r.teamId === team.id);
   const regOpen = contest.registration.open;
@@ -78,10 +79,12 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
       </div>
 
       <div className="pt-team-strip">
-        <div className="pt-stat">
-          <Ring value={signed} total={members.length} size={40} tone={signed === members.length && members.length ? 'green' : 'amber'} label={`${signed} of ${members.length} waivers signed`} />
-          <span><b>{signed} of {members.length}</b><small>waivers signed</small></span>
-        </div>
+        {waivers && (
+          <div className="pt-stat">
+            <Ring value={signed} total={members.length} size={40} tone={signed === members.length && members.length ? 'green' : 'amber'} label={`${signed} of ${members.length} waivers signed`} />
+            <span><b>{signed} of {members.length}</b><small>waivers signed</small></span>
+          </div>
+        )}
         {online && (
           <div className="pt-stat">
             <Ring value={devices} total={members.length} size={40} tone="blue" label={`${devices} of ${members.length} device checks`} />
@@ -105,7 +108,7 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
             <tr>
               <th>ID</th><th>Student</th><th className="num hide-sm">Grade</th>
               <th className="hide-sm">{online ? 'Signs in as' : 'Checked in'}</th>
-              <th>Waiver</th>
+              {waivers && <th>Waiver</th>}
               {online && <th>Device</th>}
               <th />
             </tr>
@@ -126,7 +129,7 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
                       ? (acct ? <span className="mono small">{acct.email}</span> : REMOTE ? <span className="muted small">Not made yet</span> : <span className="mono small">{`${contest.slug.split('-')[0]}-${m.publicId.toLowerCase()}`}</span>)
                       : m.checkedInAt ? at(m.checkedInAt) : <span className="muted">Not yet</span>}
                   </td>
-                  <td><WaiverCell c={m} by={user.name} /></td>
+                  {waivers && <td><WaiverCell c={m} by={user.name} /></td>}
                   {online && <td>{m.deviceCheckedAt ? <State tone="ok">Ready</State> : <State tone="off">Not yet</State>}</td>}
                   <td className="num">
                     <button className="icon-btn pt-row-act" type="button" onClick={() => setEditing(m)} aria-label={`Edit ${m.name}`} title={`Edit or remove ${m.name}`}><Icon name="pencil" /></button>

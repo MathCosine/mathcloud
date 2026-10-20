@@ -111,6 +111,7 @@ async function main() {
     await insert('contests', [{
       id: contestId, org_id: orgId, name: c.name, short_name: c.short, slug: c.slug, time_zone: c.timeZone, starts_on: '2027-01-23', date_label: c.dateLabel,
       registration: { open: c.registration.open, closes_label: c.registration.closesLabel, team_min: c.registration.teamMin, team_max: c.registration.teamMax, coaches: c.registration.coaches !== false },
+      details: c.details ? { about: c.details.about, contact_email: c.details.contactEmail, website: c.details.website, faq: c.details.faq ?? [], public: c.details.public !== false, public_board: c.details.publicBoard !== false } : {},
       recipe, results_published: c.resultsPublished, board: { freeze_minutes: c.board.freezeMinutes, revealed: c.board.revealed },
       venue: c.venue ? { name: c.venue.name, address: c.venue.address, hall: c.venue.hall, bring: c.venue.bring } : null,
     }]);

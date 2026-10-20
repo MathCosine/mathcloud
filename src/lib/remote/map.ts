@@ -103,6 +103,15 @@ export function roundFields(r: Row): Omit<Round, 'problems'> {
 }
 
 /** The parts of a contest row that change during a contest (and arrive by realtime). */
+export function detailsOf(d: Row | null | undefined): Contest['details'] {
+  if (!d) return {};
+  return {
+    about: d.about ?? undefined, contactEmail: d.contact_email ?? undefined, website: d.website ?? undefined,
+    faq: Array.isArray(d.faq) ? d.faq.filter((x: Row) => x && typeof x.q === 'string').map((x: Row) => ({ q: String(x.q), a: String(x.a ?? '') })) : undefined,
+    public: d.public !== false, publicBoard: d.public_board !== false,
+  };
+}
+
 export function contestFlags(c: Row): Pick<Contest, 'resultsPublished' | 'board' | 'registration'> {
   const reg = c.registration ?? {};
   const board = c.board ?? {};
@@ -244,6 +253,7 @@ export function mapRows(rows: Rows): DB {
         .sort((a, b) => a.at.localeCompare(b.at)),
       ...contestFlags(c),
       linkedId: c.linked_id ?? undefined,
+      details: detailsOf(c.details),
     };
   });
 
