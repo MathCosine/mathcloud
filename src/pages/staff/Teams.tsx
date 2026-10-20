@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { deleteTeam, modeOf, setTeamStatus } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { Team } from '../../lib/model';
@@ -31,6 +31,14 @@ export function Teams() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
   const [focus, setFocus] = useState(-1);
+  // ?team=<id> opens that team (the command bar links here).
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const id = params.get('team');
+    if (!id) return;
+    setOpen(id);
+    setParams((p) => { p.delete('team'); return p; }, { replace: true });
+  }, [params, setParams]);
   const search = useRef<HTMLInputElement>(null);
 
   const byTeam = useMemo(() => {

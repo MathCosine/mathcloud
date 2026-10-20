@@ -156,8 +156,12 @@ What the app does to keep usage low:
 same moment (every online student plus staff), upgrade the project to Supabase Pro for the contest month
 (about $25), then back to Free. In-person students only need it to see results, so they do not count on the day.
 
-**Free projects pause after a week with no use.** Open the site (or the Supabase dashboard) at least once a week while
-testing; a paused project is restored from the dashboard with one click, data intact.
+**Free projects pause after a week with no use, so the repository pings it.** The **Keep Supabase awake** workflow
+(`.github/workflows/keep-alive.yml`) reads one row every third day, which counts as use. It needs nothing beyond the
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` variables from step 2. Check it once: **Actions → Keep Supabase awake → Run
+workflow**; a green tick and "awake" in the log means it works. GitHub switches off scheduled workflows after 60 days
+without a commit (it emails first); one click on **Enable workflow** turns it back on. If a project does pause, restore
+it from the Supabase dashboard with one click, data intact.
 
 ## 8. Working on it locally
 
@@ -187,4 +191,4 @@ Postgres; see the script).
 | Sign-up says to confirm the email | turn off **Confirm email** (step 1) or set up SMTP |
 | "Set up Supabase" fails at link / db push | wrong `SUPABASE_DB_PASSWORD` or `SUPABASE_PROJECT_REF`; reset the password under Project Settings → Database |
 | Emails stay "queued" | no active key, or every key used its limit today; see **Email → Sending keys** |
-| Project paused | Supabase dashboard → the project → **Restore** |
+| Project paused | Supabase dashboard → the project → **Restore**; then check **Keep Supabase awake** is enabled under Actions |

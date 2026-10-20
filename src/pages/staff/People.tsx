@@ -30,6 +30,14 @@ export function People() {
   const contacts = useMemo(() => contactsOf(db.teams, db.users.filter((u) => u.role === 'coach')), [db]);
 
   const openStudent = (id: string) => { setTeam(null); setStudent(id); };
+  // ?student=<id> opens that student (the command bar links here).
+  useEffect(() => {
+    const id = params.get('student');
+    if (!id) return;
+    setTeam(null);
+    setStudent(id);
+    setParams((p) => { p.delete('student'); return p; }, { replace: true });
+  }, [params, setParams]);
   const openTeam = (id: string) => { setStudent(null); setTeam(id); };
   const go = (t: Tab) => {
     const next = new URLSearchParams();

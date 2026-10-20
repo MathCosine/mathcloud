@@ -14,14 +14,14 @@ export function PortalLayout({ children, mode, wide }: { children: ReactNode; mo
     <div className="app">
       <TopBar>
         {contest && (
-          <span className="row hide-sm" style={{ gap: 8 }}>
-            <span className="tile" style={{ width: 24, height: 24, fontSize: 9, borderRadius: 6 }}>{contestInitials(contest.short)}</span>
-            <b className="small">{contest.short}</b>
-            {mode && <ModeChip mode={mode} />}
+          <span className="ctx-chip hide-sm">
+            <span className="tile" style={{ width: 24, height: 24, fontSize: 9, borderRadius: 999 }}>{contestInitials(contest.short)}</span>
+            {contest.short}
           </span>
         )}
+        {mode && <ModeChip mode={mode} />}
       </TopBar>
-      <main className={`page ${wide ? '' : 'narrow'}`}>{children}</main>
+      <main className={`page enter ${wide ? '' : 'narrow'}`}>{children}</main>
     </div>
   );
 }

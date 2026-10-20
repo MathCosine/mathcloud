@@ -16,7 +16,7 @@ const MOMENTS: { key: Moment; label: string; hint: string }[] = [
 ];
 
 /** Who you are, and the way out. In the sandbox it also switches people and moments of the day. */
-export function UserMenu() {
+export function UserMenu({ wide }: { wide?: boolean } = {}) {
   const db = useAllDB();
   const user = useUser();
   const navigate = useNavigate();
@@ -51,20 +51,27 @@ export function UserMenu() {
 
   return (
     <div className="menu-wrap" ref={ref}>
-      <button type="button" className="user-btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button type="button" className={`user-btn ${wide ? 'wide' : ''}`} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <span className="avatar">{initials(user.name)}</span>
-        <span className="hide-sm">{user.name.split(' ')[0]}</span>
-        <Icon name="chevron" size={14} />
+        {wide ? (
+          <span style={{ lineHeight: 1.25 }}>
+            <b style={{ display: 'block', fontWeight: 600 }}>{user.name}</b>
+            <small className="muted" style={{ fontSize: 12 }}>{ROLE_LABEL[user.role]}</small>
+          </span>
+        ) : (
+          <span className="hide-sm">{user.name.split(' ')[0]}</span>
+        )}
+        <Icon name={wide ? 'more' : 'chevron'} size={15} />
       </button>
       {open && (
-        <div className="menu down" role="menu">
+        <div className={`menu ${wide ? 'up' : 'down'}`} role="menu" style={wide ? { width: '100%', minWidth: 248 } : undefined}>
           <div className="menu-head">
             <b>{user.name}</b>
             <small>{ROLE_LABEL[user.role]}{user.email && !user.managed ? ` · ${user.email}` : user.managed ? ` · ${user.email}` : ''}</small>
           </div>
           <div className="menu-sep" />
-          <button type="button" role="menuitem" className="menu-item" onClick={() => { setOpen(false); navigate(homeFor(user)); }}>Your home</button>
-          {REMOTE && <button type="button" role="menuitem" className="menu-item" onClick={() => { setOpen(false); navigate('/account'); }}>Account and password</button>}
+          <button type="button" role="menuitem" className="menu-item" onClick={() => { setOpen(false); navigate(homeFor(user)); }}><span className="row" style={{ gap: 10 }}><Icon name="home" />Your home</span></button>
+          {REMOTE && <button type="button" role="menuitem" className="menu-item" onClick={() => { setOpen(false); navigate('/account'); }}><span className="row" style={{ gap: 10 }}><Icon name="user" />Account and password</span></button>}
           {!REMOTE && (
             <>
               <div className="menu-sep" />
@@ -86,7 +93,7 @@ export function UserMenu() {
             </>
           )}
           <div className="menu-sep" />
-          <button type="button" role="menuitem" className="menu-item" onClick={out}>Sign out</button>
+          <button type="button" role="menuitem" className="menu-item" onClick={out}><span className="row" style={{ gap: 10 }}><Icon name="logout" />Sign out</span></button>
         </div>
       )}
     </div>

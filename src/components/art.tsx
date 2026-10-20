@@ -5,11 +5,13 @@
  */
 
 export function Logo({ size = 28 }: { size?: number }) {
+  // A cloud drawn from three circles, with a plus cut out of it: maths, in the cloud.
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className="logo-mark">
-      <rect width="32" height="32" rx="8" fill="var(--blue)" />
-      <path d="M8.6 21.5h15a4.6 4.6 0 0 0 .5-9.17 6.7 6.7 0 0 0-12.73 1.03A4.1 4.1 0 0 0 8.6 21.5z" fill="#fff" />
-      <path d="M13.4 17.2h5.6M16.2 14.4V20" stroke="var(--blue)" strokeWidth="2.1" strokeLinecap="round" />
+      <rect width="32" height="32" rx="9" fill="#0B0B0E" />
+      <path d="M9.4 22.2h13.4a4.3 4.3 0 0 0 .55-8.57 6.4 6.4 0 0 0-12.15 1.2 3.7 3.7 0 0 0-1.8 7.37z" fill="#fff" />
+      <path d="M16.3 15.4v4.6M14 17.7h4.6" stroke="#0B0B0E" strokeWidth="1.9" strokeLinecap="round" />
+      <circle cx="24.6" cy="8" r="2.1" fill="#5B7BFF" />
     </svg>
   );
 }
