@@ -16,7 +16,6 @@
 import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { buildDemo, type Moment } from '../src/lib/demo/seed';
-import { splitEditions } from '../src/lib/demo/editions';
 import { normalize } from '../src/lib/scoring/answers';
 import type { DB } from '../src/lib/model';
 
@@ -89,7 +88,7 @@ async function main() {
   console.log(`Seeding the SFMO 2027 demo (${moment}) into ${url}`);
   await wipe();
   const users = await accounts();
-  const db: DB = splitEditions(buildDemo(moment));
+  const db: DB = buildDemo(moment);
   const id = (kind: string, demo: string) => uuidFor(`${kind}:${demo}`);
   const roundId = (r: string) => id('round', r);
   const teamId = (t: string) => id('team', t);

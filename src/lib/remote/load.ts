@@ -68,11 +68,18 @@ export async function loadAll(uid: string, email: string | null, preferred: stri
     ...(orgIds.length ? await rows(sb.from('contests').select('*').in('org_id', orgIds)) : []),
     ...(contestIds.length ? await rows(sb.from('contests').select('*').in('id', contestIds)) : []),
   ];
-  r.contests = [...new Map(contestRows.map((c) => [c.id, c])).values()].sort((a, b) => String(b.starts_on ?? '').localeCompare(String(a.starts_on ?? '')));
+  r.contests = [...new Map(contestRows.map((c) => [c.id, c])).values()].sort((a, b) => String(b.starts_on ?? '').localeCompare(String(a.starts_on ?? '')) || String(a.slug).localeCompare(String(b.slug)));
   const orgsNeeded = uniq([...orgIds, ...r.contests.map((c) => c.org_id)]);
   r.organizations = orgsNeeded.length ? await rows(sb.from('organizations').select('id,name,slug').in('id', orgsNeeded)) : [];
 
-  const active = r.contests.find((c) => c.id === preferred) ?? r.contests[0];
+  // Open where this person works: the one asked for, else a proctor's room, a student's or coach's team, else the newest.
+  const firstOf = (ids: (string | undefined)[]) => r.contests.find((c) => ids.includes(c.id));
+  const active =
+    r.contests.find((c) => c.id === preferred) ??
+    firstOf(roles.filter((x) => x.role === 'proctor').map((x) => x.contest_id)) ??
+    firstOf(competing.map((c) => (Array.isArray(c.teams) ? c.teams[0]?.contest_id : c.teams?.contest_id))) ??
+    firstOf(coached.map((t) => t.contest_id)) ??
+    r.contests[0];
   if (!active) {
     r.memberships = memberships;
     r.profiles = await rows(sb.from('profiles').select('id,name,username,managed,email').eq('id', uid));

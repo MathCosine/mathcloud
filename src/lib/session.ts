@@ -60,7 +60,10 @@ export function enterAs(userId: string | null) {
   const u = db.users.find((x) => x.id === userId);
   const teamId = u?.competitorId ? db.competitors.find((c) => c.id === u.competitorId)?.teamId : u?.teamIds?.[0];
   const team = teamId ? db.teams.find((t) => t.id === teamId) : undefined;
+  // A proctor works in the contest that has their Zoom room (the online edition).
+  const room = u?.roomId ? db.contests.find((c) => c.rooms.some((r) => r.id === u.roomId)) : undefined;
   if (team) setActiveContest(team.contestId);
+  else if (room) setActiveContest(room.id);
   else if (u && u.role !== 'director' && u.role !== 'staff') setActiveContest('sfmo-2027');
 }
 

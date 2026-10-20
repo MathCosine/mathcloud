@@ -14,6 +14,7 @@
  *    wait for a ruling, and results are ready to publish.
  */
 import type { Activity, AgendaItem, Attempt, Competitor, Contest, DB, EmailTemplate, IntegrityEvent, Problem, Round, Team, User, Venue } from '../model';
+import { splitEditions } from './editions';
 import { GUTS, GUTS_POINTS, INDIVIDUAL, MYSTERY, type DemoProblem } from './problems';
 
 export type Moment = 'before' | 'morning' | 'guts' | 'after';
@@ -235,7 +236,12 @@ const AGENDA: AgendaItem[] = [
 
 // ------------------------------------------------------------------ build
 
+/** SFMO 2027 as it really runs: two linked contests, in person and online, at the same time. */
 export function buildDemo(moment: Moment, now = new Date()): DB {
+  return splitEditions(buildOneContest(moment, now));
+}
+
+function buildOneContest(moment: Moment, now: Date): DB {
   const contestId = 'sfmo-2027';
   const teams: Team[] = [];
   const competitors: Competitor[] = [];
@@ -484,7 +490,7 @@ SF Math Initiative`,
   ];
 
   return {
-    schema: 4,
+    schema: 5,
     gen: `${moment}-${now.getTime()}`,
     moment,
     seededAt: now.toISOString(),

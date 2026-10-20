@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { contestOf, divisionFor, registerTeam, type NewStudent } from '../lib/actions';
+import { contestOf, divisionFor, editionFor, linkedEdition, organiserAddTeam, registerTeam, type NewStudent } from '../lib/actions';
 import type { DivisionMode, Team } from '../lib/model';
 import { contestInitials, useUser } from '../lib/session';
 import { setActiveContest, useAllDB } from '../lib/store';
@@ -20,7 +20,13 @@ export function Register() {
   const user = useUser();
   const navigate = useNavigate();
   const contest = slug ? all.contests.find((c) => c.slug === slug) ?? contestOf(all) : contestOf(all);
-  const both = contest.divisions.length > 1;
+  // In person and online may be two linked contests (editions); the form offers both and files the team in the right one.
+  const twin = linkedEdition(all, contest);
+  const inPersonC = editionFor(all, contest, 'in_person');
+  const onlineC = editionFor(all, contest, 'online');
+  const both = !!inPersonC && !!onlineC;
+  const staff = !!user && ['director', 'staff'].includes(user.role);
+  const organisersOnly = contest.registration.coaches === false && (!twin || twin.registration.coaches === false);
   const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [step, setStep] = useState(both ? 0 : 1);
   const [mode, setMode] = useState<DivisionMode | null>(both ? null : contest.divisions[0].mode);
@@ -31,7 +37,8 @@ export function Register() {
   const [editContact, setEditContact] = useState(false);
 
   const first = [...contest.rounds].sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0];
-  const checkIn = contest.agenda.find((a) => a.modes.includes('in_person') && /check/i.test(a.title));
+  const checkIn = (inPersonC ?? contest).agenda.find((a) => a.modes.includes('in_person') && /check/i.test(a.title));
+  const venue = inPersonC?.venue ?? contest.venue;
   const local = (iso: string, tz: string) => new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(new Date(iso));
   const steps = [...(both ? ['In person or online'] : []), 'Your team', 'Students'];
   const at = both ? step : step - 1;
@@ -41,7 +48,11 @@ export function Register() {
 
   const submit = async () => {
     if (!mode) return;
-    const r = await registerTeam(contest.id, { mode, ...team, students }, user?.role === 'coach' ? user.id : undefined);
+    const target = editionFor(all, contest, mode) ?? contest;
+    // Organisers add teams directly (confirmed); coaches register (pending).
+    const r = staff
+      ? await organiserAddTeam(target.id, { mode, ...team, students }, user!.name)
+      : await registerTeam(target.id, { mode, ...team, students }, user?.role === 'coach' ? user.id : undefined);
     if (!r.team) return toast('Could not register', r.error ?? 'Try again in a moment.', 'r');
     setDone(r.team);
     window.scrollTo({ top: 0 });
@@ -58,7 +69,19 @@ export function Register() {
         </div>
       </header>
       <main className="reg-main">
-        {done ? (
+        {organisersOnly && !staff && !done ? (
+          <div className="stack-lg">
+            <div>
+              <span className="kicker">Registration</span>
+              <h1 className="page-title">The organisers enter every team for {contest.short}</h1>
+              <p className="page-sub">There is nothing to fill in here. Coaches: your team comes from the organisers&apos; own sign-up, and they send each student their sign-in details before the contest.</p>
+            </div>
+            <div className="row wrap">
+              <Link className="btn" to={`/c/${contest.slug}`}><Icon name="calendar" />See the schedule</Link>
+              {!user && <Link className="btn btn-quiet" to="/sign-in">Students: sign in</Link>}
+            </div>
+          </div>
+        ) : done ? (
           <Done contestShort={contest.short} team={done} mode={mode!} onTeams={user?.role === 'coach' ? () => { setActiveContest(contest.id); navigate('/coach'); } : undefined} slugPrefix={contest.slug.split('-')[0]} />
         ) : (
           <div className="stack-lg">
@@ -67,7 +90,8 @@ export function Register() {
               <h1 className="page-title">Register a team for {contest.short}</h1>
               <p className="page-sub">{contest.dateLabel}. Teams of {contest.registration.teamMin === 1 ? 'up to' : `${contest.registration.teamMin} to`} {contest.registration.teamMax}. Three short steps; you can add and change students later.</p>
             </div>
-            {!contest.registration.open && (
+            {staff && <div className="note">You are adding this team as an organiser: it is confirmed straight away, and the form&apos;s usual checks still apply.</div>}
+            {!contest.registration.open && !staff && (
               <div className="note amber">Registration closed on {contest.registration.closesLabel}. This is the demo, so you can try the form anyway.</div>
             )}
 
@@ -88,16 +112,16 @@ export function Register() {
                 <div className="choices" role="radiogroup" aria-label="How your team takes part">
                   <Choice tone="in_person" icon="pin" title="In person" checked={mode === 'in_person'} onSelect={() => setMode('in_person')}
                     points={[
-                      { icon: 'pin', text: <>At {contest.venue?.name}{contest.venue?.address ? `, ${contest.venue.address}` : ''}</> },
+                      { icon: 'pin', text: <>At {venue?.name}{venue?.address ? `, ${venue.address}` : ''}</> },
                       ...(checkIn ? [{ icon: 'clock' as const, text: <>Check-in from {clockIn(checkIn.at, contest.timeZone)}</> }] : []),
                       { icon: 'file', text: 'Answers on paper; bring pencils' },
                       { icon: 'board', text: 'Guts on the big screen' },
                     ]}>
-                    {divisionFor(contest, 'in_person')?.detail}
+                    {inPersonC && divisionFor(inPersonC, 'in_person')?.detail}
                   </Choice>
                   <Choice tone="online" icon="screen" title="Online" checked={mode === 'online'} onSelect={() => setMode('online')}
                     points={[
-                      { icon: 'globe', text: divisionFor(contest, 'online')?.detail ?? 'From anywhere' },
+                      { icon: 'globe', text: (onlineC && divisionFor(onlineC, 'online')?.detail) ?? 'From anywhere' },
                       ...(first ? [{ icon: 'clock' as const, text: <>First round {clockIn(first.startsAt, contest.timeZone)}, which is {local(first.startsAt, browserZone)} where you are</> }] : []),
                       { icon: 'video', text: 'On Zoom, camera on, in a room with a proctor' },
                       { icon: 'screen', text: 'Each student needs their own computer' },
@@ -196,6 +220,7 @@ function Done({ contestShort, team, mode, onTeams, slugPrefix }: { contestShort:
   const all = useAllDB();
   const members = all.competitors.filter((c) => c.teamId === team.id);
   const contest = all.contests.find((c) => c.id === team.contestId)!;
+  const venue = contest?.venue;
   return (
     <div className="stack-lg reveal">
       <div className="card reg-done">
@@ -228,8 +253,8 @@ function Done({ contestShort, team, mode, onTeams, slugPrefix }: { contestShort:
             </>
           ) : (
             <>
-              <li>On the day, check in at {contest.venue?.name || 'the venue'} with the competitor IDs above.</li>
-              <li>Bring {contest.venue?.bring[0]?.toLowerCase() || 'pencils'}. Rooms are on each student's page.</li>
+              <li>On the day, check in at {venue?.name || 'the venue'} with the competitor IDs above.</li>
+              <li>Bring {venue?.bring[0]?.toLowerCase() || 'pencils'}. Rooms are on each student's page.</li>
             </>
           )}
         </ol>

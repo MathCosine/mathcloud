@@ -12,7 +12,7 @@ import { Icon } from '../components/icons';
 import { ModeChip, Segmented, useNow } from '../components/ui';
 import { PublicFooter, PublicTop } from './Landing';
 
-type Loaded = { contest: Contest | null; orgName: string | null; error: string | null };
+type Loaded = { contest: Contest | null; orgName: string | null; error: string | null; twin?: { slug: string; mode: string } | null };
 
 const KIND: Record<Round['kind'], string> = {
   individual: 'Each student on their own',
@@ -56,7 +56,7 @@ export function ContestPage() {
             <div><Link className="btn" to="/">MathCloud home</Link></div>
           </div>
         ) : (
-          <ContestBody contest={contest} orgName={orgName} inCache={!!cached} />
+          <ContestBody contest={contest} orgName={orgName} inCache={!!cached} remoteTwin={fetched?.twin} />
         )}
       </main>
       <PublicFooter />
@@ -64,12 +64,16 @@ export function ContestPage() {
   );
 }
 
-function ContestBody({ contest, orgName, inCache }: { contest: Contest; orgName: string | null; inCache: boolean }) {
+function ContestBody({ contest, orgName, inCache, remoteTwin }: { contest: Contest; orgName: string | null; inCache: boolean; remoteTwin?: { slug: string; mode: string } | null }) {
   const now = useNow(15000);
   const modes = contest.divisions.map((d) => d.mode);
   const both = modes.includes('in_person') && modes.includes('online');
   const [view, setView] = useState<'all' | DivisionMode>('all');
   const reg = contest.registration;
+  const all = useAllDB();
+  const twin = contest.linkedId ? all.contests.find((c) => c.id === contest.linkedId) : undefined;
+  const twinMode = twin?.divisions[0]?.mode;
+  const organisersOnly = reg.coaches === false;
   const guts = contest.rounds.find((r) => r.kind === 'guts' && roundState(r, now) === 'open');
   const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const otherZone = local !== contest.timeZone;
@@ -91,6 +95,16 @@ function ContestBody({ contest, orgName, inCache }: { contest: Contest; orgName:
             <p className="cp-meta">
               <span className="row" style={{ gap: 6 }}><Icon name="calendar" size={15} />{contest.dateLabel}</span>
               {contest.divisions.map((d) => <ModeChip key={d.id} mode={d.mode} />)}
+              {twin && twinMode && (
+                <Link className="cp-twin" to={`/c/${twin.slug}`}>
+                  Also {twinMode === 'online' ? 'online' : 'in person'}, at the same time<Icon name="arrow-up-right" size={13} />
+                </Link>
+              )}
+              {!twin && remoteTwin && (
+                <Link className="cp-twin" to={`/c/${remoteTwin.slug}`}>
+                  Also {remoteTwin.mode === 'online' ? 'online' : 'in person'}, at the same time<Icon name="arrow-up-right" size={13} />
+                </Link>
+              )}
             </p>
           </div>
         </div>
@@ -98,7 +112,9 @@ function ContestBody({ contest, orgName, inCache }: { contest: Contest; orgName:
           {guts && (
             <Link className="live-pill" to="/board" onClick={() => inCache && setActiveContest(contest.id)}>Guts is live: open the board<Icon name="arrow-up-right" size={14} /></Link>
           )}
-          {reg.open ? (
+          {organisersOnly ? (
+            <span className="cp-reg">Teams are entered by the organisers. Students get their sign-in details before the contest.</span>
+          ) : reg.open ? (
             <>
               <span className="cp-reg ok">Registration open{reg.closesLabel ? `, closes ${reg.closesLabel}` : ''}</span>
               <Link className="btn btn-primary btn-lg" to={`/register/${contest.slug}`}>Register a team<Icon name="arrow" /></Link>

@@ -51,7 +51,7 @@ function Frame() {
           <Link to={homeFor(user)} className="brand"><Logo size={24} /><span>MathCloud</span></Link>
           <button type="button" className="icon-btn menu-btn" aria-label="Close menu" onClick={() => setSideOpen(false)}><Icon name="close" /></button>
         </div>
-        {(user.role === 'director' || user.role === 'staff') ? <ContestSwitcher /> : contest && <ContestBadge />}
+        <ContestSwitcher canCreate={user.role === 'director' || user.role === 'staff'} />
         <button type="button" className="find" onClick={openCommandPalette}>
           <Icon name="search" size={15} />
           Search or jump to…
@@ -68,7 +68,7 @@ function Frame() {
           <header className="sheet-head">
             <button type="button" className="icon-btn menu-btn" aria-label="Open menu" onClick={() => setSideOpen(true)}><Icon name="menu" size={18} /></button>
             <nav className="crumbs" aria-label="You are here">
-              {contest && <span className="hide-sm">{contest.short}</span>}
+              {contest && <span className="hide-sm">{contest.short}{contest.divisions.length === 1 ? ` · ${contest.divisions[0].mode === 'online' ? 'Online' : 'In person'}` : ''}</span>}
               {contest && title && <Icon name="chevron-right" size={14} className="hide-sm" />}
               <b>{title}</b>
             </nav>
@@ -143,18 +143,6 @@ function SideNav() {
   );
 }
 
-/** Graders and proctors: which contest they are working on. */
-function ContestBadge() {
-  const db = useDB();
-  const contest = contestOf(db);
-  return (
-    <div className="ctx" style={{ cursor: 'default' }}>
-      <span className="tile">{contestInitials(contest.short)}</span>
-      <span style={{ minWidth: 0 }}><b>{contest.short}</b><small>{contest.dateLabel}</small></span>
-    </div>
-  );
-}
-
 /** Coaches, students and account pages: MathCloud, the contest, you. */
 export function TopBar({ children }: { children?: ReactNode }) {
   const user = useUser();
@@ -170,10 +158,12 @@ export function TopBar({ children }: { children?: ReactNode }) {
   );
 }
 
-function ContestSwitcher() {
+/** Which contest, and which way of taking part. Editions of one competition sit together. */
+function ContestSwitcher({ canCreate }: { canCreate: boolean }) {
   const all = useAllDB();
   const db = useDB();
   const navigate = useNavigate();
+  const location = useLocation();
   const contest = contestOf(db) as ReturnType<typeof contestOf> | undefined;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -189,6 +179,16 @@ function ContestSwitcher() {
     };
   }, [open]);
   const org = all.orgs.find((o) => o.id === contest?.orgId) ?? all.orgs[0];
+  const modeOfC = (c: { divisions: { mode: string }[] }) => (c.divisions.length === 1 ? (c.divisions[0].mode as 'online' | 'in_person') : null);
+  const mode = contest ? modeOfC(contest) : null;
+  // Editions next to each other: each contest followed by its linked edition.
+  const ordered: typeof all.contests = [];
+  for (const c of all.contests) {
+    if (ordered.includes(c)) continue;
+    ordered.push(c);
+    const twin = c.linkedId ? all.contests.find((x) => x.id === c.linkedId) : undefined;
+    if (twin && !ordered.includes(twin)) ordered.push(twin);
+  }
 
   return (
     <div className="menu-wrap" ref={ref}>
@@ -196,28 +196,39 @@ function ContestSwitcher() {
         <span className="tile">{contest ? contestInitials(contest.short) : <Icon name="plus" size={14} />}</span>
         <span style={{ minWidth: 0 }}>
           <b>{contest?.short ?? 'No contest yet'}</b>
-          <small>{org?.name ?? 'Your organisation'}</small>
+          <small className="row" style={{ gap: 5 }}>
+            {mode && <Icon name={mode === 'online' ? 'screen' : 'pin'} size={12} />}
+            {mode ? (mode === 'online' ? 'Online' : 'In person') : org?.name ?? 'Your organisation'}
+          </small>
         </span>
         <Icon name="chevron" size={15} />
       </button>
       {open && (
         <div className="menu down" role="menu" style={{ left: 0, right: 'auto', width: '100%', minWidth: 240 }}>
           <div className="menu-title">{org?.name}</div>
-          {all.contests.map((c) => (
-            <button key={c.id} type="button" role="menuitem" className={`menu-item ${c.id === contest?.id ? 'on' : ''}`} onClick={() => { setActiveContest(c.id); setOpen(false); navigate('/staff'); }}>
-              <span className="row" style={{ gap: 10 }}>
-                <span className="tile" style={{ width: 24, height: 24, fontSize: 9.5, borderRadius: 7 }}>{contestInitials(c.short)}</span>
-                <span>{c.short}</span>
-              </span>
-            </button>
-          ))}
-          <div className="menu-sep" />
-          <button type="button" role="menuitem" className="menu-item" onClick={() => { setOpen(false); navigate('/staff/new'); }}>
-            <span className="row" style={{ gap: 10 }}>
-              <span className="tile new" style={{ width: 24, height: 24, borderRadius: 7 }}><Icon name="plus" size={13} /></span>
-              <span>New contest</span>
-            </span>
-          </button>
+          {ordered.map((c) => {
+            const m = modeOfC(c);
+            return (
+              <button key={c.id} type="button" role="menuitem" className={`menu-item ${c.id === contest?.id ? 'on' : ''}`} onClick={() => { setActiveContest(c.id, { load: true }); setOpen(false); navigate(canCreate ? '/staff' : location.pathname); }}>
+                <span className="row" style={{ gap: 10 }}>
+                  <span className="tile" style={{ width: 24, height: 24, fontSize: 9.5, borderRadius: 7 }}>{contestInitials(c.short)}</span>
+                  <span>{c.short}</span>
+                </span>
+                {m && <small className="row" style={{ gap: 4 }}><Icon name={m === 'online' ? 'screen' : 'pin'} size={12} />{m === 'online' ? 'Online' : 'In person'}</small>}
+              </button>
+            );
+          })}
+          {canCreate && (
+            <>
+              <div className="menu-sep" />
+              <button type="button" role="menuitem" className="menu-item" onClick={() => { setOpen(false); navigate('/staff/new'); }}>
+                <span className="row" style={{ gap: 10 }}>
+                  <span className="tile new" style={{ width: 24, height: 24, borderRadius: 7 }}><Icon name="plus" size={13} /></span>
+                  <span>New contest</span>
+                </span>
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

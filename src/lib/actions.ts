@@ -956,6 +956,23 @@ export async function registerTeam(contestId: string, input: NewTeam, coachId?: 
   return { team: made, error: made ? null : 'That way of taking part is not offered.' };
 }
 
+/** An organiser adds one team by hand (the registration form, filled in for them). Confirmed straight away. */
+export async function organiserAddTeam(contestId: string, input: NewTeam, by: string): Promise<{ team: Team | null; error: string | null }> {
+  if (REMOTE) {
+    const r = await W.importTeams(contestId, [input], 'confirmed');
+    if (r.error) return { team: null, error: r.error };
+    const { reload } = await import('./remote/live');
+    await reload(contestId);
+    return { team: getDB().teams.find((t) => t.id === r.data?.[0]) ?? null, error: null };
+  }
+  let made: Team | null = null;
+  update((db) => {
+    const c = contestOf(db, contestId);
+    if (divisionFor(c, input.mode)) made = addTeam(db, c, input, 'confirmed', `Added by ${by}`);
+  });
+  return { team: made, error: made ? null : 'That way of taking part is not offered.' };
+}
+
 /**
  * Teams that signed up somewhere else: a spreadsheet, a Google Form, another
  * site. Each goes to the edition that runs its way of taking part (this

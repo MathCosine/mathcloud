@@ -76,27 +76,31 @@ export async function fetchOpenContests(): Promise<{ contests: OpenContest[]; er
  * One contest's public page, for anyone: the contest row, its divisions,
  * rounds and schedule. Problems, rooms and teams are not public.
  */
-export async function fetchPublicContest(slug: string): Promise<{ contest: Contest | null; orgName: string | null; error: string | null }> {
+export async function fetchPublicContest(slug: string): Promise<{ contest: Contest | null; orgName: string | null; error: string | null; twin?: { slug: string; mode: string } | null }> {
   const sb = client();
   const { data, error } = await sb
     .from('contests')
-    .select('id,org_id,name,short_name,slug,time_zone,starts_on,date_label,registration,venue,board,results_published')
+    .select('id,org_id,name,short_name,slug,time_zone,starts_on,date_label,registration,venue,board,results_published,linked_id')
     .eq('slug', slug)
     .order('created_at', { ascending: false })
     .limit(1);
   if (error) return { contest: null, orgName: null, error: error.message };
   const row = (data as Row[] | null)?.[0];
   if (!row) return { contest: null, orgName: null, error: null };
-  const [divisions, rounds, agenda, org] = await Promise.all([
+  const [divisions, rounds, agenda, org, twin] = await Promise.all([
     sb.from('divisions').select('id,contest_id,name,mode,detail').eq('contest_id', row.id),
     sb.from('rounds').select('id,contest_id,name,short_name,kind,minutes,starts_at,status,opened_at,grace_seconds,mystery,integrity,position').eq('contest_id', row.id),
     sb.from('agenda_items').select('*').eq('contest_id', row.id),
     sb.from('organizations').select('name').eq('id', row.org_id).maybeSingle(),
+    // The other edition (online or in person, same time), for a link to its page.
+    row.linked_id ? sb.from('contests').select('slug,divisions(mode)').eq('id', row.linked_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
+  const t = twin.data as Row | null;
+  const twinInfo = t ? { slug: String(t.slug), mode: String((t.divisions as Row[] | undefined)?.[0]?.mode ?? '') } : null;
   const err = divisions.error ?? rounds.error ?? agenda.error;
   if (err) return { contest: null, orgName: null, error: err.message };
   const db = mapRows({ ...emptyRows(), contests: [row], divisions: divisions.data ?? [], rounds: rounds.data ?? [], agenda_items: agenda.data ?? [] });
-  return { contest: db.contests[0] ?? null, orgName: (org.data as Row | null)?.name ?? null, error: null };
+  return { contest: db.contests[0] ?? null, orgName: (org.data as Row | null)?.name ?? null, error: null, twin: twinInfo };
 }
 
 // ----------------------------------------------------------------- writes

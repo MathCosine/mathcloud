@@ -16,6 +16,7 @@ export const STAFF_PAGES: { to: string; label: string; icon: IconName; group: st
   { to: '/staff/teams', label: 'Teams', icon: 'roster', group: 'Before', roles: ['director', 'staff'], words: 'roster registration' },
   { to: '/staff/people', label: 'People', icon: 'people', group: 'Before', roles: ['director', 'staff'], words: 'students coaches staff check-in id check duplicates' },
   { to: '/staff/waivers', label: 'Waivers', icon: 'waivers', group: 'Before', roles: ['director', 'staff'], words: 'guardians sign remind' },
+  { to: '/staff/import', label: 'Import', icon: 'import', group: 'Before', roles: ['director', 'staff'], words: 'csv excel spreadsheet google form old sign-up waivers problems answers' },
   { to: '/staff/rounds', label: 'Rounds', icon: 'rounds', group: 'On the day', roles: ['director', 'staff'], words: 'problems answer key open close' },
   { to: '/staff/live', label: 'Live', icon: 'live', group: 'On the day', roles: ['director', 'staff', 'proctor'], words: 'questions zoom proctor locked' },
   { to: '/staff/grading', label: 'Grading', icon: 'grading', group: 'On the day', roles: ['director', 'staff', 'grader'], words: 'key sheets rulings paper' },
@@ -76,7 +77,8 @@ export function CommandPalette() {
         { id: 'a-new', group: 'Do', label: 'Start a new contest', icon: 'plus', words: 'create', run: go('/staff/new') },
       );
       for (const c of all.contests.filter((x) => x.id !== contest.id)) {
-        out.push({ id: `c-${c.id}`, group: 'Switch contest', label: c.name, hint: c.dateLabel, icon: 'switch', run: () => { setActiveContest(c.id); navigate('/staff'); } });
+        const m = c.divisions.length === 1 ? (c.divisions[0].mode === 'online' ? 'Online' : 'In person') : '';
+        out.push({ id: `c-${c.id}`, group: 'Switch contest', label: m ? `${c.short} · ${m}` : c.name, hint: c.dateLabel, icon: 'switch', words: c.name, run: () => { setActiveContest(c.id, { load: true }); navigate('/staff'); } });
       }
       for (const t of db.teams) {
         out.push({ id: `t-${t.id}`, group: 'Teams', label: t.name, code: t.code, hint: [t.school, t.city].filter(Boolean).join(', '), icon: 'roster', words: `${t.contactName} ${t.contactEmail}`, run: go(`/staff/teams?team=${encodeURIComponent(t.id)}`) });
