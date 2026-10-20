@@ -3,6 +3,7 @@
 #   SUPABASE_URL          https://<project>.supabase.co
 #   SUPABASE_ANON_KEY     the anon (public) key; safe in a browser, protected by row level security
 #   SHOW_DEMO_ACCOUNTS    true to list the demo logins on the sign-in page (for testing)
+#   CUSTOM_DOMAIN         your own address, e.g. mathcloud.sfmathopen.org (also set it under Settings, Pages)
 # Without SUPABASE_URL the site is the in-browser sandbox.
 name: Deploy site
 
@@ -38,7 +39,9 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
           VITE_SHOW_DEMO_ACCOUNTS: ${{ vars.SHOW_DEMO_ACCOUNTS }}
           VITE_DEMO_PASSWORD: ${{ vars.DEMO_PASSWORD }}
-          VITE_BASE: /${{ github.event.repository.name }}/
+          # At its own address (CUSTOM_DOMAIN, e.g. mathcloud.sfmathopen.org) the site is the whole domain;
+          # otherwise GitHub serves it under /<repository name>/.
+          VITE_BASE: ${{ vars.CUSTOM_DOMAIN && '/' || format('/{0}/', github.event.repository.name) }}
       # GitHub Pages has no rewrites: serve the app for every path, so links like /staff/teams load.
       - run: cp dist/index.html dist/404.html
       - uses: actions/upload-pages-artifact@v3

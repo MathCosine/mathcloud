@@ -14,8 +14,27 @@
 // with no account yet gets one, with a password shown once to the organiser.
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? SERVICE_KEY;
+/**
+ * Supabase's keys. New projects have only the new kind (sb_secret_…,
+ * sb_publishable_…), handed to functions as JSON maps of named keys; older
+ * projects and the local stack have the legacy JWT keys. Prefer the new.
+ */
+function key(map: string, single: string, legacy: string): string | undefined {
+  const raw = Deno.env.get(map);
+  if (raw) {
+    try {
+      const named = JSON.parse(raw) as Record<string, unknown>;
+      const v = named.default ?? Object.values(named)[0];
+      const s = typeof v === 'string' ? v : (v as { api_key?: string; key?: string } | undefined)?.api_key ?? (v as { key?: string } | undefined)?.key;
+      if (s) return s;
+    } catch {
+      if (raw.startsWith('sb_')) return raw;
+    }
+  }
+  return Deno.env.get(single) || Deno.env.get(legacy) || undefined;
+}
+const SERVICE_KEY = key('SUPABASE_SECRET_KEYS', 'SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY')!;
+const ANON_KEY = key('SUPABASE_PUBLISHABLE_KEYS', 'SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_ANON_KEY') ?? SERVICE_KEY;
 const STUDENT_DOMAIN = 'students.mathcloud.app';
 
 const cors = {

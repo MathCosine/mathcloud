@@ -143,6 +143,40 @@ its own limit, then the next takes over. Two keys, 200 a day; three, 300. Whatev
 **Email → Log → Send queued now** sends it the next day. Keys that Resend rejects are switched off and marked with
 the reason.
 
+## Going live on your own address (e.g. mathcloud.sfmathopen.org)
+
+You can only make addresses under a domain you own: with sfmathopen.org, that is something like
+**mathcloud.sfmathopen.org**. Adding it changes nothing on the existing sfmathopen.org website or email: you only
+**add** DNS records, under new names, and never edit the ones already there.
+
+**Keys.** New Supabase projects have *publishable* (`sb_publishable_…`) and *secret* (`sb_secret_…`) keys instead of
+anon and service_role. Put the publishable key in the `SUPABASE_ANON_KEY` variable and the secret key in the
+`SUPABASE_SERVICE_ROLE_KEY` secret; the names are only labels. The edge functions read Supabase's new key variables
+themselves, so nothing else is needed.
+
+1. **Database.** Actions → *Set up Supabase* → Run workflow, demo **none**.
+2. **DNS.** Where sfmathopen.org's DNS is managed, add `CNAME  mathcloud  →  mathcosine.github.io`
+   (on Cloudflare: "DNS only", grey cloud).
+3. **Pages.** Settings → Pages: Source *GitHub Actions*; Custom domain `mathcloud.sfmathopen.org`, Save; once the
+   check is green, tick *Enforce HTTPS*. Settings → Secrets and variables → Actions → Variables: add
+   `CUSTOM_DOMAIN` = `mathcloud.sfmathopen.org` (the site is then built for the root of that address) and remove
+   `SHOW_DEMO_ACCOUNTS`. Actions → *Deploy site* → Run workflow.
+4. **Supabase addresses.** Authentication → URL Configuration: Site URL `https://mathcloud.sfmathopen.org`,
+   Redirect URLs `https://mathcloud.sfmathopen.org/**`.
+5. **Resend.** resend.com → Domains → Add `mail.sfmathopen.org`; add the records it shows (all under `mail.`, so
+   existing email is untouched; keep an existing DMARC record if you have one); wait for *Verified*; API Keys →
+   Create (sending access).
+6. **Supabase's own emails** (confirmations, password resets) through Resend: Authentication → Emails → SMTP
+   Settings → custom SMTP: host `smtp.resend.com`, port `465`, user `resend`, password = a Resend key, sender
+   `no-reply@mail.sfmathopen.org`. Then Sign In / Providers → Email: *Confirm email* on.
+7. **Keep-alive.** Actions → *Keep Supabase awake* → Run workflow, once.
+8. **In the app.** Sign up at `/sign-up`, confirm, *I run a contest*, name the organisation, *New contest* (both
+   at the same time, *We do*). Email → Sending keys → Add key (from `SF Math Open <results@mail.sfmathopen.org>`,
+   limit 100). Then Import, People → Sign-ins, People → Staff.
+
+More than 100 emails a day: a second Resend account with its own subdomain (e.g. `mail2.sfmathopen.org`), its key
+added the same way. MathCloud uses each key up to its limit and keeps the rest for the next day.
+
 ## 7. Staying inside the free plans
 
 Free limits at the time of writing (check the pricing pages before the contest):
