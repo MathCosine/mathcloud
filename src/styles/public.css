@@ -482,3 +482,6 @@
 @media (max-width: 420px) {
   .pub-top-in .btn-quiet { padding: 0 8px; }
 }
+
+/* Welcome and account sit on the portal's sheet. */
+.wl-head { margin-bottom: 28px; }

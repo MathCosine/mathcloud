@@ -82,13 +82,13 @@ function ContestBody({ contest, orgName, inCache }: { contest: Contest; orgName:
 
   return (
     <div className="stack-lg">
-      <section className="card cp-hero">
+      <section className="cp-hero">
         <div className="cp-hero-main">
           <span className="tile cp-tile">{contestInitials(contest.short)}</span>
           <div className="stack" style={{ gap: 6 }}>
             {orgName && <span className="label">{orgName}</span>}
             <h1 className="page-title">{contest.name}</h1>
-            <p className="soft row wrap" style={{ gap: 10 }}>
+            <p className="cp-meta">
               <span className="row" style={{ gap: 6 }}><Icon name="calendar" size={15} />{contest.dateLabel}</span>
               {contest.divisions.map((d) => <ModeChip key={d.id} mode={d.mode} />)}
             </p>
@@ -96,12 +96,12 @@ function ContestBody({ contest, orgName, inCache }: { contest: Contest; orgName:
         </div>
         <div className="cp-hero-side">
           {guts && (
-            <Link className="live-pill" to="/board" onClick={() => inCache && setActiveContest(contest.id)}>Guts is live: open the board</Link>
+            <Link className="live-pill" to="/board" onClick={() => inCache && setActiveContest(contest.id)}>Guts is live: open the board<Icon name="arrow-up-right" size={14} /></Link>
           )}
           {reg.open ? (
             <>
-              <span className="cp-reg ok"><Icon name="check" size={14} />Registration open{reg.closesLabel ? `, closes ${reg.closesLabel}` : ''}</span>
-              <Link className="btn btn-primary btn-lg" to={`/register/${contest.slug}`}>Register a team</Link>
+              <span className="cp-reg ok">Registration open{reg.closesLabel ? `, closes ${reg.closesLabel}` : ''}</span>
+              <Link className="btn btn-primary btn-lg" to={`/register/${contest.slug}`}>Register a team<Icon name="arrow" /></Link>
               <span className="small muted">Teams of {reg.teamMin === reg.teamMax ? reg.teamMax : `${reg.teamMin} to ${reg.teamMax}`} students</span>
             </>
           ) : (
@@ -113,7 +113,7 @@ function ContestBody({ contest, orgName, inCache }: { contest: Contest; orgName:
       <div className="cp-grid">
         <section className="card flush">
           <div className="card-head">
-            <h2>Schedule</h2>
+            <h2><Icon name="calendar" size={16} />Schedule</h2>
             {both && contest.agenda.length > 0 && (
               <Segmented label="Show the schedule for" value={view} onChange={setView} items={[{ key: 'all', label: 'Both' }, { key: 'in_person', label: 'In person' }, { key: 'online', label: 'Online' }]} />
             )}
@@ -149,7 +149,7 @@ function ContestBody({ contest, orgName, inCache }: { contest: Contest; orgName:
 
         <div className="stack-lg">
           <section className="card">
-            <div className="section-head"><h2>Where</h2></div>
+            <div className="section-head"><h2><Icon name="pin" size={16} />Where</h2></div>
             <div className="stack">
               {contest.divisions.map((d) => (
                 <div key={d.id} className="cp-where">
@@ -172,7 +172,7 @@ function ContestBody({ contest, orgName, inCache }: { contest: Contest; orgName:
           </section>
 
           <section className="card">
-            <div className="section-head"><h2>Rounds</h2><span className="label">{contest.rounds.length}</span></div>
+            <div className="section-head"><h2><Icon name="rounds" size={16} />Rounds</h2><span className="label">{contest.rounds.length}</span></div>
             <ul className="cp-rounds">
               {contest.rounds.map((r) => {
                 const hidden = r.mystery && roundState(r, now) === 'scheduled';
@@ -189,7 +189,7 @@ function ContestBody({ contest, orgName, inCache }: { contest: Contest; orgName:
 
           {contest.venue && contest.venue.bring.length > 0 && modes.includes('in_person') && (
             <section className="card">
-              <div className="section-head"><h2>Bring</h2><ModeChip mode="in_person" /></div>
+              <div className="section-head"><h2><Icon name="checklist" size={16} />Bring</h2><ModeChip mode="in_person" /></div>
               <ul className="bring">{contest.venue.bring.map((b) => <li key={b}>{b}</li>)}</ul>
             </section>
           )}

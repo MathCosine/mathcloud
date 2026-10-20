@@ -82,10 +82,9 @@ export function ScoreList({ board, mine, limit = 10 }: { board: Board; mine?: st
     return (
       <div key={r.team.id} data-k={r.team.id} className={`sb-row ${r.team.id === mine ? 'mine' : ''} ${d ? 'bump' : ''} ${up.has(r.team.id) ? 'up' : ''} ${r.place && r.place <= 3 ? 'lead' : ''}`}>
         <span className="sb-place">{r.place ?? '–'}</span>
-        <span className="sb-name">{r.team.name}</span>
+        <span className="sb-name">{r.team.name}{d ? <span className="sb-delta" key={`${r.team.id}-${r.score}`}>+{d}</span> : null}</span>
         <Track done={r.sets} total={board.totalSets} current={r.current} />
         <span className="sb-score">
-          {d ? <span className="sb-delta" key={`${r.team.id}-${r.score}`}>+{d}</span> : null}
           <Roll value={r.score} />
         </span>
       </div>

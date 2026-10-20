@@ -4,7 +4,8 @@ import '../styles/public.css';
 import { changePassword, saveDisplayName } from '../lib/public';
 import { ROLE_LABEL, homeFor, initials, useUser } from '../lib/session';
 import { REMOTE } from '../lib/store';
-import { TopBar } from '../layouts/StaffLayout';
+import { PortalLayout } from '../layouts/PortalLayout';
+import { Icon } from '../components/icons';
 import { toast } from '../components/ui';
 
 /** Your name and password. Reached from the user menu, and from a password-reset email. */
@@ -45,16 +46,15 @@ export function Account() {
   const managed = !!user.managed;
 
   return (
-    <div className="app">
-      <TopBar />
-      <main className="page narrow acct">
-        <div className="page-head">
+    <PortalLayout bare>
+      <div className="acct">
+        <header className="pt-pagehead wl-head">
           <div>
-            <h1 className="page-title">Account</h1>
-            <p className="page-sub">Your name and how you sign in.</p>
+            <h1 className="pt-title">Account</h1>
+            <p className="pt-meta">Your name and how you sign in.</p>
           </div>
-          <div className="actions"><Link className="btn" to={homeFor(user)}>Back to your page</Link></div>
-        </div>
+          <div className="actions"><Link className="btn" to={homeFor(user)}><Icon name="back" />Back to your page</Link></div>
+        </header>
 
         <section className="card acct-who">
           <span className="avatar acct-avatar">{initials(user.name)}</span>
@@ -72,7 +72,7 @@ export function Account() {
         ) : (
           <div className="acct-grid">
             <section className="card">
-              <div className="section-head"><h2>Display name</h2></div>
+              <div className="section-head"><h2><Icon name="user" size={16} />Display name</h2></div>
               <form className="stack" onSubmit={saveName} noValidate>
                 <label className="field">
                   <span>Name</span>
@@ -85,7 +85,7 @@ export function Account() {
             </section>
 
             <section className="card">
-              <div className="section-head"><h2>Password</h2></div>
+              <div className="section-head"><h2><Icon name="key" size={16} />Password</h2></div>
               {managed ? (
                 <p className="soft">Your coach manages this sign-in. Ask them for a new password if you have lost it.</p>
               ) : (
@@ -107,7 +107,7 @@ export function Account() {
             </section>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </PortalLayout>
   );
 }

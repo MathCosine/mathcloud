@@ -266,7 +266,7 @@ function VenueRooms({ round }: { round: Round }) {
   const navigate = useNavigate();
   const rooms = contest.venue?.rooms ?? [];
   return (
-    <section className="card flush">
+    <section className="card flush lv-venue">
       <div className="card-head">
         <span className="row lv-titled"><ModeChip mode="in_person" /><h2>{round.kind === 'guts' ? `In the ${contest.venue?.hall ?? 'hall'}` : 'In the rooms'}</h2></span>
         <button className="btn btn-sm" type="button" onClick={() => navigate('/staff/grading')}><Icon name="grading" />Key papers</button>

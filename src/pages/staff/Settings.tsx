@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  addVenueRoom, addZoomRoom, divisionFor, offers, removeRoom, saveDivision, saveRound, saveVenue, setMode, setRegistration, setRoomProctor,
+  addVenueRoom, addZoomRoom, copyProblemsFrom, createEdition, divisionFor, linkedEdition, MODE_LABEL, offers, removeRoom, saveDivision, saveRound, saveVenue,
+  setCoachesUseMathCloud, setMode, setRegistration, setRoomProctor,
 } from '../../lib/actions';
 import { saveContestBasics, saveSlug, slugProblem, toSlug } from '../../lib/contestSettings';
 import { useContest } from '../../lib/hooks';
 import type { DivisionMode, IntegrityPolicy } from '../../lib/model';
-import { useDB } from '../../lib/store';
+import { setActiveContest, useAllDB, useDB } from '../../lib/store';
 import { useDraft } from '../../lib/useDraft';
 import { Icon, type IconName } from '../../components/icons';
 import { Choice, Modal, ModeChip, State, toast } from '../../components/ui';
@@ -206,6 +207,53 @@ function RegistrationSection() {
   for (const c of db.competitors) sizes.set(c.teamId, (sizes.get(c.teamId) ?? 0) + 1);
   const biggest = Math.max(0, ...sizes.values());
   const live = db.teams.filter((t) => t.status !== 'withdrawn').length;
+  const coaches = reg.coaches !== false;
+  const other = linkedEdition(useAllDB(), contest);
+  const setCoaches = (on: boolean) => {
+    setCoachesUseMathCloud(on);
+    if (!on && reg.open) setRegistration({ open: false });
+    toast(on ? 'Coaches can register' : 'Organisers enter every team', on ? 'Open registration when you are ready.' : 'Coaches never need an account. Students sign in only to take tests.', 'g');
+  };
+
+  if (!coaches) {
+    return (
+      <Section id="registration" title="Teams" note="Who brings teams into MathCloud">
+        <div className="card stack">
+          <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
+            <span className="ic-sq"><Icon name="upload" /></span>
+            <div className="stack" style={{ gap: 4 }}>
+              <b>The organisers enter every team</b>
+              <p className="soft small" style={{ margin: 0 }}>
+                Import them from your old sign-up, a Google Form or Excel, or add them one by one. Coaches never need an account; one who signs up with the email you
+                imported sees their teams. Students sign in only to take their tests. {live} teams so far.
+              </p>
+            </div>
+          </div>
+          <div className="row wrap" style={{ gap: 8 }}>
+            <Link className="btn btn-primary" to="/staff/import?type=teams"><Icon name="upload" />Import teams</Link>
+            <Link className="btn" to="/staff/teams"><Icon name="roster" />Teams</Link>
+            <span className="grow" />
+            <button className="btn btn-quiet" type="button" onClick={() => setCoaches(true)}>Let coaches register instead</button>
+          </div>
+          <div className="form-grid set-grid">
+            <label className="field">
+              <span>Smallest team</span>
+              <select className="select" value={reg.teamMin} onChange={(e) => setRegistration({ teamMin: Number(e.target.value) })}>
+                {[1, 2, 3, 4, 5, 6].filter((n) => n <= reg.teamMax).map((n) => <option key={n} value={n}>{n} {n === 1 ? 'student' : 'students'}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Largest team</span>
+              <select className="select" value={reg.teamMax} onChange={(e) => setRegistration({ teamMax: Number(e.target.value) })}>
+                {[1, 2, 3, 4, 5, 6, 7, 8].filter((n) => n >= reg.teamMin).map((n) => <option key={n} value={n} disabled={n < biggest}>{n} {n === 1 ? 'student' : 'students'}{n < biggest ? ' (a team is bigger)' : ''}</option>)}
+              </select>
+            </label>
+          </div>
+          {other && <p className="muted small" style={{ margin: 0 }}>This applies to {contest.short} {MODE_LABEL[contest.divisions[0]?.mode ?? 'in_person'].toLowerCase()}; the {MODE_LABEL[other.divisions[0]?.mode ?? 'online'].toLowerCase()} edition has its own setting.</p>}
+        </div>
+      </Section>
+    );
+  }
 
   return (
     <Section id="registration" title="Registration" aside={
@@ -253,6 +301,9 @@ function RegistrationSection() {
             <div><Link className="btn btn-sm" to="/staff/import?type=teams"><Icon name="upload" />Import a CSV</Link></div>
           </div>
         </div>
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button className="btn btn-quiet" type="button" onClick={() => setCoaches(false)}>Organisers enter every team instead</button>
+        </div>
       </div>
     </Section>
   );
@@ -261,6 +312,85 @@ function RegistrationSection() {
 // ------------------------------------------------------------ taking part
 
 function TakingPart() {
+  const contest = useContest();
+  // Contests made before editions existed may still run both ways; they keep the old switches.
+  return contest.divisions.length > 1 ? <BothWays /> : <Edition />;
+}
+
+/** One way of taking part per contest. Running the other way at the same time is the linked edition. */
+function Edition() {
+  const contest = useContest();
+  const db = useDB();
+  const all = useAllDB();
+  const navigate = useNavigate();
+  const mode: DivisionMode = contest.divisions[0]?.mode ?? 'in_person';
+  const otherMode: DivisionMode = mode === 'online' ? 'in_person' : 'online';
+  const other = linkedEdition(all, contest);
+  const [busy, setBusy] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const live = db.teams.filter((t) => t.status !== 'withdrawn').length;
+  const otherTeams = other ? all.teams.filter((t) => t.contestId === other.id && t.status !== 'withdrawn').length : 0;
+  const open = (id: string) => { setActiveContest(id, { load: true }); navigate('/staff'); };
+  const make = async () => {
+    setBusy(true);
+    try {
+      const id = await createEdition(contest.id, otherMode);
+      toast(`${contest.short} ${MODE_LABEL[otherMode].toLowerCase()} is ready`, 'Same rounds, problems and keys, copied. Its teams, rooms and results are its own.', 'g');
+      open(id);
+    } catch (e) {
+      toast('Edition not created', e instanceof Error ? e.message : String(e), 'r');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section id="taking-part" title="How teams take part" note="One way per contest; the other way is a linked edition">
+      <div className="choices">
+        <Choice tone={mode} icon={mode === 'online' ? 'screen' : 'pin'} title={`${MODE_LABEL[mode]}: this contest`} checked onSelect={() => undefined}
+          points={mode === 'online'
+            ? [{ icon: 'screen', text: 'Tests in the browser, marked as they go' }, { icon: 'video', text: `${contest.rooms.length} Zoom ${contest.rooms.length === 1 ? 'room' : 'rooms'}, each with a proctor` }]
+            : [{ icon: 'file', text: 'Paper answers, keyed in by graders' }, { icon: 'ticket', text: 'Check-in, rooms, projector board' }]}>
+          {live} teams{mode === 'in_person' && contest.venue?.name ? ` at ${contest.venue.name}` : ''}.
+        </Choice>
+        {other ? (
+          <Choice tone={otherMode} icon={otherMode === 'online' ? 'screen' : 'pin'} title={`${MODE_LABEL[otherMode]}: linked edition`} checked={false} onSelect={() => open(other.id)}
+            points={[{ icon: 'arrow-up-right', text: 'Open it to manage its teams and rooms' }, { icon: 'results', text: 'Ranked and awarded on its own' }]}>
+            {otherTeams} teams, same day and rounds.
+          </Choice>
+        ) : (
+          <Choice tone={otherMode} icon="plus" title={`Also running ${MODE_LABEL[otherMode].toLowerCase()}?`} checked={false} onSelect={() => !busy && void make()}
+            points={[{ icon: 'copy', text: 'Copies the rounds, problems and keys' }, { icon: 'roster', text: 'Its own teams, rooms and results' }]}>
+            {busy ? 'Creating…' : `Create the ${MODE_LABEL[otherMode].toLowerCase()} edition.`}
+          </Choice>
+        )}
+      </div>
+      {other && (
+        <div className="row wrap" style={{ gap: 8, marginTop: 12 }}>
+          <button className="btn btn-sm" type="button" onClick={() => open(other.id)}><Icon name="switch" />Open the {MODE_LABEL[otherMode].toLowerCase()} edition</button>
+          <button className="btn btn-sm" type="button" onClick={() => setCopying(true)}><Icon name="copy" />Copy problems from it</button>
+          <span className="muted small">Problems were copied once when it was made; after that each edition is edited on its own.</span>
+        </div>
+      )}
+      {copying && other && (
+        <Modal title="Copy the other edition's problems?" onClose={() => setCopying(false)} actions={
+          <>
+            <button className="btn" type="button" onClick={() => setCopying(false)}>Cancel</button>
+            <button className="btn btn-primary" type="button" onClick={() => {
+              const n = copyProblemsFrom(other.id);
+              setCopying(false);
+              toast(`Copied ${n} ${n === 1 ? 'round' : 'rounds'} of problems`, 'From the ' + MODE_LABEL[otherMode].toLowerCase() + ' edition, with their answer keys.', 'g');
+            }}>Replace this contest's problems</button>
+          </>
+        }>
+          <p>Every round here gets the problems and answer keys of the round with the same name in the {MODE_LABEL[otherMode].toLowerCase()} edition. Answers students already gave here to problems that are replaced are no longer counted.</p>
+        </Modal>
+      )}
+    </Section>
+  );
+}
+
+function BothWays() {
+
   const contest = useContest();
   const db = useDB();
   const live = db.teams.filter((t) => t.status !== 'withdrawn');

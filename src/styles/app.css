@@ -587,8 +587,8 @@ body.has-bulk .toasts { bottom: 88px; }
 .sb-name { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb-score { position: relative; font-weight: 600; text-align: right; font-size: 15px; letter-spacing: -.02em; transition: color .4s; }
 .sb-row.bump .sb-score { color: var(--green); }
-.sb-delta { position: absolute; right: calc(100% + 8px); top: 50%; font-size: 12px; font-weight: 600; color: var(--green); white-space: nowrap; pointer-events: none; animation: delta 2.2s var(--out) both; }
-@keyframes delta { 0% { opacity: 0; transform: translateY(-10%) scale(.8); } 14% { opacity: 1; transform: translateY(-50%) scale(1); } 72% { opacity: 1; transform: translateY(-50%); } 100% { opacity: 0; transform: translateY(-110%); } }
+.sb-delta { display: inline-block; margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--green); white-space: nowrap; pointer-events: none; animation: delta 2.2s var(--out) both; }
+@keyframes delta { 0% { opacity: 0; transform: translateY(40%) scale(.85); } 14% { opacity: 1; transform: none; } 72% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-40%); } }
 .sb-gap { padding: 0 10px; color: var(--ink-3); font-size: 12px; line-height: 20px; }
 .sb-more, .sb-none { padding: 10px 10px 0; color: var(--ink-3); font-size: 12.5px; }
 .track { display: inline-flex; gap: 3px; }
@@ -661,7 +661,7 @@ body.has-bulk .toasts { bottom: 88px; }
 .b-track i.now { background: var(--b-now); animation: now 1.8s var(--ease) infinite; }
 .b-score { position: relative; text-align: right; font-weight: 650; letter-spacing: -.035em; transition: color 1.2s var(--ease); }
 .b-row.flash .b-score { color: var(--b-done); transition-duration: .25s; }
-.b-delta { position: absolute; right: calc(100% + .5em); top: 50%; font-size: .6em; font-weight: 600; letter-spacing: -.01em; color: var(--b-done); white-space: nowrap; pointer-events: none; animation: delta 2.6s var(--out) both; }
+.b-delta { display: inline-block; margin-left: .6em; font-size: .62em; font-weight: 600; letter-spacing: -.01em; color: var(--b-done); white-space: nowrap; pointer-events: none; animation: delta 2.6s var(--out) both; }
 .board-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 2vh; min-height: 48px; }
 .board-note { font-size: clamp(12px, .9vw, 15px); color: var(--b-ink-3); }
 .board-ctl { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 14px; background: var(--b-chrome); box-shadow: 0 0 0 1px var(--b-line), 0 10px 30px -12px rgba(0, 0, 0, .5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: opacity .5s var(--ease), transform .5s var(--out); }

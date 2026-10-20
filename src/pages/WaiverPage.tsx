@@ -139,7 +139,7 @@ function WaiverForm({ info, onSign }: { info: Info; onSign: (name: string) => Pr
         </label>
         <label className="check"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />I am {first}’s parent or legal guardian, I have read this waiver and I agree to it.</label>
         {error && <div className="note red" role="alert">{error}</div>}
-        <div><button className="btn btn-primary btn-lg" type="submit" disabled={!ready || busy}>{busy ? 'Signing…' : 'Sign the waiver'}</button></div>
+        <div><button className="btn btn-primary btn-lg" type="submit" disabled={!ready || busy}>{busy ? <><span className="spinner" />Signing</> : 'Sign the waiver'}</button></div>
         <p className="small muted">Typing your name here counts as your signature. The time and the name you type are recorded.</p>
       </div>
     </form>
@@ -154,8 +154,8 @@ function SignedArt() {
       <rect x="35" y="31" width="32" height="5" rx="2.5" fill="var(--bg-3)" />
       <rect x="35" y="42" width="36" height="5" rx="2.5" fill="var(--bg-3)" />
       <path d="M36 68c5-7 8 3 13-2s7 2 12-1" fill="none" stroke="var(--ink-2)" strokeWidth="1.8" strokeLinecap="round" />
-      <circle cx="84" cy="66" r="17" fill="var(--green)" />
-      <path d="M76 66.5l5.5 5.5 10.5-11" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle className="wv-seal" cx="84" cy="66" r="17" fill="var(--green)" />
+      <path className="wv-check" d="M76 66.5l5.5 5.5 10.5-11" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

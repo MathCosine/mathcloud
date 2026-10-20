@@ -7,7 +7,7 @@ import { contestInitials, homeFor, useUser } from '../lib/session';
 import { REMOTE, useAllDB } from '../lib/store';
 import * as W from '../lib/remote/write';
 import { currentUid, reload } from '../lib/remote/live';
-import { TopBar } from '../layouts/StaffLayout';
+import { PortalLayout } from '../layouts/PortalLayout';
 import { ArtEmpty } from '../components/art';
 import { Icon } from '../components/icons';
 
@@ -32,20 +32,17 @@ export function Welcome() {
   ];
 
   return (
-    <div className="app">
-      <TopBar />
-      <main className="page narrow welcome">
+    <PortalLayout bare>
+      <div className="welcome">
         {!REMOTE && (
-          <div className="note blue" style={{ marginBottom: 20 }}>
+          <div className="note blue" style={{ marginBottom: 24 }}>
             Sandbox preview. New accounts land here when MathCloud is connected to Supabase; the sandbox only has its demo accounts, so nothing here is saved.
           </div>
         )}
-        <div className="page-head">
-          <div>
-            <h1 className="page-title">{user ? `Welcome, ${firstName(user.name)}` : 'Welcome to MathCloud'}</h1>
-            <p className="page-sub">What are you here for? You can add the others later.</p>
-          </div>
-        </div>
+        <header className="wl-head">
+          <h1 className="pt-title">{user ? `Welcome, ${firstName(user.name)}` : 'Welcome to MathCloud'}</h1>
+          <p className="pt-meta">What are you here for? You can add the others later.</p>
+        </header>
         <div className="wl-cards" role="radiogroup" aria-label="What brings you here">
           {cards.map((c) => (
             <button key={c.key} type="button" role="radio" aria-checked={pick === c.key} className="wl-card" onClick={() => setPick(c.key)}>
@@ -61,8 +58,8 @@ export function Welcome() {
         {pick === 'run' && <RunPanel />}
         {pick === 'coach' && <CoachPanel />}
         {pick === 'student' && <StudentPanel defaultName={user?.name ?? ''} />}
-      </main>
-    </div>
+      </div>
+    </PortalLayout>
   );
 }
 

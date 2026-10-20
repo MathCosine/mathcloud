@@ -272,12 +272,11 @@ function Rows({ board, split, slots }: { board: Board; split: boolean; slots: nu
             style={{ width: colW, height: rowH, transform: `translate3d(${col * (colW + gap)}px, ${y}px, 0)` }}
           >
             <span className="b-place">{r.place && r.score > 0 ? r.place : '–'}</span>
-            <span className="b-name">{r.team.name}<small>{r.team.code}</small></span>
+            <span className="b-name">{r.team.name}<small>{r.team.code}</small>{d ? <span className="b-delta" key={`${r.team.id}:${r.score}`}>+{d}</span> : null}</span>
             <span className="b-track" aria-label={`${r.sets} of ${board.totalSets} sets`}>
               {Array.from({ length: board.totalSets }, (_, k) => <i key={k} className={k < r.sets ? 'done' : r.current === k + 1 ? 'now' : ''} />)}
             </span>
             <span className="b-score">
-              {d ? <span className="b-delta" key={`${r.team.id}:${r.score}`}>+{d}</span> : null}
               <Roll value={r.score} />
             </span>
             <i className="b-bar" style={{ transform: `scaleX(${lead ? r.score / lead : 0})` }} aria-hidden="true" />

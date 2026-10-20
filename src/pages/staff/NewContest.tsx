@@ -28,14 +28,14 @@ const ROUNDS: { key: RoundPlan; title: string; text: string }[] = [
   { key: 'guts', title: 'Guts', text: 'Six sets of four, 60 minutes, with the live scoreboard.' },
 ];
 
-const STEPS = ['Basics', 'How teams take part', 'Rounds', 'Sign-ups'];
+const STEPS = ['Basics', 'How teams take part', 'Rounds', 'Teams'];
 
 export function NewContest() {
   const navigate = useNavigate();
   const guessZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [step, setStep] = useState(0);
   const [format, setFormat] = useState<Format | null>(null);
-  const [signup, setSignup] = useState<Signup>('form');
+  const [signup, setSignup] = useState<Signup>('import');
   const [plan, setPlan] = useState<Plan>({
     name: '', short: '', date: '2027-03-13',
     timeZone: ZONES.some(([z]) => z === guessZone) ? guessZone : 'America/Los_Angeles',
@@ -61,11 +61,15 @@ export function NewContest() {
 
   const create = async () => {
     try {
-      await createContest({ ...plan, modes });
+      await createContest({ ...plan, modes, coaches: signup === 'form' });
     } catch (e) {
       return toast('Contest not created', e instanceof Error ? e.message : String(e), 'r');
     }
-    toast(`${plan.short} is ready`, signup === 'import' ? 'Bring in your teams from a spreadsheet.' : 'Registration is open. Share the link from Settings.', 'g');
+    toast(
+      format === 'both' ? `${plan.short} is ready, in person and online` : `${plan.short} is ready`,
+      signup === 'import' ? 'Bring in your teams from your spreadsheet or old sign-up.' : 'Registration is open. Share the link from Settings.',
+      'g',
+    );
     navigate(signup === 'import' ? '/staff/import?type=teams' : '/staff', { replace: true });
   };
 
@@ -127,8 +131,8 @@ export function NewContest() {
                 Everyone takes part from where they are.
               </Choice>
               <Choice tone="both" icon="both" title="Both, at the same time" checked={format === 'both'} onSelect={() => setFormat('both')}
-                points={[{ icon: 'switch', text: 'Each coach picks in person or online' }, { icon: 'results', text: 'Ranked separately, one set of rounds' }, { icon: 'board', text: 'One board, a column for each' }]}>
-                A venue, plus an online division.
+                points={[{ icon: 'copy', text: 'Two linked contests, one for each way' }, { icon: 'rounds', text: 'Rounds and problems copied to both' }, { icon: 'results', text: 'Teams, rooms and results kept apart' }]}>
+                A venue, plus an online edition running alongside.
               </Choice>
             </div>
             {modes.includes('in_person') && (
@@ -172,20 +176,25 @@ export function NewContest() {
         {step === 3 && (
           <>
             <div className="stack" style={{ gap: 4 }}>
-              <h2>How will teams sign up?</h2>
-              <p className="soft">This is only where you start: the form is always there, and teams from a spreadsheet and from the form end up in the same list.</p>
+              <h2>Who enters the teams?</h2>
+              <p className="soft">Either way, organisers can add, import and edit every team at any time.</p>
             </div>
-            <div className="choices" role="radiogroup" aria-label="How teams sign up">
-              <Choice tone="both" icon="link" title="Our registration form" checked={signup === 'form'} onSelect={() => setSignup('form')}>
-                A page you link to. {format === 'both' ? 'Coaches choose in person or online first.' : 'Coaches add their students.'}
+            <div className="choices" role="radiogroup" aria-label="Who enters the teams">
+              <Choice tone="both" icon="upload" title="We do" checked={signup === 'import'} onSelect={() => setSignup('import')}
+                points={[{ icon: 'table', text: 'Import from your old sign-up, a Google Form or Excel' }, { icon: 'waivers', text: 'Bring waivers you already have' }, { icon: 'student', text: 'Students only sign in to take tests' }]}>
+                Coaches never need an account.
               </Choice>
-              <Choice tone="both" icon="table" title="Import a spreadsheet" checked={signup === 'import'} onSelect={() => setSignup('import')}>
-                Teams who signed up on your own site or a Google Form. CSV, with any columns.
+              <Choice tone="both" icon="link" title="Coaches register" checked={signup === 'form'} onSelect={() => setSignup('form')}
+                points={[{ icon: 'link', text: 'A registration page you link to' }, { icon: 'roster', text: 'Coaches manage their own rosters' }, { icon: 'send', text: 'Guardians sign waivers online' }]}>
+                {format === 'both' ? 'Coaches choose in person or online first.' : 'Coaches add their students.'}
               </Choice>
             </div>
             <div className="nc-summary">
               <Icon name="info" />
-              <span><b>{plan.name || 'Your contest'}</b> on {longDate(plan.date)}, {modes.map((m) => (m === 'online' ? 'online' : `in person at ${plan.venueName || 'the venue'}`)).join(' and ')}, with {plan.rounds.length} {plan.rounds.length === 1 ? 'round' : 'rounds'}: {plan.rounds.map((r) => ROUNDS.find((x) => x.key === r)!.title).join(', ')}.</span>
+              <span>
+                <b>{plan.name || 'Your contest'}</b> on {longDate(plan.date)}, {modes.map((m) => (m === 'online' ? 'online' : `in person at ${plan.venueName || 'the venue'}`)).join(' and ')}, with {plan.rounds.length} {plan.rounds.length === 1 ? 'round' : 'rounds'}: {plan.rounds.map((r) => ROUNDS.find((x) => x.key === r)!.title).join(', ')}.
+                {format === 'both' && ' This makes two linked contests, in person and online; switch between them from the contest menu.'}
+              </span>
             </div>
           </>
         )}

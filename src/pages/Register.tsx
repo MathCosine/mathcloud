@@ -49,13 +49,15 @@ export function Register() {
 
   return (
     <>
-      <header className="top">
-        <span className="tile" style={{ width: 30, height: 30, fontSize: 11, borderRadius: 8 }}>{contestInitials(contest.short)}</span>
-        <span className="reg-title"><b className="hide-sm">{contest.name}</b><b className="show-sm">{contest.short}</b><span className="muted small hide-sm" style={{ marginLeft: 10 }}>{contest.dateLabel}</span></span>
-        <span className="grow" />
-        {user ? <span className="soft small reg-who">{user.name}</span> : <Link className="btn btn-sm" to="/sign-in">Sign in</Link>}
+      <header className="reg-top">
+        <div className="reg-top-in">
+          <span className="tile" style={{ width: 30, height: 30, fontSize: 11, borderRadius: 9 }}>{contestInitials(contest.short)}</span>
+          <span className="reg-title"><b className="hide-sm">{contest.name}</b><b className="show-sm">{contest.short}</b><span className="muted small hide-sm" style={{ marginLeft: 10 }}>{contest.dateLabel}</span></span>
+          <span className="grow" />
+          {user ? <span className="soft small reg-who">{user.name}</span> : <Link className="btn btn-sm" to="/sign-in">Sign in</Link>}
+        </div>
       </header>
-      <main className="portal narrow">
+      <main className="reg-main">
         {done ? (
           <Done contestShort={contest.short} team={done} mode={mode!} onTeams={user?.role === 'coach' ? () => { setActiveContest(contest.id); navigate('/coach'); } : undefined} slugPrefix={contest.slug.split('-')[0]} />
         ) : (
@@ -196,13 +198,13 @@ function Done({ contestShort, team, mode, onTeams, slugPrefix }: { contestShort:
   const contest = all.contests.find((c) => c.id === team.contestId)!;
   return (
     <div className="stack-lg reveal">
-      <div className="hero" style={{ alignItems: 'flex-start' }}>
+      <div className="card reg-done">
         <div>
-          <ModeChip mode={mode} lg />
-          <h2 style={{ marginTop: 12 }}>{team.name} is registered for {contestShort}</h2>
+          <div className="row" style={{ gap: 12 }}><span className="reg-done-tick"><Icon name="check" size={22} /></span><ModeChip mode={mode} lg /></div>
+          <h2>{team.name} is registered for {contestShort}</h2>
           <p>Team {team.code}. A confirmation is on its way to {team.contactEmail}; the organisers confirm your place within a few days.</p>
         </div>
-        {onTeams && <button className="btn btn-primary" type="button" onClick={onTeams}>Go to your teams</button>}
+        {onTeams && <button className="btn btn-primary" type="button" onClick={onTeams}>Go to your teams<Icon name="arrow" /></button>}
       </div>
       <section className="card flush">
         <div className="card-head"><h2>Competitor IDs</h2><span className="label">{mode === 'online' ? 'Each student signs in with their own username' : 'Students write these on every answer sheet'}</span></div>
@@ -215,9 +217,9 @@ function Done({ contestShort, team, mode, onTeams, slugPrefix }: { contestShort:
           </tbody>
         </table>
       </section>
-      <section className="section">
+      <section className="card">
         <div className="section-head"><h2>What happens next</h2></div>
-        <ol className="bring" style={{ paddingLeft: 20 }}>
+        <ol className="reg-steps">
           <li>Guardians sign the waivers from the email. Nobody competes without one.</li>
           {mode === 'online' ? (
             <>

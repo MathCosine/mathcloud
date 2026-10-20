@@ -421,7 +421,7 @@ function Keys({ cap }: { cap: Capacity }) {
 
       <form className="card stack ml-add" onSubmit={(e) => void add(e)}>
         <div>
-          <h2 className="row" style={{ fontSize: 15, gap: 9 }}><Icon name="plus" size={16} />Add a key</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 600 }}>Add a key</h2>
           <p className="muted small">Get one at resend.com: verify your domain under Domains, then API Keys, Create API key, with sending access.</p>
         </div>
         <div className="form-grid">
