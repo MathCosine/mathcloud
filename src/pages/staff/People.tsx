@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { checkIn, deleteTeam, modeOf, offers } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { Competitor, Team, User } from '../../lib/model';
@@ -9,7 +9,7 @@ import { initials, ROLE_LABEL, useUser } from '../../lib/session';
 import { useDB } from '../../lib/store';
 import { clock, day } from '../../lib/time';
 import { ArtEmpty } from '../../components/art';
-import { Icon } from '../../components/icons';
+import { Icon, type IconName } from '../../components/icons';
 import { downloadCsv, Modal, Roll, SearchBox, State, Tabs, toast } from '../../components/ui';
 import { copy, StudentDrawer, TeamDrawer, useConfirm } from './PeopleParts';
 import '../../styles/people.css';
@@ -52,7 +52,7 @@ export function People() {
       <div className="page-head">
         <div>
           <h1 className="page-title">People</h1>
-          <p className="page-sub">Students, coaches and staff. Click anyone to edit them.</p>
+          <p className="page-sub">{db.competitors.length} students, {contacts.length} coaches and contacts, {staffCount} staff. Click anyone to edit them.</p>
         </div>
       </div>
       <Tabs
@@ -117,25 +117,25 @@ function Students({ onOpen, initialQ }: { onOpen: (id: string) => void; initialQ
     ['competitor_id', 'name', 'grade', 'team_code', 'team', 'mode', 'guardian', 'guardian_email', 'waiver_signed', 'checked_in', 'account'],
     rows.map(({ c, t }) => [c.publicId, c.name, c.grade || '', t.code, t.name, modeOf(contest, t), c.guardianName, c.guardianEmail, c.waiverSignedAt ?? '', c.checkedInAt ?? '', accounts.get(c.id)?.email ?? '']));
 
-  if (!db.competitors.length) return <EmptyCard kind="teams" title="No students yet">Students appear here when teams register or are imported.</EmptyCard>;
+  if (!db.competitors.length) return <EmptyCard kind="teams" title="No students yet" action={<Link className="btn btn-primary" to="/staff/import?type=teams"><Icon name="upload" />Import teams</Link>}>Students appear here when teams register or are imported.</EmptyCard>;
 
   return (
     <section className="card flush">
       <div className="toolbar pp-toolbar">
         <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Name, ID, team, guardian" inputRef={search} />
-        <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}>Waiver missing</button>
-        <button type="button" className="filter" aria-pressed={!hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}>Include withdrawn</button>
+        <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}><Icon name="check" size={13} />Waiver missing</button>
+        <button type="button" className="filter" aria-pressed={!hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}><Icon name="check" size={13} />Include withdrawn</button>
         <span className="grow" />
-        <span className="muted small" title="Keyboard: / search, j and k move, Enter opens">{rows.length} shown</span>
-        <button className="btn btn-sm" type="button" onClick={exportCsv}>Export CSV</button>
+        <span className="pp-count-label" title="Keyboard: / search, j and k move, Enter opens">{rows.length} shown</span>
+        <button className="btn btn-sm" type="button" onClick={exportCsv} title="Download these students as a CSV"><Icon name="download" size={14} />Export</button>
       </div>
       <div className="table-scroll">
         <table className="t">
           <thead>
-            <tr><th>ID</th><th>Name</th><th className="num">Grade</th><th>Team</th><th>Guardian</th><th>Guardian email</th><th>Waiver</th><th>Checked in</th><th>Account</th></tr>
+            <tr><th>ID</th><th>Name</th><th className="num">Grade</th><th>Team</th><th>Guardian</th><th>Waiver</th><th>Checked in</th><th>Signs in with</th></tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr className="empty"><td colSpan={9}>Nobody matches. <button className="linkbtn" type="button" onClick={() => { setQ(''); setOnlyMissing(false); }}>Clear filters</button></td></tr>}
+            {rows.length === 0 && <tr className="empty"><td colSpan={8}>Nobody matches. <button className="linkbtn" type="button" onClick={() => { setQ(''); setOnlyMissing(false); }}>Clear filters</button></td></tr>}
             {rows.map(({ c, t }, i) => {
               const acct = accounts.get(c.id);
               const inPerson = modeOf(contest, t) === 'in_person';
@@ -145,11 +145,13 @@ function Students({ onOpen, initialQ }: { onOpen: (id: string) => void; initialQ
                   <td className="name">{c.name}</td>
                   <td className={`num ${c.grade ? 'soft' : 'wait'}`}>{c.grade || '–'}</td>
                   <td><span className="ellipsis soft pp-team">{t.name}</span></td>
-                  <td className="soft"><span className="ellipsis">{c.guardianName || <span className="muted">–</span>}</span></td>
-                  <td className="soft">{c.guardianEmail ? <span className="ellipsis">{c.guardianEmail}</span> : <span className="wait">None</span>}</td>
+                  <td className="pp-two">
+                    <span className="soft">{c.guardianName || <span className="muted">No name</span>}</span>
+                    {c.guardianEmail ? <small>{c.guardianEmail}</small> : <small className="wait">No email</small>}
+                  </td>
                   <td>{c.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone={t.status === 'withdrawn' ? 'off' : 'wait'}>Missing</State>}</td>
-                  <td className="soft">{!inPerson ? <span className="muted">Online</span> : c.checkedInAt ? <span className="ok">{clock(c.checkedInAt)}</span> : <span className="muted">–</span>}</td>
-                  <td className="soft">{acct ? <span className={acct.managed ? 'mono' : ''}>{acct.email}</span> : <span className="muted">–</span>}</td>
+                  <td className="pp-time">{!inPerson ? <span className="muted">Online</span> : c.checkedInAt ? <span className="row" style={{ gap: 6 }}><Icon name="check-circle" size={14} className="ok" />{clock(c.checkedInAt)}</span> : <span className="muted">–</span>}</td>
+                  <td className="soft">{acct ? <span className={`ellipsis ${acct.managed ? 'mono' : ''}`} title={acct.email}>{acct.email}</span> : <span className="muted">–</span>}</td>
                 </tr>
               );
             })}
@@ -170,15 +172,15 @@ function Contacts({ onOpenTeam }: { onOpenTeam: (id: string) => void }) {
   const all = useMemo(() => contactsOf(db.teams.filter((t) => !hideWithdrawn || t.status !== 'withdrawn'), db.users.filter((u) => u.role === 'coach')), [db, hideWithdrawn]);
   const needle = q.trim().toLowerCase();
   const rows = all.filter((c) => !needle || [c.name, c.email, ...c.teams.map((t) => `${t.code} ${t.name} ${t.school}`)].join(' ').toLowerCase().includes(needle));
-  if (!all.length) return <EmptyCard kind="mail" title="No contacts yet">Each team’s contact shows here once teams register.</EmptyCard>;
+  if (!all.length) return <EmptyCard kind="mail" title="No contacts yet" action={<Link className="btn btn-primary" to="/staff/teams">Go to Teams</Link>}>Each team’s contact shows here once teams register.</EmptyCard>;
   return (
     <section className="card flush">
       <div className="toolbar pp-toolbar">
         <SearchBox value={q} onChange={setQ} placeholder="Name, email, team" />
-        <button type="button" className="filter" aria-pressed={!hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}>Include withdrawn</button>
+        <button type="button" className="filter" aria-pressed={!hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}><Icon name="check" size={13} />Include withdrawn</button>
         <span className="grow" />
-        <span className="muted small">{rows.length} people</span>
-        <button className="btn btn-sm" type="button" onClick={() => copy(rows.map((c) => c.email).join(', '), `${rows.length} emails`)}>Copy all emails</button>
+        <span className="pp-count-label">{rows.length} people</span>
+        <button className="btn btn-sm" type="button" onClick={() => copy(rows.map((c) => c.email).join(', '), `${rows.length} emails`)}><Icon name="copy" size={14} />Copy all emails</button>
         <a className="btn btn-sm" href={`mailto:?bcc=${encodeURIComponent(rows.map((c) => c.email).join(','))}`}><Icon name="mail" />Write to all</a>
       </div>
       <div className="table-scroll">
@@ -196,8 +198,8 @@ function Contacts({ onOpenTeam }: { onOpenTeam: (id: string) => void }) {
                     ))}
                   </span>
                 </td>
-                <td className="soft">{coaches.has(c.email.toLowerCase()) ? 'Coach account' : <span className="muted">Form only</span>}</td>
-                <td className="num"><button className="btn btn-quiet btn-sm" type="button" onClick={() => copy(c.email, c.email)}>Copy</button></td>
+                <td>{coaches.has(c.email.toLowerCase()) ? <State tone="ok">Coach account</State> : <State tone="off">Form only</State>}</td>
+                <td className="num"><span className="pp-acts pp-fade"><button className="icon-btn" type="button" aria-label={`Copy ${c.email}`} title="Copy email" onClick={() => copy(c.email, c.email)}><Icon name="copy" size={15} /></button></span></td>
               </tr>
             ))}
           </tbody>
@@ -216,6 +218,7 @@ const CAN: Record<StaffRole, string> = {
   proctor: 'One Zoom room on contest day',
 };
 const ROLES: StaffRole[] = ['grader', 'proctor', 'staff', 'director'];
+const ROLE_ICON: Record<StaffRole, IconName> = { director: 'key', staff: 'roster', grader: 'grading', proctor: 'video' };
 
 function Staff() {
   const db = useDB();
@@ -273,15 +276,15 @@ function Staff() {
                       <span><b>{u.name}</b>{u.id === me.id && <span className="muted"> (you)</span>}<div className="muted tiny">{u.email}</div></span>
                     </div>
                   </td>
-                  <td>{ROLE_LABEL[u.role]}</td>
+                  <td><span className="pp-role"><Icon name={ROLE_ICON[u.role as StaffRole] ?? 'user'} size={15} />{ROLE_LABEL[u.role]}</span></td>
                   <td className="soft wrap">{scope(u)}</td>
                   <td className="num">
                     {u.id !== me.id && (
-                      <button className="btn btn-quiet btn-sm" type="button" onClick={() => ask({
+                      <span className="pp-acts pp-fade"><button className="icon-btn danger" type="button" aria-label={`Remove ${u.name}`} title="Remove access" onClick={() => ask({
                         title: `Remove ${u.name}?`, label: 'Remove access', danger: true,
                         body: <p>{u.name} loses {ROLE_LABEL[u.role].toLowerCase()} access to {contest.short}. Their account stays; you can add them again.</p>,
                         run: async () => { const err = await removeStaff(u.id, u.role as StaffRole); if (err) toast('Not removed', err, 'r'); else toast(`${u.name} removed`); },
-                      })}>Remove</button>
+                      })}><Icon name="trash" size={15} /></button></span>
                     )}
                   </td>
                 </tr>
@@ -292,7 +295,7 @@ function Staff() {
         <div className="card-foot"><span className="muted small">Coaches and students make their own accounts when they register. {plural(db.users.filter((u) => u.managed).length, 'student')} sign in with a username instead of an email.</span></div>
       </section>
       <aside className="card stack">
-        <h2 className="pp-h2">Add staff</h2>
+        <h2 className="pp-h2 row" style={{ gap: 8 }}><Icon name="user-plus" size={16} />Add staff</h2>
         <label className="field"><span>Email</span><input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void invite()} placeholder="volunteer@school.org" /></label>
         <label className="field"><span>Name</span><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Optional" /></label>
         <label className="field">
@@ -325,7 +328,7 @@ function Staff() {
             </select>
           </label>
         )}
-        <button className="btn btn-primary" type="button" disabled={busy} onClick={() => void invite()}>{busy ? 'Adding' : 'Add to contest'}</button>
+        <button className="btn btn-primary" type="button" disabled={busy} onClick={() => void invite()}><Icon name="plus" />{busy ? 'Adding' : 'Add to contest'}</button>
         <p className="muted tiny">Someone new gets an account with a password shown once here. Someone who already has an account just gets the role.</p>
       </aside>
       {confirmNode}
@@ -373,12 +376,12 @@ function CheckIn({ onOpen }: { onOpen: (id: string) => void }) {
 
   return (
     <section className="card flush">
-      <div className="toolbar pp-toolbar">
+      <div className="pp-ci-head">
         <form onSubmit={(e) => { e.preventDefault(); enter(); }}>
           <SearchBox value={q} onChange={setQ} placeholder="Type or scan an ID, then Enter" inputRef={search} />
         </form>
-        <span className="grow" />
-        <span className="soft"><b className="ok"><Roll value={here} /></b> of {rows.length} here</span>
+        <span className="pp-ci-count"><b><Roll value={here} /></b>of {rows.length} here</span>
+        <span className="pp-ci-bar" role="img" aria-label={`${here} of ${rows.length} checked in`}><i style={{ width: `${rows.length ? (here / rows.length) * 100 : 0}%` }} /></span>
       </div>
       <div className="table-scroll">
         <table className="t">
@@ -386,16 +389,18 @@ function CheckIn({ onOpen }: { onOpen: (id: string) => void }) {
           <tbody>
             {shown.length === 0 && <tr className="empty"><td colSpan={6}>{rows.length ? 'Nobody matches.' : 'No in-person students.'}</td></tr>}
             {shown.map(({ c, t }) => (
-              <tr key={c.id}>
+              <tr key={c.id} className={c.checkedInAt ? 'pp-in' : ''}>
                 <td className="mono">{c.publicId}</td>
                 <td className="name"><button className="linkbtn pp-plain" type="button" onClick={() => onOpen(c.id)}>{c.name}</button></td>
                 <td className="soft"><span className="ellipsis">{t.name}</span></td>
                 <td>{c.waiverSignedAt ? <State tone="ok">Signed</State> : <State tone="wait">Missing</State>}</td>
-                <td className="muted">{c.checkedInAt ? clock(c.checkedInAt) : '–'}</td>
+                <td className="pp-time">{c.checkedInAt ? <span className="row" style={{ gap: 8 }}><span className="pp-tick"><Icon name="check" size={12} /></span>{clock(c.checkedInAt)}</span> : <span className="muted">–</span>}</td>
                 <td className="num">
-                  <button className={`btn btn-sm ${c.checkedInAt ? 'btn-quiet' : ''}`} type="button" disabled={!c.waiverSignedAt && !c.checkedInAt} onClick={() => checkIn(c.id)}>
-                    {c.checkedInAt ? 'Undo' : 'Check in'}
-                  </button>
+                  {c.checkedInAt ? (
+                    <span className="pp-acts pp-fade"><button className="icon-btn" type="button" aria-label={`Undo check-in for ${c.name}`} title="Undo check-in" onClick={() => checkIn(c.id)}><Icon name="undo" size={15} /></button></span>
+                  ) : (
+                    <button className="btn btn-sm" type="button" disabled={!c.waiverSignedAt} title={c.waiverSignedAt ? undefined : 'No signed waiver yet'} onClick={() => checkIn(c.id)}><Icon name="check" size={13} />Check in</button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -475,14 +480,16 @@ function IdCheck({ onOpenStudent, onOpenTeam }: { onOpenStudent: (id: string) =>
     run: () => { deleteTeam(t.id, me.name); toast(`${t.name} deleted`); },
   });
 
-  if (!db.teams.length) return <EmptyCard kind="search" title="Nothing to check yet">The roster is checked here once teams register.</EmptyCard>;
+  if (!db.teams.length) return <EmptyCard kind="search" title="Nothing to check yet" action={<Link className="btn btn-primary" to="/staff/teams">Go to Teams</Link>}>The roster is checked here once teams register.</EmptyCard>;
 
   return (
     <div className="stack-lg">
-      <div className={`note ${h.total ? 'amber' : 'green'}`}>
-        {h.total ? <><b>{h.total} {h.total === 1 ? 'thing' : 'things'} to look at.</b> Click a name to open it and fix it there.</> : <b>The roster looks clean: no duplicates, IDs match, every student can get a waiver.</b>}
+      <div className={`pp-banner ${h.total ? 'amber' : 'green'}`}>
+        <Icon name={h.total ? 'warning' : 'check-circle'} size={18} />
+        {h.total ? <span><b>{h.total} {h.total === 1 ? 'thing' : 'things'} to look at.</b> Click a name to open it and fix it there.</span> : <span><b>The roster looks clean.</b> No duplicates, IDs match, and every student can get a waiver.</span>}
       </div>
 
+      <section className="card flush pp-checks">
       <Check title="Duplicate students" n={h.dupStudents.length} hint="Same name in this contest. Same team or same guardian email is almost surely one child entered twice." action={exact.length > 0 && <button className="btn btn-sm btn-danger" type="button" onClick={removeAllExact}>Remove all exact duplicates ({exact.length})</button>}>
         {h.dupStudents.map((d) => (
           <li key={d.drop.id} className="pp-pair">
@@ -539,6 +546,7 @@ function IdCheck({ onOpenStudent, onOpenTeam }: { onOpenStudent: (id: string) =>
       <Check title="Grade missing or out of range" n={h.grades.length} hint="Grades 1 to 12. Some awards and reports go by grade.">
         {h.grades.map((g) => <Line key={g.c.id}><S c={g.c} /><span className="wait">{g.kind === 'missing' ? 'No grade' : `Grade ${g.c.grade}`}</span></Line>)}
       </Check>
+      </section>
       {confirmNode}
     </div>
   );
@@ -548,17 +556,17 @@ function Check({ title, n, hint, action, children }: { title: string; n: number;
   const [open, setOpen] = useState(n > 0);
   useEffect(() => { if (n === 0) setOpen(false); }, [n]);
   return (
-    <section className="card flush pp-check">
-      <div className="card-head">
+    <div className="pp-check">
+      <div className="pp-check-top">
         <button type="button" className="pp-check-head" aria-expanded={open} disabled={!n} onClick={() => setOpen((o) => !o)}>
           <span className={`pp-count ${n ? 'warn' : 'ok'}`}>{n ? n : <Icon name="check" size={13} />}</span>
-          <span><h2>{title}</h2><span className="muted tiny">{hint}</span></span>
-          {n > 0 && <Icon name="chevron" size={15} className={`pp-chev ${open ? 'open' : ''}`} />}
+          <span><h2>{title}</h2><span className="muted small">{hint}</span></span>
+          {n > 0 && <Icon name="chevron" size={16} className={`pp-chev ${open ? 'open' : ''}`} />}
         </button>
         {open && action}
       </div>
-      {open && n > 0 && <ul className="pp-list">{children}</ul>}
-    </section>
+      {n > 0 && <div className={`pp-fold ${open ? 'open' : ''}`} inert={!open}><div><ul className="pp-list">{children}</ul></div></div>}
+    </div>
   );
 }
 
@@ -566,11 +574,12 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 const Line = ({ children }: { children: ReactNode }) => <li className="pp-line">{children}</li>;
 
-function EmptyCard({ kind, title, children }: { kind: 'teams' | 'mail' | 'search'; title: string; children: ReactNode }) {
+function EmptyCard({ kind, title, children, action }: { kind: 'teams' | 'mail' | 'search'; title: string; children: ReactNode; action?: ReactNode }) {
   return (
     <section className="card pp-empty">
       <ArtEmpty kind={kind} className="pp-art" />
-      <div className="stack" style={{ gap: 6 }}><h2>{title}</h2><p className="soft">{children}</p></div>
+      <div className="stack" style={{ gap: 6 }}><h2>{title}</h2><p>{children}</p></div>
+      {action && <div className="row wrap">{action}</div>}
     </section>
   );
 }

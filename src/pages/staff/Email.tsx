@@ -8,9 +8,8 @@ import { useDB, REMOTE } from '../../lib/store';
 import { missingVars, render } from '../../lib/templates';
 import { capacityToday, orgOf, sentToday, type Capacity } from '../../lib/reports';
 import { alreadyHave, AUDIENCE_LABEL, FIELDS, flushQueue, recipients, sendComposed, type Audience, type Filter, type Recipient } from '../../lib/email';
-import { ArtEmpty } from '../../components/art';
 import { Icon } from '../../components/icons';
-import { Checkbox, Modal, Segmented, State, Tabs, toast } from '../../components/ui';
+import { Checkbox, EmptyState, Modal, Roll, Segmented, State, Tabs, toast } from '../../components/ui';
 import { CapacityNote } from './Reports';
 import '../../styles/reports.css';
 
@@ -88,7 +87,7 @@ function Preview({ list, subject, body, who, setWho }: { list: Recipient[]; subj
         </select>
       </label>
       {r ? (
-        <div className="ml-mail">
+        <div className="ml-mail" key={r.to + r.key}>
           <div className="ml-mail-head">
             <span>From</span><b>{from || 'Your sending key'}</b>
             <span>To</span><b>{r.to}</b>
@@ -97,12 +96,11 @@ function Preview({ list, subject, body, who, setWho }: { list: Recipient[]; subj
           <div className="email">{render(body, r.ctx)}</div>
         </div>
       ) : (
-        <div className="ml-mail row" style={{ gap: 16 }}>
-          <ArtEmpty kind="mail" className="ml-art" />
-          <p className="muted">Nobody matches this audience and filter.</p>
+        <div className="ml-mail">
+          <EmptyState icon="inbox" title="Nobody to preview">Nobody matches this audience and filter.</EmptyState>
         </div>
       )}
-      {missing.length > 0 && <div className="note amber small">No value for {missing.map((m) => `{{${m}}}`).join(', ')} for this person. It is sent as typed.</div>}
+      {missing.length > 0 && <div className="note amber small ml-missing"><Icon name="warning" size={14} />No value for {missing.map((m) => `{{${m}}}`).join(', ')} for this person. It is sent as typed.</div>}
     </div>
   );
 }
@@ -121,7 +119,7 @@ function VarChips({ audience, target, value, onChange }: { audience: Audience; t
   };
   return (
     <div className="row wrap" style={{ gap: 6 }}>
-      <span className="muted tiny">Insert</span>
+      <span className="muted tiny" style={{ marginRight: 2 }}>Insert</span>
       {FIELDS[audience].map((v) => <button key={v} type="button" className="chip-var" onClick={() => insert(v)}>{v}</button>)}
     </div>
   );
@@ -196,7 +194,7 @@ function Compose({ initial, slot }: { initial: string | null; slot: HTMLElement 
               {filterItems(contest.divisions).map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
             </select>
           </div>
-          <small><b>{targets.length}</b> of {list.length} {AUDIENCE_LABEL[audience].toLowerCase()} get this.{have.size > 0 && !again ? ` ${have.size} already have it and are skipped.` : ''}</small>
+          <small className="ml-count"><b><Roll value={targets.length} /></b> of {list.length} {AUDIENCE_LABEL[audience].toLowerCase()} get this.{have.size > 0 && !again ? ` ${have.size} already have it and are skipped.` : ''}</small>
         </div>
         <label className="field"><span>Subject</span><input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="{{contest.name}}: ..." /></label>
         <label className="field"><span>Message</span><textarea ref={ref} className="textarea" style={{ minHeight: 260, fontSize: 13.5 }} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Hi {{contact.first_name}}, ..." /></label>
@@ -265,9 +263,9 @@ function Templates({ onUse, slot }: { onUse: (id: string) => void; slot: HTMLEle
       )}
       <aside className="stack" style={{ gap: 2 }}>
         {db.templates.map((x) => (
-          <button key={x.id} type="button" className={`list-btn ${x.id === t?.id ? 'on' : ''}`} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 1 }} onClick={() => { setId(x.id); setWho(0); }}>
+          <button key={x.id} type="button" className={`list-btn ml-tpl-item ${x.id === t?.id ? 'on' : ''}`} onClick={() => { setId(x.id); setWho(0); }}>
             <span>{x.name}</span>
-            <span className="muted tiny" style={{ fontWeight: 400 }}>{AUDIENCE_LABEL[x.audience]} · {WHEN[x.trigger]}</span>
+            <span className="muted tiny">{AUDIENCE_LABEL[x.audience]} · {WHEN[x.trigger]}</span>
           </button>
         ))}
       </aside>
@@ -293,7 +291,8 @@ function Templates({ onUse, slot }: { onUse: (id: string) => void; slot: HTMLEle
             <label className="field"><span>Subject</span><input className="input" value={t.subject} onChange={(e) => saveTemplate({ ...t, subject: e.target.value })} /></label>
             <label className="field"><span>Message</span><textarea ref={ref} className="textarea" style={{ minHeight: 300, fontSize: 13.5 }} value={t.body} onChange={(e) => saveTemplate({ ...t, body: e.target.value })} /></label>
             <VarChips audience={t.audience} target={ref} value={t.body} onChange={(body) => saveTemplate({ ...t, body })} />
-            <p className="muted tiny">
+            <p className="muted tiny ml-saves">
+              <Icon name="check" size={13} />
               {'{{#if award}}…{{/if}}'} shows a part only when there is a value; {'{{#each members}}{{name}}{{/each}}'} repeats a line for each member. Changes save as you type.
             </p>
           </div>
@@ -302,7 +301,7 @@ function Templates({ onUse, slot }: { onUse: (id: string) => void; slot: HTMLEle
             <span className="muted small">{list.length} {AUDIENCE_LABEL[t.audience].toLowerCase()} would get this{sent ? `; sent ${sent} times so far` : ''}. Send opens it in Compose to check before it goes.</span>
           </div>
         </div>
-      ) : <p className="muted">No templates yet.</p>}
+      ) : <EmptyState icon="mail" title="No templates yet" action={<button className="btn btn-primary" type="button" onClick={create}><Icon name="plus" />New template</button>}>A template is a message you send more than once, with each person’s details filled in.</EmptyState>}
     </div>
   );
 }
@@ -311,11 +310,11 @@ function Templates({ onUse, slot }: { onUse: (id: string) => void; slot: HTMLEle
 
 function CapacityBar({ cap }: { cap: Capacity }) {
   const total = Math.max(cap.capacity, 1);
-  const colours = ['var(--blue)', '#5B78E0', '#8EA2EA', '#B9C6F2'];
+  const colours = ['var(--ink)', '#4A4A52', '#7A7A84', '#A6A6AF'];
   return (
     <div className="ml-cap">
       <div className="row wrap" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <div><span className="ml-cap-big">{cap.left}</span> <span className="soft">of {cap.capacity} emails left today</span></div>
+        <div><span className="ml-cap-big"><Roll value={cap.left} /></span> <span className="soft">of {cap.capacity} emails left today</span></div>
         <span className="muted small">{cap.used} sent today · resets at midnight</span>
       </div>
       <div className="ml-cap-bar" role="img" aria-label={`${cap.used} of ${cap.capacity} used today`}>
@@ -323,7 +322,7 @@ function CapacityBar({ cap }: { cap: Capacity }) {
           ? cap.keys.filter((k) => k.key.active).map((k, i) => (
               <div key={k.key.id} className="ml-cap-key" style={{ width: `${(k.key.dailyLimit / total) * 100}%` }} title={`${k.key.label}: ${k.used} of ${k.key.dailyLimit}`}>
                 <div style={{ width: `${Math.min(100, (k.used / Math.max(1, k.key.dailyLimit)) * 100)}%`, background: colours[i % colours.length] }} />
-                <div className="grow" style={{ background: 'var(--blue-soft)' }} />
+                <div className="grow" />
               </div>
             ))
           : <div className="seg-used" style={{ width: `${Math.min(100, (cap.used / total) * 100)}%` }} />}
@@ -331,7 +330,7 @@ function CapacityBar({ cap }: { cap: Capacity }) {
       {cap.keys.length > 0 && (
         <div className="ml-cap-legend">
           {cap.keys.filter((k) => k.key.active).map((k, i) => <span key={k.key.id}><i style={{ background: colours[i % colours.length] }} />{k.key.label}: {k.used} of {k.key.dailyLimit}</span>)}
-          <span><i style={{ background: 'var(--blue-soft)', boxShadow: 'inset 0 0 0 1px #D9E1FA' }} />Left today</span>
+          <span><i style={{ background: 'var(--bg-3)' }} />Left today</span>
         </div>
       )}
       <p className="muted small">Resend's free plan sends 100 a day per key; add a second key to send 200. Each email goes through the first key with room left; what does not fit waits for tomorrow.</p>
@@ -351,25 +350,25 @@ function KeyRow({ k }: { k: EmailKey }) {
     if (n !== k.dailyLimit) saveEmailKey(k.id, { dailyLimit: n });
   };
   return (
-    <tr className={k.active ? '' : 'dim'}>
+    <tr className={`ml-keyrow ${k.active ? '' : 'dim'}`}>
       <td className="name">{k.label}</td>
       <td className="mono small">{k.from}</td>
       <td className="num"><input className="input ml-limit" type="number" min={1} value={limit} aria-label={`Daily limit for ${k.label}`} onChange={(e) => setLimit(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && commit()} /></td>
       <td>
         <span className="ml-use">
-          <span className="track"><i className={used >= k.dailyLimit ? 'full' : ''} style={{ width: `${Math.min(100, (used / Math.max(1, k.dailyLimit)) * 100)}%` }} /></span>
+          <span className="ml-meter"><i className={used >= k.dailyLimit ? 'full' : ''} style={{ width: `${Math.min(100, (used / Math.max(1, k.dailyLimit)) * 100)}%` }} /></span>
           <span className="small">{used} / {k.dailyLimit}</span>
         </span>
       </td>
       <td><button type="button" role="switch" className="ml-switch" aria-checked={k.active} aria-label={`${k.label} active`} onClick={() => saveEmailKey(k.id, { active: !k.active })} /></td>
       <td className="wrap">{k.lastError ? <span className="ml-err">{k.lastError}</span> : <span className="muted small">None</span>}</td>
       <td className="num">
-        <button className="btn btn-sm btn-quiet btn-danger" type="button" onClick={() => setAsking(true)}>Remove</button>
+        <button className="icon-btn ml-remove" type="button" aria-label={`Remove ${k.label}`} title="Remove key" onClick={() => setAsking(true)}><Icon name="trash" size={15} /></button>
         {asking && (
           <Modal title={`Remove ${k.label}?`} onClose={() => setAsking(false)} actions={
             <>
               <button className="btn" type="button" onClick={() => setAsking(false)}>Cancel</button>
-              <button className="btn btn-danger" type="button" onClick={() => { removeEmailKey(k.id); setAsking(false); toast('Key removed', k.label); }}>Remove</button>
+              <button className="btn btn-primary btn-danger" type="button" onClick={() => { removeEmailKey(k.id); setAsking(false); toast('Key removed', k.label); }}>Remove key</button>
             </>
           }>
             <p style={{ whiteSpace: 'normal' }}>The key is deleted here; it still exists in your Resend account until you revoke it there. Emails waiting in the queue go through your other keys.</p>
@@ -404,10 +403,10 @@ function Keys({ cap }: { cap: Capacity }) {
 
   return (
     <div className="stack-lg">
-      <div className="card"><CapacityBar cap={cap} /></div>
+      <div className="card ml-capcard"><CapacityBar cap={cap} /></div>
 
       <div className="card flush">
-        <div className="card-head"><h2>Keys</h2><span className="muted small">Used in this order</span></div>
+        <div className="card-head"><h2 className="row" style={{ gap: 9 }}><Icon name="key" size={16} />Keys</h2><span className="muted small">Used in this order</span></div>
         {keys.length ? (
           <div className="table-scroll">
             <table className="t">
@@ -416,16 +415,13 @@ function Keys({ cap }: { cap: Capacity }) {
             </table>
           </div>
         ) : (
-          <div className="row" style={{ padding: '18px 20px', gap: 18 }}>
-            <ArtEmpty kind="mail" className="ml-art" />
-            <p className="soft">{REMOTE ? 'No keys yet, so nothing can be sent. Add your first one below.' : 'No keys yet. In the sandbox, sending is only counted against a demo limit of 100 a day.'}</p>
-          </div>
+          <EmptyState icon="key" title="No keys yet">{REMOTE ? 'Nothing can be sent until there is one. Add your first one below.' : 'In the sandbox, sending is only counted against a demo limit of 100 a day.'}</EmptyState>
         )}
       </div>
 
-      <form className="card stack" onSubmit={(e) => void add(e)}>
+      <form className="card stack ml-add" onSubmit={(e) => void add(e)}>
         <div>
-          <h2 style={{ fontSize: 15 }}>Add a key</h2>
+          <h2 className="row" style={{ fontSize: 15, gap: 9 }}><Icon name="plus" size={16} />Add a key</h2>
           <p className="muted small">Get one at resend.com: verify your domain under Domains, then API Keys, Create API key, with sending access.</p>
         </div>
         <div className="form-grid">
@@ -438,7 +434,7 @@ function Keys({ cap }: { cap: Capacity }) {
           </label>
         </div>
         <div className="row wrap" style={{ justifyContent: 'space-between' }}>
-          <span className="muted tiny">The key is stored encrypted on the server and never shown again.</span>
+          <span className="muted tiny row" style={{ gap: 6 }}><Icon name="lock" size={13} />The key is stored encrypted on the server and never shown again.</span>
           <button className="btn btn-primary" type="submit" disabled={busy}><Icon name="plus" />{busy ? 'Adding…' : 'Add key'}</button>
         </div>
       </form>
@@ -482,7 +478,7 @@ function Log({ slot }: { slot: HTMLElement | null }) {
         ]} />
       </div>
       {slot && createPortal(
-        <button className={`btn ${queued ? 'btn-primary' : ''}`} type="button" disabled={busy || !queued} title={queued ? 'Uses what is left of today’s limit' : 'Nothing is waiting'} onClick={() => void flush()}>{busy ? 'Sending…' : queued ? `Send ${queued} waiting now` : 'Nothing waiting'}</button>,
+        <button className={`btn ${queued ? 'btn-primary' : ''}`} type="button" disabled={busy || !queued} title={queued ? 'Uses what is left of today’s limit' : 'Nothing is waiting'} onClick={() => void flush()}><Icon name="send" />{busy ? 'Sending…' : queued ? `Send ${queued} waiting now` : 'Nothing waiting'}</button>,
         slot,
       )}
       <div className="card flush ml-log">
@@ -490,7 +486,7 @@ function Log({ slot }: { slot: HTMLElement | null }) {
           <table className="t">
             <thead><tr><th>Time</th><th>To</th><th>Subject</th><th>Kind</th><th>Status</th><th>Key</th><th>Error</th></tr></thead>
             <tbody>
-              {rows.length === 0 && <tr className="empty"><td colSpan={7}>{db.sends.length ? 'Nothing with this status.' : 'Nothing sent yet. Emails you send from Compose or Score reports show up here.'}</td></tr>}
+              {rows.length === 0 && <tr className="empty"><td colSpan={7}><span className="ml-empty"><Icon name="inbox" size={18} />{db.sends.length ? 'Nothing with this status.' : 'Nothing sent yet. Emails you send from Compose or Score reports show up here.'}</span></td></tr>}
               {rows.slice(0, limit).map((s) => {
                 const [tone, word] = STATUS[s.status];
                 return (
@@ -508,7 +504,7 @@ function Log({ slot }: { slot: HTMLElement | null }) {
             </tbody>
           </table>
         </div>
-        {rows.length > limit && <div className="card-foot"><span className="muted small">Showing {limit} of {rows.length}</span><button className="btn btn-sm" type="button" onClick={() => setLimit(limit + 200)}>Show more</button></div>}
+        {rows.length > limit && <div className="card-foot"><span className="muted small">Showing {limit} of {rows.length}</span><button className="btn btn-sm" type="button" onClick={() => setLimit(limit + 200)}><Icon name="chevron" />Show more</button></div>}
       </div>
       {!REMOTE && <p className="muted tiny">Sandbox: nothing leaves the browser. <Link to="/staff/reports">Score reports</Link> and Compose add to this log.</p>}
     </div>

@@ -9,51 +9,59 @@ import { ArtEmpty, Logo } from '../components/art';
 import { Icon, type IconName } from '../components/icons';
 
 const NEXT: { icon: IconName; title: string; text: string }[] = [
-  { icon: 'overview', title: 'Run a contest', text: 'Name your organisation, then set up the contest: divisions, rounds, the day’s schedule.' },
+  { icon: 'overview', title: 'Run a contest', text: 'Name your organisation, then set up the contest: rounds, rooms, the day’s schedule.' },
   { icon: 'roster', title: 'Coach a team', text: 'Pick a contest with registration open and register your team.' },
-  { icon: 'people', title: 'Compete', text: 'Type the join code your coach gave you to take your place on the team.' },
+  { icon: 'student', title: 'Compete', text: 'Type the join code your coach gave you to take your place on the team.' },
 ];
 
 export function SignUp() {
   const me = useUser();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [show, setShow] = useState(false);
   const [error, setError] = useState('');
+  const [tries, setTries] = useState(0);
   const [busy, setBusy] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const set = (k: keyof typeof form) => (e: ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
+  const fail = (why: string) => {
+    setError(why);
+    setTries((n) => n + 1);
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (form.name.trim().length < 2) return setError('Type your name, as organisers and coaches should see it.');
-    if (!EMAIL.test(form.email.trim())) return setError('That does not look like an email address.');
-    if (form.password.length < 8) return setError('Use a password of at least 8 characters.');
+    if (form.name.trim().length < 2) return fail('Type your name, as organisers and coaches should see it.');
+    if (!EMAIL.test(form.email.trim())) return fail('That does not look like an email address.');
+    if (form.password.length < 8) return fail('Use a password of at least 8 characters.');
     setError('');
     setBusy(true);
     const r = await signUp(form);
     setBusy(false);
-    if (r.error) return setError(r.error);
+    if (r.error) return fail(r.error);
     if (r.needsConfirm) return setSentTo(form.email.trim());
     navigate('/welcome');
   };
 
   if (me) return <Navigate to={homeFor(me)} replace />;
   return (
-    <div className="signin">
-      <div className="signin-form">
+    <div className="au">
+      <div className="au-main">
         <Link to="/" className="brand"><Logo size={28} /><span>MathCloud</span></Link>
         {sentTo ? (
-          <div className="stack reveal" style={{ gap: 14 }}>
+          <div className="au-form" key="sent">
             <ArtEmpty kind="mail" className="auth-art" />
-            <h1 className="page-title">Check your inbox</h1>
-            <p className="soft">We sent a link to <b>{sentTo}</b>. Open it on this device to confirm your email; you will come back here signed in.</p>
+            <div>
+              <h1>Check your inbox</h1>
+              <p className="au-lede">We sent a link to <b>{sentTo}</b>. Open it on this device to confirm your email; you will come back here signed in.</p>
+            </div>
             <p className="small muted">Nothing after a few minutes? Look in spam, or <button type="button" className="linkbtn" onClick={() => setSentTo(null)}>try another address</button>.</p>
           </div>
         ) : (
-          <>
-            <div className="stack" style={{ gap: 6 }}>
-              <h1 className="page-title">Create an account</h1>
-              <p className="soft">For organisers, coaches and students with their own email. Younger students get a username from their coach instead.</p>
+          <div className="au-form">
+            <div>
+              <h1>Create an account</h1>
+              <p className="au-lede">For organisers, coaches and students with their own email. Younger students get a username from their coach instead.</p>
             </div>
             {REMOTE ? (
               <form onSubmit={submit} noValidate>
@@ -65,13 +73,20 @@ export function SignUp() {
                   <span>Email</span>
                   <input className="input" type="email" value={form.email} onChange={set('email')} autoComplete="email" autoCapitalize="none" spellCheck={false} />
                 </label>
-                <label className="field">
-                  <span>Password</span>
-                  <input className="input" type="password" value={form.password} onChange={set('password')} autoComplete="new-password" />
-                  <small>At least 8 characters.</small>
-                </label>
-                {error && <div className="note red" role="alert">{error}</div>}
-                <button className="btn btn-primary btn-lg" type="submit" disabled={busy}>{busy ? 'Creating your account…' : 'Create account'}</button>
+                <div className="field">
+                  <label htmlFor="new-password">Password</label>
+                  <div className="au-pw">
+                    <input id="new-password" className="input" type={show ? 'text' : 'password'} value={form.password} onChange={set('password')} autoComplete="new-password" />
+                    <button type="button" className="icon-btn au-eye" onClick={() => setShow((s) => !s)} aria-label={show ? 'Hide password' : 'Show password'} title={show ? 'Hide password' : 'Show password'} aria-pressed={show}>
+                      <Icon name={show ? 'lock' : 'eye'} size={16} />
+                    </button>
+                  </div>
+                  <small className={form.password.length >= 8 ? 'ok' : ''}>{form.password.length >= 8 ? 'Long enough.' : 'At least 8 characters.'}</small>
+                </div>
+                {error && <div key={tries} className="note red au-msg" role="alert">{error}</div>}
+                <button className="btn btn-primary btn-lg au-submit" type="submit" disabled={busy}>
+                  {busy ? <><span className="spinner" />Creating your account</> : <>Create account<Icon name="arrow" /></>}
+                </button>
               </form>
             ) : (
               <div className="stack">
@@ -79,31 +94,31 @@ export function SignUp() {
                   This copy is the sandbox: it runs in your browser with a made-up contest and a fixed set of demo accounts, so there are no new
                   accounts to create. Connect a Supabase project to make real ones.
                 </div>
-                <div><Link className="btn btn-primary" to="/sign-in">Use a demo account</Link></div>
+                <div><Link className="btn btn-primary btn-lg au-submit" to="/sign-in">Use a demo account<Icon name="arrow" /></Link></div>
               </div>
             )}
-            <span className="small soft">Already have an account? <Link to="/sign-in">Sign in</Link></span>
-          </>
+            <div className="au-links"><span>Already have an account? <Link to="/sign-in">Sign in</Link></span></div>
+          </div>
         )}
+        <p className="au-foot">You choose what you are here for after signing up.</p>
       </div>
-      <div className="signin-demo">
-        <div className="stack" style={{ gap: 6 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>After you sign up</h2>
-          <p className="soft" style={{ maxWidth: '60ch' }}>You choose what you are here for. You can do more than one later: an organiser can also coach a team at someone else’s contest.</p>
+      <aside className="au-side">
+        <div className="au-side-in">
+          <div>
+            <h2>After you sign up</h2>
+            <p className="au-side-lede">You choose what you are here for. You can do more than one later: an organiser can also coach a team at someone else’s contest.</p>
+          </div>
+          <ul className="au-roles">
+            {NEXT.map((n) => (
+              <li key={n.title}>
+                <span className="lp-ic"><Icon name={n.icon} size={17} /></span>
+                <span><b>{n.title}</b><small>{n.text}</small></span>
+              </li>
+            ))}
+          </ul>
+          {SHOW_DEMO && <p className="au-note">Just looking? <Link to="/sign-in">Sign in with a demo account</Link> instead.</p>}
         </div>
-        <ul className="auth-next">
-          {NEXT.map((n) => (
-            <li key={n.title} className="card">
-              <span className="auth-next-ic"><Icon name={n.icon} size={18} /></span>
-              <span>
-                <b>{n.title}</b>
-                <small>{n.text}</small>
-              </span>
-            </li>
-          ))}
-        </ul>
-        {SHOW_DEMO && <p className="muted small">Just looking? <Link to="/sign-in">Sign in with a demo account</Link> instead.</p>}
-      </div>
+      </aside>
     </div>
   );
 }

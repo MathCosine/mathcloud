@@ -8,9 +8,8 @@ import {
   type Bar, type Report, type SendState, type StudentReport, type TeamReport, type Who,
 } from '../../lib/reports';
 import { Histogram } from '../../components/charts';
-import { ArtEmpty } from '../../components/art';
 import { Icon } from '../../components/icons';
-import { Checkbox, ModeChip, Modal, SearchBox, Segmented, State, Tabs, toast, type Tone } from '../../components/ui';
+import { Checkbox, EmptyState, ModeChip, Modal, SearchBox, Segmented, State, Tabs, toast, type Tone } from '../../components/ui';
 import { CertificatesPanel } from './Certificates';
 import { usePrint } from './print';
 import '../../styles/reports.css';
@@ -43,22 +42,19 @@ export function Reports() {
       </div>
 
       {!computed ? (
-        <div className="card rp-empty">
-          <ArtEmpty kind="results" />
-          <div className="grow">
-            <h2>No scores yet</h2>
-            <p className="soft">Reports fill in once papers are keyed in and graded. Each student gets their place, round scores and every problem; each team its rounds and members.</p>
-          </div>
-          <button className="btn btn-primary" type="button" onClick={() => navigate('/staff/grading')}>Open Grading</button>
-        </div>
+        <section className="card">
+          <EmptyState icon="reports" title="No scores yet" action={<button className="btn btn-primary" type="button" onClick={() => navigate('/staff/grading')}>Open Grading<Icon name="arrow" /></button>}>
+            Reports fill in once papers are keyed in and graded. Each student gets their place, round scores and every problem; each team its rounds and members.
+          </EmptyState>
+        </section>
       ) : (
         <>
           {(!contest.resultsPublished || toRule > 0) && (
             <div className="note amber rp-note">
               <b>Before you email reports</b>
               <ul className="rp-todo">
-                {toRule > 0 && <li>{toRule} {toRule === 1 ? 'answer needs' : 'answers need'} a ruling in <Link to="/staff/grading">Grading</Link>. Until then {toRule === 1 ? 'it counts' : 'they count'} as wrong here.</li>}
-                {!contest.resultsPublished && <li>Results are not published. <Link to="/staff/results">Publish them on Results</Link> when the scores are final; until then reports can be previewed and printed only.</li>}
+                {toRule > 0 && <li><Icon name="grading" size={15} /><span>{toRule} {toRule === 1 ? 'answer needs' : 'answers need'} a ruling in <Link to="/staff/grading">Grading</Link>. Until then {toRule === 1 ? 'it counts' : 'they count'} as wrong here.</span></li>}
+                {!contest.resultsPublished && <li><Icon name="globe" size={15} /><span>Results are not published. <Link to="/staff/results">Publish them on Results</Link> when the scores are final; until then reports can be previewed and printed only.</span></li>}
               </ul>
             </div>
           )}
@@ -127,7 +123,7 @@ function ReportList({ reports, kind, slot }: { reports: Report[]; kind: 'student
       {slot && createPortal(
         <>
           <button className="btn" type="button" disabled={!shown.length} onClick={() => print(shown.map((r) => <ReportSheet key={r.id} r={r} />))} title="One page per report; save as PDF from the print dialog">
-            <Icon name="file" />Print {filtered ? '' : 'all '}{shown.length}
+            <Icon name="print" />Print {filtered ? '' : 'all '}{shown.length}
           </button>
           <button className="btn btn-primary" type="button" disabled={!canSend} title={!contest.resultsPublished ? 'Publish results first' : undefined} onClick={() => setAsking(true)}>
             <Icon name="mail" />Send {shown.length} {kind === 'student' ? 'student' : 'team'} reports
@@ -141,7 +137,7 @@ function ReportList({ reports, kind, slot }: { reports: Report[]; kind: 'student
           <Segmented label="Division" value={div} onChange={setDiv} items={[{ key: 'all', label: 'All' }, ...contest.divisions.map((d) => ({ key: d.id, label: d.name }))]} />
         )}
         <span className="grow" />
-        <span className="muted small">{counts.again > 0 ? <>{counts.again} sent, {counts.fresh} to go</> : contest.resultsPublished ? <>None emailed yet</> : null}</span>
+        <span className="muted small rp-count">{counts.again > 0 ? <><Icon name="check" size={14} />{counts.again} sent, {counts.fresh} to go</> : contest.resultsPublished ? <>None emailed yet</> : null}</span>
       </div>
 
       <div className="rp-grid">
@@ -152,14 +148,14 @@ function ReportList({ reports, kind, slot }: { reports: Report[]; kind: 'student
                 <tr><th className="num" style={{ width: 52 }}>Place</th><th>{kind === 'student' ? 'Student' : 'Team'}</th><th className="num">{kind === 'student' ? 'Score' : 'Total'}</th><th>Last sent</th></tr>
               </thead>
               <tbody>
-                {shown.length === 0 && <tr className="empty"><td colSpan={4}>Nobody matches.</td></tr>}
+                {shown.length === 0 && <tr className="empty"><td colSpan={4}>Nobody matches “{q}”.</td></tr>}
                 {shown.map((r) => {
                   const addrs = addressesFor(r, who);
                   const st = reportState(db.sends, r, addrs);
                   const [tone, word] = STATE[st.state];
                   return (
                     <tr key={r.id} className={`click ${sel?.id === r.id ? 'selected' : ''}`} onClick={() => setSelId(r.id)}>
-                      <td className="num strong">{r.place ? ordinal(r.place) : '–'}</td>
+                      <td className="num rp-place">{r.place ? ordinal(r.place) : '–'}</td>
                       <td>
                         <div className="name">{r.name}</div>
                         <div className="muted tiny"><span className="mono">{r.key}</span> · {r.kind === 'student' ? r.team?.name : r.school}</div>
@@ -179,13 +175,14 @@ function ReportList({ reports, kind, slot }: { reports: Report[]; kind: 'student
         <div className="stack rp-preview">
           {sel && (
             <>
-              <div className="row wrap" style={{ justifyContent: 'space-between' }}>
-                <span className="muted small">
-                  {addressesFor(sel, who).length ? <>Goes to {addressesFor(sel, who).map((a) => a.to).join(', ')}</> : 'Nobody ticked has an address for this report.'}
+              <div className="rp-to">
+                <span className="muted small row" style={{ gap: 7, minWidth: 0 }}>
+                  <Icon name="mail" size={14} />
+                  <span className="ellipsis" style={{ maxWidth: 'none' }}>{addressesFor(sel, who).length ? <>Goes to {addressesFor(sel, who).map((a) => a.to).join(', ')}</> : 'Nobody ticked has an address for this report.'}</span>
                 </span>
-                <button className="btn btn-sm" type="button" onClick={() => print(<ReportSheet r={sel} />)} title="Save as PDF from the print dialog"><Icon name="file" />Print this one</button>
+                <button className="btn btn-sm" type="button" onClick={() => print(<ReportSheet r={sel} />)} title="Save as PDF from the print dialog"><Icon name="print" />Print this one</button>
               </div>
-              <ReportSheet r={sel} />
+              <div className="rp-paper" key={sel.id}><ReportSheet r={sel} /></div>
             </>
           )}
         </div>
@@ -238,16 +235,19 @@ export function CapacityNote({ total }: { total: number }) {
   const db = useDB();
   const cap = capacityToday(db);
   if (cap.noKeys && REMOTE) {
-    return <div className="note red">No sending key yet, so nothing can go out. These wait in the queue until you <Link to="/staff/email?tab=keys">add a key in Email, Sending keys</Link>.</div>;
+    return <div className="note red rp-cap-note"><Icon name="key" size={15} />No sending key yet, so nothing can go out. These wait in the queue until you <Link to="/staff/email?tab=keys">add a key in Email, Sending keys</Link>.</div>;
   }
   const now = Math.min(total, cap.left);
   return (
-    <div className={`note ${total > cap.left ? 'amber' : ''}`}>
+    <div className={`note rp-cap-note ${total > cap.left ? 'amber' : ''}`}>
+      <Icon name={total > cap.left ? 'clock' : 'send'} size={15} />
+      <div>
       Your keys can send <b>{cap.left}</b> more today ({cap.used} of {cap.capacity} used).
       {total > cap.left
         ? <> {now} go out now. The other {total - now} wait in the queue and go out tomorrow when the limit resets, or when you press Send again. <Link to="/staff/email?tab=keys">Add a key</Link> to send more per day.</>
         : <> All {total} go out now.</>}
       {cap.noKeys && <div className="muted small" style={{ marginTop: 6 }}>Sandbox: nothing leaves the browser, sends are only counted. <Link to="/staff/email?tab=keys">Sending keys</Link></div>}
+      </div>
     </div>
   );
 }

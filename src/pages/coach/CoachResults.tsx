@@ -16,9 +16,9 @@ export function CoachResults({ teams, results }: { teams: Team[]; results: Publi
   const forTeam = (t: Team) => db.competitors.filter((c) => c.teamId === t.id).sort((a, b) => a.slot.localeCompare(b.slot));
 
   return (
-    <section className="section pt-results">
-      <div className="section-head">
-        <h2>Results</h2>
+    <section className="card pt-card pt-results reveal">
+      <div className="pt-h">
+        <h2><Icon name="results" size={16} />Results</h2>
         <button className="btn btn-sm btn-primary" type="button" onClick={() => setPrinting({ teams })}><Icon name="file" />Score reports</button>
       </div>
       <div className="stack-lg">
@@ -26,8 +26,9 @@ export function CoachResults({ teams, results }: { teams: Team[]; results: Publi
           const tr = results.find((r) => r.teamId === t.id)?.data;
           return (
             <div key={t.id} className="stack" style={{ gap: 8 }}>
-              <div className="row wrap" style={{ justifyContent: 'space-between' }}>
+              <div className="row wrap pt-res-team" style={{ justifyContent: 'space-between' }}>
                 <span className="row wrap" style={{ gap: 8 }}>
+                  <span className="pt-team-code">{t.code}</span>
                   <b>{t.name}</b>
                   <ModeChip mode={modeOf(contest, t)} />
                 </span>
@@ -42,13 +43,13 @@ export function CoachResults({ teams, results }: { teams: Team[]; results: Publi
                     {forTeam(t).map((c) => {
                       const r = results.find((x) => x.competitorId === c.id)?.data;
                       return (
-                        <tr key={c.id}>
+                        <tr key={c.id} className="pt-row">
                           <td className="mono soft">{c.publicId}</td>
                           <td className="name">{c.name}</td>
                           <td className="num">{r && r.place !== null ? <><b>{r.score}</b><span className="muted"> / {r.max}</span></> : <span className="muted">–</span>}</td>
                           <td className="num">{r?.place ? `${ordinal(r.place)} of ${r.of}` : <span className="muted">–</span>}</td>
                           <td>{r?.award ? <span className="pt-award">{r.award}</span> : <span className="muted">–</span>}</td>
-                          <td className="num"><button className="btn btn-sm btn-quiet" type="button" disabled={!r} onClick={() => setPrinting({ teams: [t], only: c.id })}>Report</button></td>
+                          <td className="num"><button className="btn btn-sm btn-quiet pt-row-act" type="button" disabled={!r} onClick={() => setPrinting({ teams: [t], only: c.id })}><Icon name="file" size={14} />Report</button></td>
                         </tr>
                       );
                     })}

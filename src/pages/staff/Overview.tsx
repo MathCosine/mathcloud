@@ -6,7 +6,7 @@ import { useDB } from '../../lib/store';
 import { clockIn, duration, roundEnds, roundState } from '../../lib/time';
 import { contestOf, modeOf, offers } from '../../lib/actions';
 import { Ring, Spark } from '../../components/charts';
-import { Icon } from '../../components/icons';
+import { Icon, type IconName } from '../../components/icons';
 import { ModeChip, Roll, State, useNow } from '../../components/ui';
 import '../../styles/dayof.css';
 
@@ -45,14 +45,15 @@ export function Overview() {
   const pending = teams.filter((t) => t.status === 'pending').length;
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-  const todo = [
-    { n: questions, text: plural(questions, 'question waiting for an answer', 'questions waiting for an answer'), to: '/staff/live', go: 'Answer' },
-    { n: locked, text: plural(locked, 'online test locked', 'online tests locked'), to: '/staff/live', go: 'Unlock' },
-    { n: allDone ? 0 : unreviewed, text: plural(unreviewed, 'answer needs a ruling', 'answers need a ruling'), to: '/staff/grading', go: 'Rule on them' },
-    { n: started && !allDone ? hereComps.length - checkedIn : 0, text: plural(hereComps.length - checkedIn, 'in-person student not checked in', 'in-person students not checked in'), to: '/staff/people?tab=checkin', go: 'Check in' },
-    { n: comps.length - signed, text: plural(comps.length - signed, 'waiver not signed', 'waivers not signed'), to: '/staff/waivers', go: 'Remind' },
-    { n: pending, text: plural(pending, 'team waiting to be confirmed', 'teams waiting to be confirmed'), to: '/staff/teams', go: 'Review' },
-  ].filter((t) => t.n > 0);
+  type Todo = { n: number; text: string; to: string; go: string; icon: IconName };
+  const todo = ([
+    { n: questions, text: plural(questions, 'question waiting for an answer', 'questions waiting for an answer'), to: '/staff/live', go: 'Answer', icon: 'chat' },
+    { n: locked, text: plural(locked, 'online test locked', 'online tests locked'), to: '/staff/live', go: 'Unlock', icon: 'lock' },
+    { n: allDone ? 0 : unreviewed, text: plural(unreviewed, 'answer needs a ruling', 'answers need a ruling'), to: '/staff/grading', go: 'Rule on them', icon: 'grading' },
+    { n: started && !allDone ? hereComps.length - checkedIn : 0, text: plural(hereComps.length - checkedIn, 'in-person student not checked in', 'in-person students not checked in'), to: '/staff/people?tab=checkin', go: 'Check in', icon: 'pin' },
+    { n: comps.length - signed, text: plural(comps.length - signed, 'waiver not signed', 'waivers not signed'), to: '/staff/waivers', go: 'Remind', icon: 'waivers' },
+    { n: pending, text: plural(pending, 'team waiting to be confirmed', 'teams waiting to be confirmed'), to: '/staff/teams', go: 'Review', icon: 'roster' },
+  ] as Todo[]).filter((t) => t.n > 0);
 
   const ready: { ok: boolean; text: string; to: string; mode?: 'in_person' | 'online' }[] = [
     { ok: teams.length > 0, text: teams.length ? `${teams.length} teams registered` : 'Teams registered or imported', to: '/staff/teams' },
@@ -100,29 +101,31 @@ export function Overview() {
         <div className="actions">
           <Link className="btn" to="/staff/import"><Icon name="upload" />Import</Link>
           {allDone ? (
-            <button className="btn btn-primary" type="button" onClick={() => navigate('/staff/results')}>Go to Results</button>
+            <button className="btn btn-primary" type="button" onClick={() => navigate('/staff/results')}>Go to Results<Icon name="arrow" /></button>
           ) : (
-            <button className="btn btn-primary" type="button" onClick={() => navigate('/staff/live')}>Go to Live</button>
+            <button className="btn btn-primary" type="button" onClick={() => navigate('/staff/live')}>Go to Live<Icon name="arrow" /></button>
           )}
         </div>
       </div>
 
       {todo.length > 0 && (
         <section className="section ov-todo">
-          <div className="section-head"><h2>Waiting on you</h2><span className="badge">{todo.length}</span></div>
-          {todo.map((t) => (
-            <Link key={t.text} to={t.to} className="ov-item">
-              <span className="ov-n">{t.n}</span>
-              <span className="ov-text">{t.text.replace(/^\d+ /, '')}</span>
-              <span className="btn btn-sm">{t.go}<Icon name="arrow" size={14} /></span>
-            </Link>
-          ))}
+          <div className="section-head"><h2 className="ov-h"><Icon name="inbox" />Waiting on you</h2><span className="badge">{todo.length}</span></div>
+          <div className="ov-items">
+            {todo.map((t) => (
+              <Link key={t.icon} to={t.to} className="ov-item">
+                <span className="ov-ic"><Icon name={t.icon} size={17} /></span>
+                <span className="ov-text"><b className="ov-n"><Roll value={t.n} /></b>{t.text.replace(/^\d+ /, '')}</span>
+                <span className="ov-go">{t.go}<Icon name="arrow" size={15} /></span>
+              </Link>
+            ))}
+          </div>
         </section>
       )}
 
       {allDone && (
         <section className="section">
-          <div className="section-head"><h2>Finish the contest</h2><span className="label">{afterSteps.filter(Boolean).length} of 3 done</span></div>
+          <div className="section-head"><h2 className="ov-h"><Icon name="flag" />Finish the contest</h2><span className="label">{afterSteps.filter(Boolean).length} of 3 done</span></div>
           <ul className="checklist">
             <Step done={unreviewed === 0} text={unreviewed ? `Rule on ${plural(unreviewed, 'answer', 'answers')}` : 'Every answer ruled on'} to="/staff/grading" go="Grade" />
             <Step done={contest.resultsPublished} text={contest.resultsPublished ? 'Results published' : 'Publish results'} to="/staff/results" go="Results" />
@@ -132,20 +135,20 @@ export function Overview() {
       )}
 
       <section className="section">
-        <div className="section-head"><h2>Today</h2><Link to="/staff/rounds" className="small">Edit rounds</Link></div>
+        <div className="section-head"><h2 className="ov-h"><Icon name="calendar" />Today</h2><Link to="/staff/rounds" className="btn btn-quiet btn-sm ov-edit"><Icon name="pencil" size={14} />Edit rounds</Link></div>
         {contest.rounds.map((r) => <RoundLine key={r.id} round={r} now={now} tz={contest.timeZone} />)}
       </section>
 
       <div className="figures ov-figs">
         <Link to="/staff/teams" className="figure fig-link">
-          <div className="top-label">Teams</div>
+          <div className="top-label"><Icon name="roster" size={14} />Teams</div>
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <span><b><Roll value={teams.length} /></b><span>{comps.length} competitors</span></span>
             <Spark dates={teams.map((t) => t.registeredAt)} width={96} height={34} />
           </div>
         </Link>
         <Link to="/staff/waivers" className="figure fig-link">
-          <div className="top-label">Waivers</div>
+          <div className="top-label"><Icon name="waivers" size={14} />Waivers</div>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <span><b><Roll value={signed} /></b><span>of {comps.length} signed</span></span>
             <Ring value={signed} total={comps.length} size={44} tone={signed === comps.length ? 'green' : 'amber'} label={`${signed} of ${comps.length} waivers signed`} />
@@ -167,26 +170,31 @@ export function Overview() {
 
       <section className="section">
         <div className="section-head">
-          <h2>Ready for the day</h2>
+          <h2 className="ov-h"><Icon name="checklist" />Ready for the day</h2>
           {allReady ? (
-            <button type="button" className="linkbtn ov-link" aria-expanded={showReady} onClick={() => setShowReady((x) => !x)}>{showReady ? 'Hide checks' : `Show all ${ready.length} checks`}</button>
+            <button type="button" className="btn btn-quiet btn-sm ov-link" aria-expanded={showReady} onClick={() => setShowReady((x) => !x)}>
+              {showReady ? 'Hide checks' : `Show all ${ready.length}`}<Icon name="chevron" size={14} className={`ov-chev ${showReady ? 'open' : ''}`} />
+            </button>
           ) : (
             <span className="label">{readyCount} of {ready.length}</span>
           )}
         </div>
-        {allReady && !showReady ? (
+        {allReady && (
           <p className="row ov-allready"><span className="ov-tick"><Icon name="check" size={13} /></span>All {ready.length} checks pass: teams, answer keys, waivers and rooms.</p>
-        ) : (
-          <ul className="checklist">
-            {ready.slice().sort((a, b) => Number(a.ok) - Number(b.ok)).map((r) => (
-              <li key={r.text} className={r.ok ? 'done' : ''}>
-                <span className="box">{r.ok && <Icon name="check" size={13} />}</span>
-                <span className="row" style={{ gap: 10 }}><b style={{ fontWeight: 500 }}>{r.text}</b>{r.mode && <ModeChip mode={r.mode} />}</span>
-                {r.ok ? <span /> : <Link to={r.to} className="btn btn-sm">Fix</Link>}
-              </li>
-            ))}
-          </ul>
         )}
+        <div className={`ov-fold ${!allReady || showReady ? 'open' : ''}`} inert={allReady && !showReady}>
+          <div>
+            <ul className="checklist ov-checks">
+              {ready.slice().sort((a, b) => Number(a.ok) - Number(b.ok)).map((r) => (
+                <li key={r.text} className={r.ok ? 'done' : ''}>
+                  <span className="box">{r.ok && <Icon name="check" size={13} />}</span>
+                  <span className="row wrap" style={{ gap: 10 }}><b style={{ fontWeight: 500 }}>{r.text}</b>{r.mode && <ModeChip mode={r.mode} />}</span>
+                  {r.ok ? <span /> : <Link to={r.to} className="btn btn-sm">Fix<Icon name="arrow" size={14} /></Link>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </section>
     </div>
   );
@@ -197,7 +205,7 @@ function Step({ done, text, to, go }: { done: boolean; text: string; to: string;
     <li className={done ? 'done' : ''}>
       <span className="box">{done && <Icon name="check" size={13} />}</span>
       <b style={{ fontWeight: 500 }}>{text}</b>
-      {done ? <span /> : <Link to={to} className="btn btn-sm">{go}</Link>}
+      {done ? <span /> : <Link to={to} className="btn btn-sm">{go}<Icon name="arrow" size={14} /></Link>}
     </li>
   );
 }
@@ -232,9 +240,9 @@ function RoundLine({ round, now, tz }: { round: Round; now: number; tz: string }
         {state === 'open' && <div className="progress"><i style={{ width: `${pct}%` }} /></div>}
       </div>
       {state === 'open' ? (
-        <button className="btn btn-sm" type="button" onClick={() => navigate(round.kind === 'guts' ? '/board' : '/staff/live')}>{round.kind === 'guts' ? 'Scoreboard' : 'Watch'}</button>
+        <button className="btn btn-sm" type="button" onClick={() => navigate(round.kind === 'guts' ? '/board' : '/staff/live')}><Icon name={round.kind === 'guts' ? 'board' : 'eye'} size={14} />{round.kind === 'guts' ? 'Scoreboard' : 'Watch'}</button>
       ) : round.kind === 'guts' && state === 'closed' ? (
-        <button className="btn btn-sm btn-quiet" type="button" onClick={() => navigate('/board')}>Scoreboard</button>
+        <button className="btn btn-sm btn-quiet" type="button" onClick={() => navigate('/board')}><Icon name="board" size={14} />Scoreboard</button>
       ) : (
         <span />
       )}

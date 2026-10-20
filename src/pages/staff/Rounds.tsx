@@ -59,8 +59,8 @@ function RowMenu({ label, text, children }: { label: string; text?: string; chil
       {text ? (
         <button type="button" className="btn btn-sm" aria-label={label} aria-expanded={open} onClick={() => setOpen((o) => !o)}>{text}<Icon name="chevron" /></button>
       ) : (
-        <button type="button" className="btn btn-sm btn-quiet rd-dots" aria-label={label} title={label} aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}>
-          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.3" /><circle cx="8" cy="8" r="1.3" /><circle cx="12.5" cy="8" r="1.3" /></svg>
+        <button type="button" className="icon-btn rd-dots" aria-label={label} title={label} aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}>
+          <Icon name="more" size={17} />
         </button>
       )}
       {open && <div className="menu down" role="menu">{children(() => setOpen(false))}</div>}
@@ -93,8 +93,8 @@ export function Rounds() {
       {!round ? (
         <section className="card rd-empty">
           <ArtEmpty kind="problems" />
-          <p className="soft">This contest has no rounds. Rounds are set when the contest is created.</p>
-          <div><Link className="btn btn-primary" to="/staff/new">Create a contest</Link></div>
+          <div><b>No rounds yet</b><p>Rounds are set when the contest is created.</p></div>
+          <div><Link className="btn btn-primary" to="/staff/new"><Icon name="plus" />Create a contest</Link></div>
         </section>
       ) : (
         <>
@@ -199,24 +199,24 @@ function RoundEditor({ round }: { round: Round }) {
           </div>
           <div className="rd-status-actions">
             <button className="btn btn-quiet" type="button" aria-expanded={settings} onClick={() => setSettings((s) => !s)}>
-              <Icon name="setup" />{settings ? 'Hide settings' : 'Edit settings'}
+              <Icon name="setup" />{settings ? 'Hide settings' : 'Edit settings'}<Icon name="chevron" size={14} className="rd-chev" />
             </button>
             {roundButton}
           </div>
         </div>
-        {settings && <RoundSettings round={round} online={online} />}
+        <div className={`rd-fold ${settings ? 'open' : ''}`} inert={!settings}><div><RoundSettings round={round} online={online} /></div></div>
       </section>
 
       <section className="section rd-probs">
         <div className="section-head wrap">
-          <h2>Problems and answers <span className="muted rd-count">{round.problems.length}</span></h2>
+          <h2><Icon name="rounds" />Problems and answers <span className="rd-count">{round.problems.length}</span></h2>
           <div className="actions row">
             {!guts && round.problems.length > 0 && <button className="btn btn-sm" type="button" onClick={() => add()}><Icon name="plus" />Add problem</button>}
             <RowMenu label="More ways to add problems" text="More">
               {(close) => (
                 <>
-                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setPasting(true); }}>Paste problems as text</button>
-                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); navigate(`/staff/import?type=problems&round=${round.id}`); }}>Import from a CSV</button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); setPasting(true); }}><span className="row"><Icon name="file" />Paste problems as text</span></button>
+                  <button type="button" role="menuitem" className="menu-item" onClick={() => { close(); navigate(`/staff/import?type=problems&round=${round.id}`); }}><span className="row"><Icon name="upload" />Import from a CSV</span></button>
                 </>
               )}
             </RowMenu>
@@ -225,11 +225,12 @@ function RoundEditor({ round }: { round: Round }) {
 
         {noAnswer.length > 0 && round.problems.length > 0 && (
           <div className="rd-warn small">
-            <b>{noAnswer.length === 1 ? '1 problem has' : `${noAnswer.length} problems have`} no answer:</b>{' '}
+            <Icon name="alert" size={15} />
+            <span><b>{noAnswer.length === 1 ? '1 problem has' : `${noAnswer.length} problems have`} no answer:</b>{' '}
             {noAnswer.map((p, i) => (
               <span key={p.id}>{i > 0 && ', '}<button type="button" className="linkbtn" onClick={() => jump(p)}>{label(p)}</button></span>
             ))}
-            . Answers to {noAnswer.length === 1 ? 'it' : 'them'} cannot be marked until there is one.
+            . Answers to {noAnswer.length === 1 ? 'it' : 'them'} cannot be marked until there is one.</span>
           </div>
         )}
 
@@ -238,12 +239,12 @@ function RoundEditor({ round }: { round: Round }) {
             <ArtEmpty kind="problems" />
             <div>
               <b>No problems in {round.name} yet</b>
-              <p className="soft small">Students see these problems in this order; the answers mark them. Add them one at a time, or paste a whole block of text.</p>
+              <p>Students see these problems in this order, and the answers mark them. Add them one at a time, or paste a whole block of text.</p>
             </div>
             <div className="row wrap" style={{ justifyContent: 'center' }}>
               <button className="btn btn-primary" type="button" onClick={() => add(guts ? 1 : undefined)}><Icon name="plus" />Add the first problem</button>
-              <button className="btn" type="button" onClick={() => setPasting(true)}>Paste problems</button>
-              <Link className="btn btn-quiet" to={`/staff/import?type=problems&round=${round.id}`}>Import a CSV</Link>
+              <button className="btn btn-quiet" type="button" onClick={() => setPasting(true)}><Icon name="file" />Paste problems</button>
+              <Link className="btn btn-quiet" to={`/staff/import?type=problems&round=${round.id}`}><Icon name="upload" />Import a CSV</Link>
             </div>
           </div>
         ) : (
@@ -275,7 +276,7 @@ function RoundEditor({ round }: { round: Round }) {
             )}
           </div>
         )}
-        {round.problems.length > 0 && <p className="muted small rd-foot-note">Click a problem to edit it. Changes save as you type.</p>}
+        {round.problems.length > 0 && <p className="muted small rd-foot-note"><Icon name="pencil" size={13} />Click a problem to edit it. Changes save as you type.</p>}
       </section>
 
       {pasting && <PasteProblems round={round} onClose={() => setPasting(false)} />}
@@ -284,7 +285,7 @@ function RoundEditor({ round }: { round: Round }) {
         <Modal title={`Remove problem ${label(deleting)}?`} onClose={() => setDeleting(null)} actions={
           <>
             <button className="btn" type="button" onClick={() => setDeleting(null)}>Cancel</button>
-            <button className="btn btn-danger" type="button" onClick={() => remove(deleting)}>Remove problem</button>
+            <button className="btn btn-danger" type="button" onClick={() => remove(deleting)}><Icon name="trash" size={14} />Remove problem</button>
           </>
         }>
           <p className="soft">{deleting.text ? <MathText text={deleting.text.length > 160 ? `${deleting.text.slice(0, 160)}…` : deleting.text} /> : 'An empty problem.'}</p>
@@ -388,11 +389,11 @@ function ProblemRow({ round, p, label, first, last, sets, open, showPoints, onTo
     <RowMenu label={`More for problem ${label}`}>
       {(shut) => (
         <>
-          <button type="button" role="menuitem" className="menu-item" disabled={first} onClick={() => { shut(); onMove(-1); }}>Move up</button>
-          <button type="button" role="menuitem" className="menu-item" disabled={last} onClick={() => { shut(); onMove(1); }}>Move down</button>
-          <button type="button" role="menuitem" className="menu-item" onClick={() => { shut(); onDuplicate(); }}>Duplicate</button>
+          <button type="button" role="menuitem" className="menu-item" disabled={first} onClick={() => { shut(); onMove(-1); }}><span className="row"><Icon name="arrow" className="rd-up" />Move up</span></button>
+          <button type="button" role="menuitem" className="menu-item" disabled={last} onClick={() => { shut(); onMove(1); }}><span className="row"><Icon name="arrow" className="rd-down" />Move down</span></button>
+          <button type="button" role="menuitem" className="menu-item" onClick={() => { shut(); onDuplicate(); }}><span className="row"><Icon name="copy" />Duplicate</span></button>
           <div className="menu-sep" />
-          <button type="button" role="menuitem" className="menu-item rd-danger" onClick={() => { shut(); onDelete(); }}>Remove</button>
+          <button type="button" role="menuitem" className="menu-item rd-danger" onClick={() => { shut(); onDelete(); }}><span className="row"><Icon name="trash" />Remove</span></button>
         </>
       )}
     </RowMenu>

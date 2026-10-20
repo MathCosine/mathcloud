@@ -8,7 +8,7 @@ import { REMOTE, useDB } from '../../lib/store';
 import { Icon } from '../../components/icons';
 import { Ring } from '../../components/charts';
 import { Modal, ModeChip, State, toast } from '../../components/ui';
-import { copyText, hm, SheetView } from '../student/parts';
+import { copyText, CopyButton, hm, SheetView } from '../student/parts';
 
 const GRADES = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 type StudentForm = { name: string; grade: number; guardianName: string; guardianEmail: string };
@@ -53,22 +53,18 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
   const teamRes = results.find((r) => r.teamId === team.id);
   const regOpen = contest.registration.open;
 
-  const copyJoin = async () => {
-    const ok = await copyText(team.joinCode);
-    toast(ok ? 'Join code copied' : 'Could not copy', ok ? team.joinCode : 'Select it and copy by hand.', ok ? 'g' : 'a');
-  };
-
   return (
     <section className="card flush pt-team" id={`team-${team.id}`}>
-      <div className="card-head pt-team-head">
+      <div className="pt-team-head">
         <div className="stack" style={{ gap: 6, minWidth: 0 }}>
           <div className="row wrap" style={{ gap: 10 }}>
-            <span className="mono muted strong">{team.code}</span>
-            <h2 style={{ fontSize: 17 }}>{team.name}</h2>
+            <span className="pt-team-code">{team.code}</span>
+            <h2>{team.name}</h2>
             <ModeChip mode={mode} />
             <State tone={team.status === 'confirmed' ? 'ok' : team.status === 'withdrawn' ? 'off' : 'wait'}>{team.status === 'confirmed' ? 'Confirmed' : team.status === 'withdrawn' ? 'Withdrawn' : 'Waiting for the organisers'}</State>
           </div>
-          <p className="soft small">
+          <p className="pt-team-where">
+            <Icon name={online ? 'video' : 'pin'} size={14} />
             {online
               ? <>{zoom ? `Zoom ${zoom.name}` : 'Zoom room to come'}{proctor ? `, proctor ${proctor.name}` : ''}{team.city ? ` · ${team.city}` : ''}</>
               : <>{venueRoom?.name ?? 'Room to come'} at {contest.venue?.name}{checkIn ? ` · check-in from ${at(checkIn.at)}` : ''}</>}
@@ -83,18 +79,18 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
 
       <div className="pt-team-strip">
         <div className="pt-stat">
-          <Ring value={signed} total={members.length} size={48} tone={signed === members.length && members.length ? 'green' : 'amber'} label={`${signed} of ${members.length} waivers signed`} />
+          <Ring value={signed} total={members.length} size={40} tone={signed === members.length && members.length ? 'green' : 'amber'} label={`${signed} of ${members.length} waivers signed`} />
           <span><b>{signed} of {members.length}</b><small>waivers signed</small></span>
         </div>
         {online && (
           <div className="pt-stat">
-            <Ring value={devices} total={members.length} size={48} tone="blue" label={`${devices} of ${members.length} device checks`} />
+            <Ring value={devices} total={members.length} size={40} tone="blue" label={`${devices} of ${members.length} device checks`} />
             <span><b>{devices} of {members.length}</b><small>device checks done</small></span>
           </div>
         )}
         <div className="pt-stat pt-join">
           <span><small>Join code</small><b className="mono">{team.joinCode}</b></span>
-          <button className="btn btn-sm btn-quiet" type="button" onClick={copyJoin} aria-label="Copy join code"><Icon name="link" />Copy</button>
+          <CopyButton text={team.joinCode} title="Copy the join code" onCopied={(ok) => !ok && toast('Could not copy', 'Select it and copy by hand.', 'a')} />
         </div>
         {teamRes && (
           <div className="pt-stat">
@@ -133,7 +129,7 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
                   <td><WaiverCell c={m} by={user.name} /></td>
                   {online && <td>{m.deviceCheckedAt ? <State tone="ok">Ready</State> : <State tone="off">Not yet</State>}</td>}
                   <td className="num">
-                    <button className="btn btn-sm btn-quiet pt-row-act" type="button" onClick={() => setEditing(m)} aria-label={`Edit ${m.name}`} title={`Edit or remove ${m.name}`}><Icon name="pencil" /><span className="hide-sm">Edit</span></button>
+                    <button className="icon-btn pt-row-act" type="button" onClick={() => setEditing(m)} aria-label={`Edit ${m.name}`} title={`Edit or remove ${m.name}`}><Icon name="pencil" /></button>
                   </td>
                 </tr>
               );
@@ -171,21 +167,17 @@ export function TeamCard({ team, results }: { team: Team; results: PublishedResu
 }
 
 function WaiverCell({ c, by }: { c: Competitor; by: string }) {
-  const [busy, setBusy] = useState(false);
   if (c.waiverSignedAt) return <State tone="ok">Signed</State>;
-  const copy = async () => {
-    setBusy(true);
-    const link = await waiverLink(c);
-    setBusy(false);
-    if (!link) return toast('No link', 'Could not make a waiver link. Try again.', 'r');
-    const ok = await copyText(link);
-    toast(ok ? 'Waiver link copied' : 'Could not copy', ok ? `Send it to ${c.guardianName || 'the guardian'}.` : link, ok ? 'g' : 'a');
-  };
   return (
     <span className="row pt-waiver" style={{ gap: 2 }}>
       <State tone="wait">{c.reminderSentAt ? 'Reminded' : 'Waiting'}</State>
       {!c.reminderSentAt && <button className="btn btn-sm btn-quiet" type="button" onClick={() => { remindWaiver(c.id, by); toast('Reminder sent', `To ${c.guardianName || c.guardianEmail}.`, 'g'); }}>Remind</button>}
-      <button className="btn btn-sm btn-quiet pt-icon-btn" type="button" disabled={busy} onClick={copy} title="Copy the waiver link, to send it yourself" aria-label={`Copy the waiver link for ${c.name}`}><Icon name="link" /></button>
+      <CopyButton
+        label=""
+        title={`Copy the waiver link for ${c.name}, to send it yourself`}
+        text={() => waiverLink(c)}
+        onCopied={(ok, link) => toast(ok ? 'Waiver link copied' : link ? 'Could not copy' : 'No link', ok ? `Send it to ${c.guardianName || 'the guardian'}.` : link ?? 'Could not make a waiver link. Try again.', ok ? 'g' : link ? 'a' : 'r')}
+      />
     </span>
   );
 }

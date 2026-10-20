@@ -152,7 +152,16 @@ export type Contest = {
   resultsPublished: boolean;
   /** The live Guts board: it freezes this many minutes before the end, until revealed. */
   board: { freezeMinutes: number; revealed: boolean };
-  registration: { open: boolean; closesLabel: string; teamMin: number; teamMax: number };
+  /**
+   * coaches: false when the organisers enter every team themselves (imports,
+   * their own sign-up form) and coaches never need an account. Absent means true.
+   */
+  registration: { open: boolean; closesLabel: string; teamMin: number; teamMax: number; coaches?: boolean };
+  /**
+   * A contest is in person or online. One that runs both at the same time is
+   * two contests, each the other's edition: problems copied once, results apart.
+   */
+  linkedId?: string;
 };
 
 export type TeamStatus = 'pending' | 'confirmed' | 'withdrawn';
@@ -178,6 +187,8 @@ export type Team = {
   pledge: number | null;
   wantsTeammates?: boolean;
   disqualified?: string;
+  /** Its id in the system it was imported from. */
+  externalId?: string;
 };
 
 export type Competitor = {
@@ -197,6 +208,8 @@ export type Competitor = {
   /** Online: when the student last passed the device check. */
   deviceCheckedAt?: string | null;
   disqualified?: string;
+  /** Their id in the system they were imported from. */
+  externalId?: string;
 };
 
 export type IntegrityKind =

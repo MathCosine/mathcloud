@@ -44,8 +44,12 @@ function answer(p: Problem, chance: number) {
 }
 
 function step() {
-  // The simulated competitors are SFMO's, whatever contest this tab is showing.
-  const contest = contestOf(getDB(), 'sfmo-2027');
+  // The simulated competitors are SFMO's (both editions), whatever contest this tab is showing.
+  for (const c of getDB().contests.filter((x) => x.id.startsWith('sfmo-2027'))) stepContest(c.id);
+}
+
+function stepContest(contestId: string) {
+  const contest = contestOf(getDB(), contestId);
   const open = contest.rounds.filter((r) => roundState(r) === 'open');
   if (!open.length) return;
   update((db) => {

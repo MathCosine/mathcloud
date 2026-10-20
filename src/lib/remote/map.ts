@@ -109,7 +109,7 @@ export function contestFlags(c: Row): Pick<Contest, 'resultsPublished' | 'board'
   return {
     resultsPublished: !!c.results_published,
     board: { freezeMinutes: Number(board.freeze_minutes ?? 10), revealed: !!board.revealed },
-    registration: { open: !!reg.open, closesLabel: reg.closes_label ?? '', teamMin: Number(reg.team_min ?? 1), teamMax: Number(reg.team_max ?? 4) },
+    registration: { open: !!reg.open, closesLabel: reg.closes_label ?? '', teamMin: Number(reg.team_min ?? 1), teamMax: Number(reg.team_max ?? 4), coaches: reg.coaches !== false },
   };
 }
 
@@ -133,6 +133,7 @@ export function mapTeam(t: Row): Team {
     pledge: t.fields?.pledge ?? null,
     wantsTeammates: t.fields?.wants_teammates ?? undefined,
     disqualified: t.disqualified ?? undefined,
+    externalId: t.external_id ?? undefined,
   };
 }
 
@@ -152,6 +153,7 @@ export function mapCompetitor(c: Row): Competitor {
     checkedInAt: c.checked_in_at ?? null,
     deviceCheckedAt: c.device_checked_at ?? null,
     disqualified: c.disqualified ?? undefined,
+    externalId: c.external_id ?? undefined,
   };
 }
 
@@ -241,6 +243,7 @@ export function mapRows(rows: Rows): DB {
         .map((a): AgendaItem => ({ id: a.id, at: a.at, title: a.title, roundId: a.round_id ?? undefined, modes: a.modes, where: a.place ?? undefined, note: a.note ?? undefined }))
         .sort((a, b) => a.at.localeCompare(b.at)),
       ...contestFlags(c),
+      linkedId: c.linked_id ?? undefined,
     };
   });
 

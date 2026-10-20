@@ -3,10 +3,9 @@ import { Link } from 'react-router-dom';
 import { setPublished, updateRecipe } from '../../lib/actions';
 import { useContest, useStandings } from '../../lib/hooks';
 import type { AwardRule } from '../../lib/model';
-import { ArtEmpty } from '../../components/art';
-import { CloseIcon, downloadCsv, Drawer, Modal, Segmented, State, Tabs, toast } from '../../components/ui';
-import '../../styles/people.css';
-import '../../styles/dayof.css';
+import { Icon } from '../../components/icons';
+import { downloadCsv, Drawer, EmptyState, Modal, Segmented, State, Tabs, toast } from '../../components/ui';
+import '../../styles/live.css';
 
 type View = 'teams' | 'individuals' | 'problems';
 
@@ -32,18 +31,19 @@ export function Results() {
           </p>
         </div>
         <div className="actions">
-          <button className="btn" type="button" onClick={() => setScoring(true)}>Scoring</button>
+          <button className="btn" type="button" onClick={() => setScoring(true)}><Icon name="sigma" />Scoring</button>
           <button className="btn" type="button" onClick={() => (view === 'individuals'
             ? downloadCsv(`results-${div}-individuals.csv`, ['place', 'id', 'name', 'team', 'score', 'award'], inds.map((r) => [r.place, r.competitor.publicId, r.competitor.name, r.team.name, r.score, r.award ?? '']))
-            : downloadCsv(`results-${div}-teams.csv`, ['place', 'code', 'team', ...contest.rounds.map((r) => r.short), 'total', 'award'], teams.map((t) => [t.place, t.team.code, t.team.name, ...t.parts.map((p) => p.weighted), t.total, t.award ?? ''])))}>Export CSV</button>
-          <button className={`btn ${contest.resultsPublished ? '' : 'btn-primary'}`} type="button" onClick={() => setConfirm(true)}>{contest.resultsPublished ? 'Unpublish' : 'Publish'}</button>
+            : downloadCsv(`results-${div}-teams.csv`, ['place', 'code', 'team', ...contest.rounds.map((r) => r.short), 'total', 'award'], teams.map((t) => [t.place, t.team.code, t.team.name, ...t.parts.map((p) => p.weighted), t.total, t.award ?? ''])))} title={`Download the ${view === 'individuals' ? 'Individual' : 'team'} standings as a spreadsheet`}><Icon name="download" />Export CSV</button>
+          <button className={`btn ${contest.resultsPublished ? '' : 'btn-primary'}`} type="button" onClick={() => setConfirm(true)}><Icon name={contest.resultsPublished ? 'lock' : 'globe'} />{contest.resultsPublished ? 'Unpublish' : 'Publish'}</button>
         </div>
       </div>
 
       {toRule > 0 && (
         <div className="note amber rs-note">
+          <Icon name="warning" />
           <span>{toRule} {toRule === 1 ? 'answer' : 'answers'} in an unusual form still {toRule === 1 ? 'needs' : 'need'} a ruling. Until then {toRule === 1 ? 'it counts' : 'they count'} as wrong.</span>
-          <Link className="btn btn-sm" to="/staff/grading">Rule on {toRule === 1 ? 'it' : 'them'}</Link>
+          <Link className="btn btn-sm" to="/staff/grading">Rule on {toRule === 1 ? 'it' : 'them'}<Icon name="arrow" size={14} /></Link>
         </div>
       )}
 
@@ -53,13 +53,10 @@ export function Results() {
       </div>
 
       {view !== 'problems' && teams.length === 0 && inds.length === 0 ? (
-        <section className="card pp-empty">
-          <ArtEmpty kind="results" className="pp-art" />
-          <div className="stack" style={{ gap: 8 }}>
-            <h2>No scores yet</h2>
-            <p className="soft">Standings build themselves here as online tests are handed in and paper sheets are keyed. Nothing is public until you publish.</p>
-            <div className="row" style={{ marginTop: 6 }}><Link className="btn btn-primary" to="/staff/grading">Go to Grading</Link></div>
-          </div>
+        <section className="card">
+          <EmptyState icon="results" title="No scores yet" action={<Link className="btn btn-primary" to="/staff/grading">Go to Grading<Icon name="arrow" /></Link>}>
+            Standings build themselves here as online tests are handed in and paper sheets are keyed. Nothing is public until you publish.
+          </EmptyState>
         </section>
       ) : view === 'teams' && (
         <div className="card flush rs-table">
@@ -67,7 +64,7 @@ export function Results() {
           <table className="t">
             <thead>
               <tr>
-                <th style={{ width: 56 }}>Place</th><th>Team</th>
+                <th>Place</th><th>Team</th>
                 {contest.rounds.map((r) => <th key={r.id} className="num">{r.short}{(w[r.id] ?? 0) !== 1 && <span className="muted"> ×{w[r.id] ?? 0}</span>}</th>)}
                 <th className="num">Total</th><th>Award</th>
               </tr>
@@ -75,18 +72,18 @@ export function Results() {
             <tbody>
               {teams.length === 0 && <tr className="empty"><td colSpan={contest.rounds.length + 4}>No team scores yet.</td></tr>}
               {teams.map((t) => (
-                <tr key={t.team.id}>
-                  <td className="strong">{t.tied ? '=' : ''}{t.place}</td>
+                <tr key={t.team.id} className={t.place <= 3 ? 'rs-top' : ''}>
+                  <td className="rs-place">{t.tied ? <span className="tie">=</span> : null}{t.place}</td>
                   <td><span className="code">{t.team.code}</span><span className="name">{t.team.name}</span></td>
                   {t.parts.map((p) => <td key={p.roundId} className="num" title={`${p.detail}${p.weight !== 1 ? `, × ${p.weight}` : ''}`}>{p.weighted}</td>)}
-                  <td className="num strong">{t.total}</td>
+                  <td className="num rs-total">{t.total}</td>
                   <td>{t.award && <Award label={t.award} top={t.place <= 3} />}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           </div>
-          {teams.length > 0 && <div className="rs-foot">Hover a score to see how it was added up. Equal totals share a place.</div>}
+          {teams.length > 0 && <div className="rs-foot"><Icon name="info" size={14} />Hover a score to see how it was added up. Equal totals share a place.</div>}
         </div>
       )}
 
@@ -94,16 +91,16 @@ export function Results() {
         <div className="card flush rs-table">
           <div className="table-scroll">
           <table className="t">
-            <thead><tr><th style={{ width: 56 }}>Place</th><th>ID</th><th>Name</th><th>Team</th><th className="num">Score</th><th>By problem</th><th>Award</th></tr></thead>
+            <thead><tr><th>Place</th><th>ID</th><th>Name</th><th>Team</th><th className="num">Score</th><th>By problem</th><th>Award</th></tr></thead>
             <tbody>
               {inds.length === 0 && <tr className="empty"><td colSpan={7}>No Individual scores yet.</td></tr>}
               {inds.map((r) => (
-                <tr key={r.competitor.id}>
-                  <td className="strong" title={r.brokeTie ? 'Level on points, placed by harder problems solved' : undefined}>{r.tied ? '=' : ''}{r.place}{r.brokeTie && <sup className="muted">*</sup>}</td>
+                <tr key={r.competitor.id} className={r.place <= 3 ? 'rs-top' : ''}>
+                  <td className="rs-place" title={r.brokeTie ? 'Level on points, placed by harder problems solved' : undefined}>{r.tied ? <span className="tie">=</span> : null}{r.place}{r.brokeTie ? <sup className="muted">*</sup> : null}</td>
                   <td className="mono soft">{r.competitor.publicId}</td>
                   <td className="name">{r.competitor.name}</td>
                   <td><span className="ellipsis soft" style={{ maxWidth: 170 }}>{r.team.name}</span></td>
-                  <td className="num strong">{r.score}</td>
+                  <td className="num rs-total">{r.score}</td>
                   <td><span className="mini-marks">{r.results.map((x) => <i key={x.problemId} className={x.status} title={`${x.number}: ${x.status}`} />)}</span></td>
                   <td>{r.award && <Award label={r.award} top={r.place <= 3} />}</td>
                 </tr>
@@ -111,37 +108,34 @@ export function Results() {
             </tbody>
           </table>
           </div>
-          {inds.some((r) => r.brokeTie) && <div className="rs-foot">* Level on points with someone else, and placed higher for solving problems fewer people solved.</div>}
+          {inds.some((r) => r.brokeTie) && <div className="rs-foot"><Icon name="info" size={14} />* Level on points with someone else, and placed higher for solving problems fewer people solved.</div>}
         </div>
       )}
 
       {view === 'problems' && (
-        <div className="stack-lg">
+        <div className="rs-rounds">
           {contest.rounds.map((r) => {
             const stats = standings.problemStats[div]?.[r.id] ?? [];
             return (
-              <section key={r.id}>
-                <div className="section-head"><h2 style={{ fontSize: 14 }}>{r.name}</h2><span className="label">share who solved each problem · {stats[0]?.attempted ?? 0} {r.kind === 'individual' ? 'competitors' : 'teams'}</span></div>
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(stats.length, 12)}, minmax(0, 1fr))`, gap: 8 }}>
-                  {stats.map((s) => (
-                    <div key={s.problemId} title={`${s.correct} of ${s.attempted}`}>
-                      <div style={{ height: 64, display: 'flex', alignItems: 'flex-end', background: 'var(--bg-2)', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ width: '100%', height: `${s.rate * 100}%`, background: s.rate < 0.2 ? 'var(--amber)' : 'var(--blue)', transition: 'height .4s var(--ease)' }} />
+              <section key={r.id} className="card rs-round">
+                <div className="section-head"><h2>{r.name}</h2><span className="label">Share who solved each problem · {stats[0]?.attempted ?? 0} {r.kind === 'individual' ? 'competitors' : 'teams'}</span></div>
+                {stats.length === 0 ? <p className="muted small">No answers in this round yet.</p> : (
+                  <div className="rs-probs">
+                    {stats.map((s) => (
+                      <div key={s.problemId} className="rs-p" title={`${s.correct} of ${s.attempted} solved it`}>
+                        <div className="rs-p-col"><i style={{ height: `${Math.max(2, s.rate * 100)}%` }} /></div>
+                        <div className="rs-p-lab"><b>{Math.round(s.rate * 100)}%</b><span>{r.kind === 'guts' ? `${s.set}.${((s.number - 1) % 4) + 1}` : s.number}</span></div>
                       </div>
-                      <div className="row tiny" style={{ justifyContent: 'space-between', marginTop: 4 }}>
-                        <span className="muted">{r.kind === 'guts' ? `${s.set}.${((s.number - 1) % 4) + 1}` : s.number}</span>
-                        <span>{Math.round(s.rate * 100)}%</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </section>
             );
           })}
         </div>
       )}
 
-      <Drawer open={scoring} onClose={() => setScoring(false)} kicker="Standings update as you change these" title="Scoring">
+      <Drawer open={scoring} onClose={() => setScoring(false)} kicker="Standings update as you change these" title="Scoring" foot={<button className="btn btn-primary" type="button" onClick={() => setScoring(false)}>Done</button>}>
         <Recipe />
       </Drawer>
 
@@ -152,7 +146,7 @@ export function Results() {
           actions={
             <>
               <button className="btn" type="button" onClick={() => setConfirm(false)}>Cancel</button>
-              <button className="btn btn-primary" type="button" onClick={() => { setPublished(!contest.resultsPublished); setConfirm(false); toast(contest.resultsPublished ? 'Results hidden' : 'Results published', undefined, 'g'); }}>{contest.resultsPublished ? 'Unpublish' : 'Publish'}</button>
+              <button className={`btn btn-primary ${contest.resultsPublished ? 'btn-danger' : ''}`} type="button" onClick={() => { setPublished(!contest.resultsPublished); setConfirm(false); toast(contest.resultsPublished ? 'Results hidden' : 'Results published', undefined, 'g'); }}>{contest.resultsPublished ? 'Unpublish' : 'Publish'}</button>
             </>
           }
         >
@@ -163,9 +157,9 @@ export function Results() {
   );
 }
 
-/** An award as a quiet tag; the podium in warm gold, the rest neutral. Not a link. */
+/** An award as a quiet tag; the podium in ink, the rest neutral. Not a link. */
 function Award({ label, top }: { label: string; top: boolean }) {
-  return <span className={`rs-award ${top ? 'top' : ''}`}>{label}</span>;
+  return <span className={`rs-award ${top ? 'top' : ''}`}>{top && <Icon name="certificate" size={13} />}{label}</span>;
 }
 
 function Recipe() {
@@ -176,9 +170,9 @@ function Recipe() {
   const awards = (scope: AwardRule['scope']) => r.awards.filter((a) => a.scope === scope);
   return (
     <>
-      <section>
+      <section className="rs-recipe">
         <h3>Team score</h3>
-        <div className="stack" style={{ gap: 10 }}>
+        <div className="stack" style={{ gap: 6 }}>
           <div className="row">
             <span className="grow soft">From the {ind?.name} round</span>
             <select className="select input-sm" style={{ width: 'auto' }} value={r.teamIndividual.method} onChange={(e) => updateRecipe((c) => { c.recipe.teamIndividual.method = e.target.value as 'sum' | 'best' | 'average'; })}>
@@ -214,10 +208,10 @@ function Recipe() {
                   <option value="top_percent">top %</option>
                 </select>
                 <input className="input input-sm" type="number" min={1} style={{ width: 58 }} value={a.value} aria-label="Value" onChange={(e) => setAward(a.id, { value: Number(e.target.value) })} />
-                <button className="close" type="button" aria-label={`Remove ${a.label}`} onClick={() => updateRecipe((c) => { c.recipe.awards = c.recipe.awards.filter((x) => x.id !== a.id); })}><CloseIcon /></button>
+                <button className="icon-btn" type="button" aria-label={`Remove ${a.label}`} title="Remove" onClick={() => updateRecipe((c) => { c.recipe.awards = c.recipe.awards.filter((x) => x.id !== a.id); })}><Icon name="trash" size={15} /></button>
               </div>
             ))}
-            <button className="btn btn-sm" style={{ alignSelf: 'flex-start' }} type="button" onClick={() => updateRecipe((c) => { c.recipe.awards.push({ id: `a${Date.now()}`, scope, label: scope === 'team' ? 'Top 5' : 'Top 10', rule: 'top_n', value: scope === 'team' ? 5 : 10 }); })}>Add award</button>
+            <button className="btn btn-sm" style={{ alignSelf: 'flex-start', marginTop: 4 }} type="button" onClick={() => updateRecipe((c) => { c.recipe.awards.push({ id: `a${Date.now()}`, scope, label: scope === 'team' ? 'Top 5' : 'Top 10', rule: 'top_n', value: scope === 'team' ? 5 : 10 }); })}><Icon name="plus" />Add award</button>
             <p className="muted tiny">The first rule that fits a place wins. Places shared on a tie get the same award.</p>
           </div>
         </section>

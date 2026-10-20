@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type PointerEvent as RPE } from 'react';
 import { createPortal } from 'react-dom';
 import { useContest, useStandings } from '../../lib/hooks';
 import { useDB } from '../../lib/store';
-import { Segmented } from '../../components/ui';
+import { EmptyState, Segmented } from '../../components/ui';
 import { Icon } from '../../components/icons';
 import { usePrint } from './print';
 
@@ -88,7 +88,7 @@ export function CertificatesPanel({ slot }: { slot?: HTMLElement | null }) {
       {(() => {
         const buttons = p && (
           <>
-            <button className="btn" type="button" onClick={() => printList([p])}>Print {p.name.split(' ')[0]}’s</button>
+            <button className="btn" type="button" onClick={() => printList([p])}><Icon name="print" />Print {p.name.split(' ')[0]}’s</button>
             <button className="btn btn-primary" type="button" onClick={() => printList(people)}><Icon name="certificate" />Print {people.length} certificates</button>
           </>
         );
@@ -101,12 +101,12 @@ export function CertificatesPanel({ slot }: { slot?: HTMLElement | null }) {
       )}
 
       {!p ? (
-        <div className="note">No Individual scores in this division yet, so no awards. Certificates appear once papers are graded.</div>
+        <section className="card"><EmptyState icon="certificate" title="No certificates yet">No Individual scores in this division yet, so no awards. Certificates appear once papers are graded.</EmptyState></section>
       ) : (
         <div className="split">
           <div className="stack">
-            <Cert p={p} {...common} frameRef={frame} onMove={move} onUp={() => (drag.current = null)} grab={grab} />
-            <p className="muted small">Drag the name and the award into place. Long names shrink to fit. Prints landscape, one per page.</p>
+            <div className="ct-stage" key={p.id}><Cert p={p} {...common} frameRef={frame} onMove={move} onUp={() => (drag.current = null)} grab={grab} /></div>
+            <p className="muted small row" style={{ gap: 7 }}><Icon name="info" size={14} />Drag the name and the award into place. Long names shrink to fit. Prints landscape, one per page.</p>
           </div>
 
           <aside className="stack-lg" style={{ gap: 24 }}>
@@ -116,16 +116,17 @@ export function CertificatesPanel({ slot }: { slot?: HTMLElement | null }) {
                 {people.map((x, i) => <option key={x.id} value={i}>{x.id} {x.name}</option>)}
               </select>
             </label>
-            <div>
+            <div className="ct-counts">
+              <h3>In this print run</h3>
               {Object.entries(counts).map(([award, n]) => (
-                <div key={award} className="row" style={{ justifyContent: 'space-between', padding: '6px 0', borderTop: '1px solid var(--line)' }}>
+                <div key={award} className="ct-count">
                   <span>{award}</span><span className="soft">{n}</span>
                 </div>
               ))}
             </div>
             <div className="stack" style={{ gap: 8 }}>
               <label className="btn" style={{ position: 'relative', overflow: 'hidden' }}>
-                Use your own design
+                <Icon name="upload" />Use your own design
                 <input type="file" accept="image/*" style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (!f) return;
@@ -134,7 +135,7 @@ export function CertificatesPanel({ slot }: { slot?: HTMLElement | null }) {
                   reader.readAsDataURL(f);
                 }} />
               </label>
-              {bg && <button className="btn btn-quiet" type="button" onClick={() => setBg(null)}>Back to the plain design</button>}
+              {bg && <button className="btn btn-quiet" type="button" onClick={() => setBg(null)}><Icon name="undo" />Back to the plain design</button>}
               <span className="muted tiny">A PNG or JPG exported from Canva, landscape.</span>
             </div>
           </aside>

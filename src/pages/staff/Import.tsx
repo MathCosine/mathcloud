@@ -59,7 +59,7 @@ export function Import() {
               <span className="stack" style={{ gap: 4 }}>
                 <b>{k.title}</b>
                 <span className="soft small">{k.text}</span>
-                <span className="mono tiny muted">{k.cols}</span>
+                <span className="tiny muted">Columns: {k.cols}</span>
               </span>
               <span className="imp-go"><Icon name="arrow" size={16} /></span>
             </button>

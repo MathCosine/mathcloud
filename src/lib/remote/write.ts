@@ -111,7 +111,7 @@ export const saveBoard = (contestId: string, board: Contest['board']) =>
 export const saveRecipe = (contestId: string, recipe: ScoringRecipe) => ok('Scoring not saved', table('contests').update({ recipe }).eq('id', contestId));
 
 export const saveRegistration = (contestId: string, reg: Contest['registration']) =>
-  ok('Registration not saved', table('contests').update({ registration: { open: reg.open, closes_label: reg.closesLabel, team_min: reg.teamMin, team_max: reg.teamMax } }).eq('id', contestId));
+  ok('Registration not saved', table('contests').update({ registration: { open: reg.open, closes_label: reg.closesLabel, team_min: reg.teamMin, team_max: reg.teamMax, coaches: reg.coaches !== false } }).eq('id', contestId));
 
 export const saveVenue = (contestId: string, venue: Contest['venue']) =>
   ok('Venue not saved', table('contests').update({ venue: venue ? { name: venue.name, address: venue.address, hall: venue.hall, bring: venue.bring } : null }).eq('id', contestId));
@@ -169,13 +169,26 @@ export const signWaiver = (token: string, name: string) => attempt<string>(rpc('
 export const joinTeam = (code: string, name: string, grade: number | null, guardianEmail: string) =>
   attempt<string>(rpc('join_team', { p_code: code, p_name: name, p_grade: grade, p_guardian_email: guardianEmail }));
 
-type TeamIn = { mode: string; name: string; school: string; city: string; timeZone?: string; notes?: string; contactName: string; contactEmail: string; students: { name: string; grade: number | null; guardianName: string; guardianEmail: string }[] };
-const teamJson = (t: TeamIn) => ({ name: t.name, school: t.school, city: t.city, time_zone: t.timeZone, notes: t.notes, contact_name: t.contactName, contact_email: t.contactEmail });
-const studentsJson = (t: TeamIn) => t.students.map((s) => ({ name: s.name, grade: s.grade, guardian_name: s.guardianName, guardian_email: s.guardianEmail }));
+type TeamIn = {
+  mode: string; name: string; school: string; city: string; timeZone?: string; notes?: string; contactName: string; contactEmail: string;
+  code?: string; externalId?: string; allowDuplicate?: boolean;
+  students: { name: string; grade: number | null; guardianName: string; guardianEmail: string; externalId?: string; waiverSignedBy?: string | null }[];
+};
+const teamJson = (t: TeamIn) => ({
+  name: t.name, school: t.school, city: t.city, time_zone: t.timeZone, notes: t.notes, contact_name: t.contactName, contact_email: t.contactEmail,
+  ...(t.code ? { code: t.code } : {}), ...(t.externalId ? { external_id: t.externalId } : {}), ...(t.allowDuplicate ? { allow_duplicate: true } : {}),
+});
+const studentsJson = (t: TeamIn) =>
+  t.students.map((s) => ({
+    name: s.name, grade: s.grade, guardian_name: s.guardianName, guardian_email: s.guardianEmail,
+    ...(s.externalId ? { external_id: s.externalId } : {}), ...(s.waiverSignedBy ? { waiver_signed_by: s.waiverSignedBy } : {}),
+  }));
 
 export const registerTeam = (contestId: string, t: TeamIn) => attempt<string>(rpc('register_team', { p_contest: contestId, p_mode: t.mode, p_team: teamJson(t), p_students: studentsJson(t) }));
+/** Resolves to the new teams' ids, so the import can be undone. */
 export const importTeams = (contestId: string, teams: TeamIn[], status: string) =>
-  attempt<number>(rpc('import_teams', { p_contest: contestId, p_teams: teams.map((t) => ({ mode: t.mode, team: teamJson(t), students: studentsJson(t) })), p_status: status }));
+  attempt<string[]>(rpc('import_team_rows', { p_contest: contestId, p_teams: teams.map((t) => ({ mode: t.mode, team: teamJson(t), students: studentsJson(t) })), p_status: status }));
+export const linkEditions = (contestId: string, otherId: string | null) => attempt(rpc('link_editions', { p_contest: contestId, p_other: otherId }));
 
 export const log = (contestId: string, teamId: string | undefined, text: string, tone: string) =>
   ok('Not logged', table('activity').insert({ contest_id: contestId, team_id: teamId ?? null, text, tone }));
@@ -217,7 +230,7 @@ export async function createContest(c: Contest) {
   try {
     err(await sb.from('contests').insert({
       id: c.id, org_id: c.orgId, name: c.name, short_name: c.short, slug: c.slug, time_zone: c.timeZone, date_label: c.dateLabel,
-      registration: { open: c.registration.open, closes_label: c.registration.closesLabel, team_min: c.registration.teamMin, team_max: c.registration.teamMax },
+      registration: { open: c.registration.open, closes_label: c.registration.closesLabel, team_min: c.registration.teamMin, team_max: c.registration.teamMax, coaches: c.registration.coaches !== false },
       recipe: c.recipe, board: { freeze_minutes: c.board.freezeMinutes, revealed: c.board.revealed },
       venue: c.venue ? { name: c.venue.name, address: c.venue.address, hall: c.venue.hall, bring: c.venue.bring } : null,
     }));

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   addVenueRoom, addZoomRoom, divisionFor, offers, removeRoom, saveDivision, saveRound, saveVenue, setMode, setRegistration, setRoomProctor,
@@ -9,7 +9,7 @@ import type { DivisionMode, IntegrityPolicy } from '../../lib/model';
 import { useDB } from '../../lib/store';
 import { useDraft } from '../../lib/useDraft';
 import { Icon, type IconName } from '../../components/icons';
-import { Choice, CloseIcon, Modal, ModeChip, State, toast } from '../../components/ui';
+import { Choice, Modal, ModeChip, State, toast } from '../../components/ui';
 import '../../styles/settings.css';
 
 const POLICY: Record<IntegrityPolicy, string> = {
@@ -46,6 +46,13 @@ export function Settings() {
   ];
   const shown = sections.filter((s) => s.show);
   const [active, setActive] = useState<SectionId>('contest');
+  // The white pill glides to the section being read, like the sidebar's.
+  const navRef = useRef<HTMLElement>(null);
+  const [pill, setPill] = useState<{ y: number; on: boolean }>({ y: 0, on: false });
+  useLayoutEffect(() => {
+    const el = navRef.current?.querySelector<HTMLElement>('a.on');
+    setPill(el ? { y: el.offsetTop, on: true } : (p) => ({ ...p, on: false }));
+  }, [active, shown.length]);
 
   // Highlight the section being read.
   useEffect(() => {
@@ -67,9 +74,10 @@ export function Settings() {
         </div>
       </div>
       <div className="set-layout">
-        <nav className="set-nav" aria-label="Settings sections">
+        <nav className="set-nav" aria-label="Settings sections" ref={navRef}>
+          <span className="set-pill" style={{ transform: `translateY(${pill.y}px)`, opacity: pill.on ? 1 : 0 }} aria-hidden="true" />
           {shown.map((s) => (
-            <a key={s.id} href={`#${s.id}`} className={active === s.id ? 'on' : ''} onClick={(e) => {
+            <a key={s.id} href={`#${s.id}`} className={active === s.id ? 'on' : ''} aria-current={active === s.id ? 'true' : undefined} onClick={(e) => {
               e.preventDefault();
               document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               setActive(s.id);
@@ -169,7 +177,7 @@ function ContestSection() {
           <div className="row wrap set-slug-act">
             {dirty ? (
               <>
-                <button className="btn btn-primary btn-sm" type="button" disabled={saving || !!slugProblem(slug, contest.id)} onClick={() => void commitSlug()}>Save address</button>
+                <button className="btn btn-primary btn-sm" type="button" disabled={saving || !!slugProblem(slug, contest.id)} onClick={() => void commitSlug()}><Icon name="check" size={14} />Save address</button>
                 <button className="btn btn-sm btn-quiet" type="button" onClick={() => { setSlug(contest.slug); setSlugError(null); }}>Cancel</button>
               </>
             ) : (
@@ -236,7 +244,7 @@ function RegistrationSection() {
             <p className="soft small" style={{ margin: 0 }}>{both ? 'Coaches choose in person or online first, then add their team. They can switch until registration closes.' : 'Coaches add their team and students.'} {live} teams so far.</p>
             <div className="row wrap">
               <span className="mono small soft">{window.location.host}/register/{contest.slug}</span>
-              <button className="btn btn-sm" type="button" onClick={() => navigate(`/register/${contest.slug}`)}>Open the form</button>
+              <button className="btn btn-sm" type="button" onClick={() => navigate(`/register/${contest.slug}`)}>Open the form<Icon name="arrow-up-right" size={14} /></button>
             </div>
           </div>
           <div className="stack" style={{ gap: 8 }}>
@@ -337,10 +345,10 @@ function VenueSection() {
             <thead><tr><th>Room</th><th>Teams</th><th /></tr></thead>
             <tbody>
               {venue.rooms.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} className="set-room">
                   <td style={{ width: 220, minWidth: 160 }}><RoomName id={r.id} name={r.name} /></td>
                   <td className="soft">{r.teamIds.length ? r.teamIds.map((id) => db.teams.find((t) => t.id === id)?.code).filter(Boolean).join(', ') : <span className="muted">Empty</span>}</td>
-                  <td className="num"><button className="close" type="button" aria-label={`Remove ${r.name}`} onClick={() => rm.ask(r)}><CloseIcon /></button></td>
+                  <td className="num"><button className="icon-btn set-del" type="button" aria-label={`Remove ${r.name}`} title="Remove room" onClick={() => rm.ask(r)}><Icon name="trash" size={15} /></button></td>
                 </tr>
               ))}
             </tbody>
@@ -389,9 +397,9 @@ function OnlineSection() {
           <table className="t">
             <thead><tr><th>Zoom room</th><th>Proctor</th><th>Teams</th><th /></tr></thead>
             <tbody>
-              {contest.rooms.length === 0 && <tr className="empty"><td colSpan={4} style={{ height: 80 }}>No Zoom rooms yet. Every online team needs one.</td></tr>}
+              {contest.rooms.length === 0 && <tr className="empty"><td colSpan={4} style={{ height: 96 }}><span className="row" style={{ justifyContent: 'center', gap: 8 }}><Icon name="video" />No Zoom rooms yet. Every online team needs one.</span></td></tr>}
               {contest.rooms.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} className="set-room">
                   <td className="name">{r.name}<div className="mono muted tiny">{r.url.replace('https://', '')}</div></td>
                   <td style={{ width: 220, minWidth: 160 }}>
                     <select className="select input-sm" aria-label={`Proctor for ${r.name}`} value={r.proctorId ?? ''} onChange={(e) => setRoomProctor(r.id, e.target.value || undefined)}>
@@ -400,7 +408,7 @@ function OnlineSection() {
                     </select>
                   </td>
                   <td className="soft">{r.teamIds.length ? r.teamIds.map((id) => db.teams.find((t) => t.id === id)?.code).filter(Boolean).join(', ') : <span className="muted">Empty</span>}</td>
-                  <td className="num"><button className="close" type="button" aria-label={`Remove ${r.name}`} onClick={() => rm.ask(r)}><CloseIcon /></button></td>
+                  <td className="num"><button className="icon-btn set-del" type="button" aria-label={`Remove ${r.name}`} title="Remove Zoom room" onClick={() => rm.ask(r)}><Icon name="trash" size={15} /></button></td>
                 </tr>
               ))}
             </tbody>

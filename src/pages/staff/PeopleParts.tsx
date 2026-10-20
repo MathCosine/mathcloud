@@ -3,7 +3,7 @@
  * registration, its students and their waivers), the student drawer, and
  * the small pieces they are made of.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   addCompetitor, checkIn, deleteTeam, MODE_LABEL, modeOf, moveCompetitor, removeCompetitor, saveCompetitor, saveTeam, setTeamMode, setTeamStatus,
@@ -58,10 +58,12 @@ export function EditText({
   check?: (v: string) => boolean; className?: string; list?: string;
 }) {
   const [v, setV] = useState(value);
+  const [saved, setSaved] = useState(0);
   useEffect(() => setV(value), [value]);
   const bad = !!check && v.trim() !== '' && !check(v);
   return (
-    <input
+    <span className="pp-edit">
+      <input
       aria-label={label}
       title={label}
       className={`input input-sm ${mono ? 'mono' : ''} ${bad ? 'invalid' : ''} ${className ?? ''}`}
@@ -71,7 +73,11 @@ export function EditText({
       value={v}
       placeholder={placeholder ?? label}
       onChange={(e) => setV(e.target.value)}
-      onBlur={() => v.trim() !== value.trim() && onSave(v.trim())}
+      onBlur={() => {
+        if (v.trim() === value.trim()) return;
+        onSave(v.trim());
+        if (!bad) setSaved((n) => n + 1);
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
         if (e.key === 'Escape') {
@@ -80,6 +86,8 @@ export function EditText({
         }
       }}
     />
+    {saved > 0 && <span key={saved} className="pp-saved" aria-hidden="true"><Icon name="check" size={10} /></span>}
+    </span>
   );
 }
 
@@ -119,7 +127,7 @@ export function WaiverLine({ c, live = true, compact }: { c: Competitor; live?: 
       <span className="pp-waiver" title={`${who} · ${how}`}>
         <State tone="ok">Signed {day(c.waiverSignedAt)}</State>
         {!compact && <span className="muted tiny">{who} · {how}</span>}
-        <button className="btn btn-quiet btn-sm" type="button" onClick={() => { undoWaiver(c.id, me.name); toast(`Waiver for ${c.publicId} taken back`, 'It shows as missing again.'); }}>Undo</button>
+        <button className="icon-btn" type="button" aria-label="Take the waiver back" title="Take the waiver back" onClick={() => { undoWaiver(c.id, me.name); toast(`Waiver for ${c.publicId} taken back`, 'It shows as missing again.'); }}><Icon name="undo" size={15} /></button>
       </span>
     );
   }
@@ -136,8 +144,8 @@ export function WaiverLine({ c, live = true, compact }: { c: Competitor; live?: 
       {c.reminderSentAt && <span className="muted tiny">Reminded {day(c.reminderSentAt)}</span>}
       {live && (
         <>
-          <button className="btn btn-sm" type="button" disabled={busy || !c.guardianEmail} title={c.guardianEmail ? undefined : 'No guardian email'} onClick={remind}>{busy ? 'Sending' : 'Remind'}</button>
-          <button className="btn btn-quiet btn-sm" type="button" onClick={() => { markPaper(c.id, me.name); toast(`Paper waiver recorded for ${c.publicId}`, undefined, 'g'); }}>Paper copy</button>
+          <button className="btn btn-sm" type="button" disabled={busy || !c.guardianEmail} title={c.guardianEmail ? undefined : 'No guardian email'} onClick={remind}><Icon name="send" size={13} />{busy ? 'Sending' : 'Remind'}</button>
+          <button className="btn btn-quiet btn-sm" type="button" title="Record a signed paper copy" onClick={() => { markPaper(c.id, me.name); toast(`Paper waiver recorded for ${c.publicId}`, undefined, 'g'); }}>Paper copy</button>
         </>
       )}
     </span>
@@ -174,11 +182,11 @@ function MoveSelect({ c, onMoved }: { c: Competitor; onMoved?: () => void }) {
 }
 
 /** One student on the team editor: everything about them, editable where it stands. */
-function StudentCard({ c, live, onRemove }: { c: Competitor; live: boolean; onRemove: () => void }) {
+function StudentCard({ c, live, onRemove, fresh }: { c: Competitor; live: boolean; onRemove: () => void; fresh?: boolean }) {
   const me = useUser()!;
   const save = (patch: Partial<Competitor>) => saveCompetitor({ ...c, ...patch }, me.name);
   return (
-    <div className="pp-student">
+    <div className={`pp-student ${fresh ? 'new' : ''}`}>
       <span className="pp-id mono" title="Student ID: team code and letter">{c.publicId}</span>
       <div className="pp-student-fields">
         <EditText label="Name" value={c.name} onSave={(v) => v && save({ name: v })} className="pp-name" />
@@ -190,7 +198,7 @@ function StudentCard({ c, live, onRemove }: { c: Competitor; live: boolean; onRe
         <WaiverLine c={c} live={live} compact />
         <span className="grow" />
         <MoveSelect c={c} />
-        <button className="btn btn-quiet btn-sm pp-remove" type="button" onClick={onRemove}>Remove</button>
+        <button className="icon-btn" type="button" aria-label={`Remove ${c.name}`} title="Remove from the team" onClick={onRemove}><Icon name="trash" size={15} /></button>
       </div>
     </div>
   );
@@ -216,7 +224,7 @@ function AddStudent({ team, full }: { team: Team; full: boolean }) {
     toast(`${f.name.trim()} added to ${team.name}`, f.guardianEmail ? 'The guardian gets a waiver request.' : 'Add a guardian email so they can sign the waiver.', 'g');
     setF(blank);
   };
-  if (full) return <p className="muted small">The team is full. Move or remove a student to add another.</p>;
+  if (full) return <p className="pp-full"><Icon name="info" size={15} />The team is full. Move or remove a student to add another.</p>;
   return (
     <form className="pp-add" onSubmit={(e) => { e.preventDefault(); void add(); }}>
       <input className="input input-sm pp-name" placeholder="Student name" aria-label="New student name" value={f.name} onChange={set('name')} />
@@ -289,6 +297,13 @@ export function TeamDrawer({ id, onClose }: { id: string | null; onClose: () => 
   const venueRoom = t ? contest.venue?.rooms.find((r) => r.teamIds.includes(t.id)) : undefined;
   const live = t?.status !== 'withdrawn';
   const mode = t ? modeOf(contest, t) : 'in_person';
+  // Students already there when the drawer opened; anyone added after rises in.
+  const seen = useRef<Set<string>>(new Set());
+  const shownTeam = useRef<string | null>(null);
+  if (t && shownTeam.current !== t.id) {
+    shownTeam.current = t.id;
+    seen.current = new Set(members.map((c) => c.id));
+  }
 
   const save = (patch: Partial<Team>) => {
     if (!t) return;
@@ -341,9 +356,9 @@ export function TeamDrawer({ id, onClose }: { id: string | null; onClose: () => 
                   body: <p>This removes the team, its {members.length} {members.length === 1 ? 'student' : 'students'} and their answers. It cannot be undone. To keep the record, set the status to Withdrawn instead.</p>,
                   run: () => { deleteTeam(t.id, me.name); onClose(); toast(`${t.name} deleted`); },
                 })}
-              >Delete team</button>
+              ><Icon name="trash" size={14} />Delete team</button>
               <span className="grow" />
-              {t.status === 'pending' && <button className="btn btn-primary" type="button" onClick={() => { setTeamStatus([t.id], 'confirmed', me.name); toast(`${t.name} confirmed`, undefined, 'g'); }}>Confirm team</button>}
+              {t.status === 'pending' && <button className="btn btn-primary" type="button" onClick={() => { setTeamStatus([t.id], 'confirmed', me.name); toast(`${t.name} confirmed`, undefined, 'g'); }}><Icon name="check" size={14} />Confirm team</button>}
             </>
           )
         }
@@ -368,7 +383,7 @@ export function TeamDrawer({ id, onClose }: { id: string | null; onClose: () => 
             </section>
 
             <section>
-              <h3>Registration</h3>
+              <h3><Icon name="file" size={15} />Registration</h3>
               <div className="pp-grid">
                 <Field label="Team name"><EditText label="Team name" value={t.name} onSave={(v) => v && save({ name: v })} /></Field>
                 <Field label="Code"><EditText label="Team code" mono value={t.code} onSave={(v) => save({ code: v })} /></Field>
@@ -391,12 +406,12 @@ export function TeamDrawer({ id, onClose }: { id: string | null; onClose: () => 
 
             <section>
               <div className="row pp-h">
-                <h3>Students <span className="muted">{members.length} of {contest.registration.teamMax}</span></h3>
+                <h3><Icon name="roster" size={15} />Students <span className="muted">{members.length} of {contest.registration.teamMax}</span></h3>
               </div>
               <div className="pp-students">
                 {members.map((c) => (
                   <StudentCard
-                    key={c.id} c={c} live={live}
+                    key={c.id} c={c} live={live} fresh={!seen.current.has(c.id)}
                     onRemove={() => ask({
                       title: `Remove ${c.name}?`, label: 'Remove student', danger: true,
                       body: <p>{c.name} ({c.publicId}) is taken off {t.name}, with their sign-in and answers. {c.waiverSignedAt ? 'Their signed waiver goes too.' : ''}</p>,
@@ -404,33 +419,33 @@ export function TeamDrawer({ id, onClose }: { id: string | null; onClose: () => 
                     })}
                   />
                 ))}
-                {!members.length && <p className="muted small">No students yet.</p>}
+                {!members.length && <p className="pp-full"><Icon name="user-plus" size={15} />No students yet. Add the first one below.</p>}
               </div>
               <AddStudent team={t} full={members.length >= contest.registration.teamMax} />
             </section>
 
             <section>
-              <h3>Access</h3>
+              <h3><Icon name="key" size={15} />Access</h3>
               <dl className="dl">
                 <dt>Join code</dt>
-                <dd className="row"><span className="mono">{t.joinCode}</span><button className="btn btn-quiet btn-sm" type="button" onClick={() => copy(t.joinCode, 'join code')}>Copy</button></dd>
+                <dd className="row"><span className="mono">{t.joinCode}</span><button className="icon-btn" type="button" aria-label="Copy join code" title="Copy join code" onClick={() => copy(t.joinCode, 'join code')}><Icon name="copy" size={15} /></button></dd>
                 <dt>Coach</dt><dd>{coach ? <>{coach.name} <span className="muted">· {coach.email}</span></> : <span className="muted">No coach account; {t.contactName || 'the contact'} registered by form</span>}</dd>
                 {room && (<><dt>Zoom room</dt><dd>{room.name}</dd></>)}
                 {venueRoom && (<><dt>Room</dt><dd>{venueRoom.name}</dd></>)}
                 <dt>Student sign-ins</dt>
                 <dd>
-                  <button className="btn btn-sm" type="button" disabled={busy || !members.length} onClick={() => void makeLogins()}>{busy ? 'Making' : 'Make sign-ins'}</button>
+                  <button className="btn btn-sm" type="button" disabled={busy || !members.length} onClick={() => void makeLogins()}><Icon name="key" size={13} />{busy ? 'Making' : 'Make sign-ins'}</button>
                   <div className="muted tiny" style={{ marginTop: 4 }}>Usernames and new passwords for students without their own email.</div>
                 </dd>
               </dl>
             </section>
 
             <section>
-              <h3>Activity</h3>
+              <h3><Icon name="clock" size={15} />Activity</h3>
               {log.length ? (
                 <ul className="log">{log.map((a) => <li key={a.id}><time>{stamp(a.at)}</time><span>{a.text}</span></li>)}</ul>
               ) : <p className="muted small">Nothing yet.</p>}
-              <button className="btn btn-quiet btn-sm" type="button" style={{ marginTop: 8 }} onClick={() => navigate(`/staff/people?tab=students&q=${encodeURIComponent(t.code)}`)}>See students in People</button>
+              <button className="btn btn-quiet btn-sm" type="button" style={{ marginTop: 8, marginLeft: -10 }} onClick={() => navigate(`/staff/people?tab=students&q=${encodeURIComponent(t.code)}`)}>See students in People<Icon name="arrow" size={13} /></button>
             </section>
           </div>
         )}
@@ -477,9 +492,9 @@ export function StudentDrawer({ id, onClose, onOpenTeam }: { id: string | null; 
                   body: <p>{c.name} ({c.publicId}) is taken off {t.name}, with their sign-in and answers.</p>,
                   run: () => { removeCompetitor(c.id, me.name); onClose(); toast(`${c.name} removed`); },
                 })}
-              >Remove student</button>
+              ><Icon name="trash" size={14} />Remove student</button>
               <span className="grow" />
-              {onOpenTeam && <button className="btn" type="button" onClick={() => onOpenTeam(t.id)}>Open team</button>}
+              {onOpenTeam && <button className="btn" type="button" onClick={() => onOpenTeam(t.id)}>Open team<Icon name="arrow" size={14} /></button>}
             </>
           )
         }
@@ -487,7 +502,7 @@ export function StudentDrawer({ id, onClose, onOpenTeam }: { id: string | null; 
         {c && t && (
           <div className="pp-editor" key={c.id}>
             <section>
-              <h3>Student</h3>
+              <h3><Icon name="student" size={15} />Student</h3>
               <div className="pp-grid">
                 <Field label="Name"><EditText label="Name" value={c.name} onSave={(v) => v && save({ name: v })} /></Field>
                 <Field label="Grade"><EditText label="Grade" type="number" value={c.grade ? String(c.grade) : ''} onSave={(v) => save({ grade: Number(v) || 0 })} /></Field>
@@ -496,7 +511,7 @@ export function StudentDrawer({ id, onClose, onOpenTeam }: { id: string | null; 
               </div>
             </section>
             <section>
-              <h3>Team and ID</h3>
+              <h3><Icon name="roster" size={15} />Team and ID</h3>
               <dl className="dl">
                 <dt>ID</dt><dd className="mono">{c.publicId}{c.publicId !== `${t.code}${c.slot}` && <span className="wait small"> · should be {t.code}{c.slot}</span>}</dd>
                 <dt>Team</dt><dd className="row wrap"><span>{t.code} {t.name}</span><ModeChip mode={mode} /></dd>
@@ -504,18 +519,18 @@ export function StudentDrawer({ id, onClose, onOpenTeam }: { id: string | null; 
               </dl>
             </section>
             <section>
-              <h3>Waiver</h3>
+              <h3><Icon name="waivers" size={15} />Waiver</h3>
               <WaiverLine c={c} live={t.status !== 'withdrawn'} />
               {!c.guardianEmail && <p className="wait small" style={{ marginTop: 8 }}>No guardian email: add one so the waiver can be sent.</p>}
             </section>
             <section>
-              <h3>Contest day</h3>
+              <h3><Icon name="calendar" size={15} />Contest day</h3>
               <dl className="dl">
                 {mode === 'in_person' ? (
                   <>
                     <dt>Check-in</dt>
                     <dd className="row">{c.checkedInAt ? <State tone="ok">Here since {stamp(c.checkedInAt)}</State> : <span className="muted">Not yet</span>}
-                      <button className="btn btn-sm" type="button" disabled={!c.waiverSignedAt && !c.checkedInAt} onClick={() => checkIn(c.id)}>{c.checkedInAt ? 'Undo' : 'Check in'}</button>
+                      <button className={`btn btn-sm ${c.checkedInAt ? 'btn-quiet' : ''}`} type="button" disabled={!c.waiverSignedAt && !c.checkedInAt} onClick={() => checkIn(c.id)}>{c.checkedInAt ? 'Undo' : <><Icon name="check" size={13} />Check in</>}</button>
                     </dd>
                   </>
                 ) : (
@@ -528,7 +543,7 @@ export function StudentDrawer({ id, onClose, onOpenTeam }: { id: string | null; 
             </section>
             {log.length > 0 && (
               <section>
-                <h3>Activity</h3>
+                <h3><Icon name="clock" size={15} />Activity</h3>
                 <ul className="log">{log.map((a) => <li key={a.id}><time>{stamp(a.at)}</time><span>{a.text}</span></li>)}</ul>
               </section>
             )}

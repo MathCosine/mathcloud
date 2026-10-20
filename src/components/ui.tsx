@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import katex from 'katex';
 import type { DivisionMode } from '../lib/model';
 import { Icon, type IconName } from './icons';
@@ -163,10 +163,20 @@ export function useSlider<T extends HTMLElement>(selector: string, deps: unknown
 
 export function Tabs<K extends string>({ value, onChange, items }: { value: K; onChange: (k: K) => void; items: { key: K; label: ReactNode; count?: number }[] }) {
   const { ref, style } = useSlider<HTMLDivElement>('[aria-selected="true"]', [value, items.length]);
+  // Left and right move between tabs, as in any tab list.
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft' && e.key !== 'Home' && e.key !== 'End') return;
+    e.preventDefault();
+    const i = items.findIndex((it) => it.key === value);
+    const n = items.length;
+    const to = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + n) % n;
+    onChange(items[to].key);
+    requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus());
+  };
   return (
-    <div className="tabs" role="tablist" ref={ref}>
+    <div className="tabs" role="tablist" ref={ref} onKeyDown={onKey}>
       {items.map((it) => (
-        <button key={it.key} type="button" role="tab" aria-selected={it.key === value} onClick={() => onChange(it.key)}>
+        <button key={it.key} type="button" role="tab" aria-selected={it.key === value} tabIndex={it.key === value ? 0 : -1} onClick={() => onChange(it.key)}>
           {it.label}
           {it.count !== undefined && <span className="n">{it.count}</span>}
         </button>
@@ -197,19 +207,40 @@ type ToastItem = { id: number; title: string; body?: string; tone?: 'g' | 'a' | 
 let toasts: ToastItem[] = [];
 const toastListeners = new Set<() => void>();
 const emitToasts = () => toastListeners.forEach((l) => l());
+const toastTimers = new Map<number, ReturnType<typeof setTimeout>[]>();
+
+function dismissToast(id: number, delay = 0) {
+  toastTimers.get(id)?.forEach(clearTimeout);
+  toastTimers.set(id, [
+    setTimeout(() => {
+      toasts = toasts.map((t) => (t.id === id ? { ...t, out: true } : t));
+      emitToasts();
+    }, delay),
+    setTimeout(() => {
+      toasts = toasts.filter((t) => t.id !== id);
+      toastTimers.delete(id);
+      emitToasts();
+    }, delay + 250),
+  ]);
+}
 
 export function toast(title: string, body?: string, tone: ToastItem['tone'] = '') {
   const id = Date.now() + Math.random();
   toasts = [...toasts.slice(-2), { id, title, body, tone }];
   emitToasts();
-  setTimeout(() => {
-    toasts = toasts.map((t) => (t.id === id ? { ...t, out: true } : t));
-    emitToasts();
-  }, 3800);
-  setTimeout(() => {
-    toasts = toasts.filter((t) => t.id !== id);
-    emitToasts();
-  }, 4050);
+  dismissToast(id, tone === 'r' ? 6000 : 3800);
+}
+
+/** The mark at the start of a toast: a tick that draws itself for good news, a dot otherwise. */
+function ToastMark({ tone }: { tone?: ToastItem['tone'] }) {
+  if (tone === 'g') {
+    return (
+      <i className="tk" aria-hidden="true">
+        <svg viewBox="0 0 16 16"><path d="M4.2 8.4l2.4 2.4 5.2-5.4" /></svg>
+      </i>
+    );
+  }
+  return <i aria-hidden="true" />;
 }
 
 export function Toasts() {
@@ -223,8 +254,8 @@ export function Toasts() {
   return (
     <div className="toasts" role="status" aria-live="polite">
       {list.map((t) => (
-        <div key={t.id} className={`toast ${t.tone ?? ''} ${t.out ? 'out' : ''}`}>
-          <i />
+        <div key={t.id} className={`toast ${t.tone ?? ''} ${t.out ? 'out' : ''}`} onClick={() => dismissToast(t.id)} title="Dismiss">
+          <ToastMark tone={t.tone} />
           <div>
             <b>{t.title}</b>
             {t.body && <span> {t.body}</span>}
@@ -237,7 +268,55 @@ export function Toasts() {
 
 // ---------------------------------------------------------- modal, drawer
 
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** Keep Tab inside a dialog, and give focus back to whatever opened it. */
+function useFocusTrap(box: React.RefObject<HTMLElement | null>, active: boolean, first?: () => HTMLElement | null | undefined) {
+  useEffect(() => {
+    if (!active) return;
+    const before = document.activeElement as HTMLElement | null;
+    // Two frames: the dialog may only just be mounting.
+    let id = requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => {
+        const el = box.current;
+        if (!el || el.contains(document.activeElement)) return;
+        const start = first?.() ?? el.querySelector<HTMLElement>('input:not([disabled]), select:not([disabled]), textarea:not([disabled])') ?? el;
+        start.focus({ preventScroll: true });
+      });
+    });
+    const onKey = (e: KeyboardEvent) => {
+      const el = box.current;
+      if (e.key !== 'Tab' || !el) return;
+      const all = [...el.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((x) => x.offsetParent !== null);
+      if (!all.length) return;
+      const a = all[0];
+      const z = all[all.length - 1];
+      if (!el.contains(document.activeElement)) {
+        e.preventDefault();
+        a.focus();
+      } else if (e.shiftKey && (document.activeElement === a || document.activeElement === el)) {
+        e.preventDefault();
+        z.focus();
+      } else if (!e.shiftKey && document.activeElement === z) {
+        e.preventDefault();
+        a.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener('keydown', onKey);
+      const now = document.activeElement;
+      if (before && document.contains(before) && (!now || now === document.body || box.current?.contains(now))) before.focus({ preventScroll: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+}
+
 export function Modal({ title, children, actions, onClose }: { title: string; children: ReactNode; actions: ReactNode; onClose?: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const id = useId();
+  useFocusTrap(box, true);
   useEffect(() => {
     if (!onClose) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -246,8 +325,8 @@ export function Modal({ title, children, actions, onClose }: { title: string; ch
   }, [onClose]);
   return (
     <div className="scrim" onClick={onClose} role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <h2>{title}</h2>
+      <div ref={box} tabIndex={-1} className="modal" role="dialog" aria-modal="true" aria-labelledby={id} onClick={(e) => e.stopPropagation()}>
+        <h2 id={id}>{title}</h2>
         {children}
         <div className="modal-actions">{actions}</div>
       </div>
@@ -255,29 +334,60 @@ export function Modal({ title, children, actions, onClose }: { title: string; ch
   );
 }
 
+/**
+ * A panel that floats in from the right. It keeps showing what it showed while
+ * it slides away, and leaves the page entirely once it has gone.
+ */
 export function Drawer({ open, onClose, kicker, title, children, foot }: { open: boolean; onClose: () => void; kicker?: ReactNode; title?: ReactNode; children?: ReactNode; foot?: ReactNode }) {
+  const [mounted, setMounted] = useState(open);
+  const [shown, setShown] = useState(false);
+  const last = useRef({ kicker, title, children, foot });
+  const box = useRef<HTMLElement>(null);
+  if (open) last.current = { kicker, title, children, foot };
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      // One frame closed, then open, so it slides rather than appears.
+      const id = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
+      return () => cancelAnimationFrame(id);
+    }
+    setShown(false);
+    const t = setTimeout(() => setMounted(false), 460);
+    return () => clearTimeout(t);
+  }, [open]);
+  useFocusTrap(box, open, () => box.current?.querySelector<HTMLElement>('.close'));
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+  if (!mounted) return null;
+  const c = last.current;
   return (
-    <aside className={`drawer ${open ? 'open' : ''}`} aria-hidden={!open}>
-      {open && (
-        <>
-          <div className="drawer-head">
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span className="label">{kicker}</span>
-              <button className="close" type="button" aria-label="Close" onClick={onClose}><CloseIcon /></button>
-            </div>
-            {title && <h2>{title}</h2>}
-          </div>
-          <div className="drawer-body">{children}</div>
-          {foot && <div className="drawer-foot">{foot}</div>}
-        </>
-      )}
+    <aside ref={box} className={`drawer ${shown ? 'open' : ''}`} aria-hidden={!open} role="dialog" aria-label={typeof c.title === 'string' ? c.title : undefined}>
+      <div className="drawer-head">
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <span className="label">{c.kicker}</span>
+          <button className="close" type="button" aria-label="Close" title="Close (Esc)" onClick={onClose}><CloseIcon /></button>
+        </div>
+        {c.title && <h2>{c.title}</h2>}
+      </div>
+      <div className="drawer-body">{c.children}</div>
+      {c.foot && <div className="drawer-foot">{c.foot}</div>}
     </aside>
+  );
+}
+
+/** Nothing here yet: what this is for, and the one next step. */
+export function EmptyState({ icon, title, children, action, className }: { icon: IconName; title: ReactNode; children?: ReactNode; action?: ReactNode; className?: string }) {
+  return (
+    <div className={`es ${className ?? ''}`}>
+      <span className="es-ic"><Icon name={icon} size={20} /></span>
+      <h2>{title}</h2>
+      {children && <p>{children}</p>}
+      {action && <div className="es-act">{action}</div>}
+    </div>
   );
 }
 
@@ -294,14 +404,33 @@ export function useNow(ms = 1000) {
 }
 
 export function SearchBox({ value, onChange, placeholder, inputRef }: { value: string; onChange: (v: string) => void; placeholder: string; inputRef?: React.RefObject<HTMLInputElement | null> }) {
+  const own = useRef<HTMLInputElement>(null);
+  const ref = inputRef ?? own;
   return (
-    <label className="search">
+    <label className={`search ${value ? 'has' : ''}`}>
       <span className="sr">Search</span>
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <circle cx="7" cy="7" r="4.5" />
-        <path d="M10.5 10.5L14 14" />
-      </svg>
-      <input ref={inputRef} className="input" type="search" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} autoComplete="off" />
+      <Icon name="search" />
+      <input
+        ref={ref}
+        className="input"
+        type="search"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && value) {
+            e.preventDefault();
+            e.stopPropagation();
+            onChange('');
+          }
+        }}
+        autoComplete="off"
+      />
+      {value && (
+        <button type="button" className="search-x" aria-label="Clear search" title="Clear (Esc)" onClick={(e) => { e.preventDefault(); onChange(''); ref.current?.focus(); }}>
+          <CloseIcon />
+        </button>
+      )}
     </label>
   );
 }

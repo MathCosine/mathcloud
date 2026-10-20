@@ -1,49 +1,102 @@
-/* Settings: a section nav on the left, the sections on the right. */
+/* Settings: a section nav on the left (a white pill glides to the section
+   being read), the sections on the right. Also the New contest steps. */
 
-.set-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; align-items: start; }
-.set-nav { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 2px; }
-.set-nav a { display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 10px; border-radius: var(--r); color: var(--ink-2); font-size: 13.5px; font-weight: 500; text-decoration: none; transition: background-color .12s, color .12s; }
-.set-nav a .icon { color: var(--ink-3); }
-.set-nav a:hover { background: var(--bg-3); color: var(--ink); text-decoration: none; }
-.set-nav a.on { background: var(--bg); color: var(--ink); font-weight: 600; box-shadow: var(--card-shadow); }
-.set-nav a.on .icon { color: var(--blue); }
-.set-main { display: flex; flex-direction: column; gap: 36px; min-width: 0; }
-.set-section { scroll-margin-top: 16px; }
+.set-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 40px; align-items: start; }
+.set-nav { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 2px; }
+.set-nav a { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 9px; color: var(--ink-2); font-size: 13.5px; font-weight: 500; text-decoration: none; transition: background-color .15s, color .15s; }
+.set-nav a .icon { color: var(--ink-3); transition: color .15s, transform .25s var(--spring); }
+.set-nav a:hover { background: var(--hover); color: var(--ink); text-decoration: none; }
+.set-nav a.on { color: var(--ink); font-weight: 600; background: transparent; }
+.set-nav a.on .icon { color: var(--ink); transform: scale(1.06); }
+.set-nav a:focus-visible { outline: none; box-shadow: var(--focus); }
+.set-pill { position: absolute; left: 0; right: 0; top: 0; height: 34px; border-radius: 9px; background: var(--bg); box-shadow: var(--card-shadow); transition: transform .32s var(--out), opacity .2s; pointer-events: none; }
+.set-main { display: flex; flex-direction: column; gap: 40px; min-width: 0; }
+.set-section { scroll-margin-top: 76px; }
 
 .set-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .set-grid .span-2 { grid-column: span 2; }
 .set-grid .span-all { grid-column: 1 / -1; }
-.set-pad { padding: 16px 18px; }
+.set-pad { padding: 18px 20px; }
 .set-toggle { font-weight: 600; font-size: 13.5px; }
 .set-err { color: var(--red) !important; }
 
-.set-slug { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; padding-top: 14px; border-top: 1px solid var(--line); }
-.set-slug-in { display: flex; align-items: center; gap: 0; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--bg); padding-left: 10px; min-width: 0; }
-.set-slug-in:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
-.set-slug-in .input { border: 0; box-shadow: none; padding-left: 0; min-width: 0; flex: 1; background: transparent; }
+.set-slug { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; padding-top: 16px; border-top: 1px solid var(--line); }
+.set-slug-in { display: flex; align-items: center; gap: 0; border-radius: var(--r); background: var(--bg); padding-left: 12px; min-width: 0; box-shadow: inset 0 0 0 1px var(--line-2), 0 1px 2px rgba(11, 11, 14, .03); transition: box-shadow .16s var(--ease); }
+.set-slug-in:hover { box-shadow: inset 0 0 0 1px #C9C9D0, 0 1px 2px rgba(11, 11, 14, .03); }
+.set-slug-in:focus-within { box-shadow: inset 0 0 0 1px var(--blue), var(--focus); }
+.set-slug-in .input, .set-slug-in .input:hover { border: 0; box-shadow: none; padding-left: 0; min-width: 0; flex: 1; background: transparent; }
 .set-slug-in .input:focus { box-shadow: none; outline: none; }
-.set-slug-in > span { white-space: nowrap; }
+.set-slug-in > span { white-space: nowrap; color: var(--ink-3); }
 .set-slug-act { padding-top: 26px; }
-.set-reg { padding-top: 14px; border-top: 1px solid var(--line); }
-.set-staff { gap: 12px; padding: 14px 18px; }
+.set-reg { padding-top: 16px; border-top: 1px solid var(--line); }
+.set-staff { gap: 14px; padding: 16px 20px; }
+
+/* Rows whose only action is removing them: the bin waits until hover. */
+.set-del { opacity: 0; color: var(--ink-3); transition: opacity .15s var(--ease), background-color .15s, color .15s; }
+.set-del:hover { color: var(--red); background: var(--red-soft); }
+.t tr:hover .set-del, .t tr:focus-within .set-del, .set-del:focus-visible { opacity: 1; }
+@media (hover: none) { .set-del { opacity: 1; } }
+.set-room { animation: rise .35s var(--out) both; }
+.set-saved { display: inline-flex; align-items: center; gap: 6px; color: var(--green); font-size: 12.5px; font-weight: 500; animation: pop .35s var(--spring) both; }
+
+/* Each section is a heading on the sheet and its card, not a box in a box. */
+.section.set-section { background: none; border: 0; box-shadow: none; padding: 0; }
+.set-section > .section-head { padding: 0 2px; min-height: 30px; align-items: center; }
+.set-section > .section-head .label { text-align: right; }
+
+/* Big choices (how teams take part, rounds, sign-ups): rings, not borders. */
+.set-main .choice, .nc .choice { border: 0; box-shadow: var(--card-shadow); transition: box-shadow .2s var(--ease), transform .25s var(--out), background-color .15s; }
+.set-main .choice:hover, .nc .choice:hover { box-shadow: var(--lift); transform: translateY(-1px); }
+.set-main .choice:active, .nc .choice:active { transform: translateY(1px); transition-duration: .06s; }
+.set-main .choice:focus-visible, .nc .choice:focus-visible { outline: none; box-shadow: var(--card-shadow), var(--focus); }
+.set-main .choice h3, .nc .choice h3 { font-size: 15px; font-weight: 600; letter-spacing: -.015em; }
+.set-main .choice .tick, .nc .choice .tick { border: 0; box-shadow: inset 0 0 0 1.5px var(--line-2); transition: background-color .2s, box-shadow .2s; }
+.set-main .choice .tick .icon, .nc .choice .tick .icon { transition: opacity .15s, transform .3s var(--spring); }
+.set-main .choice[aria-checked="true"], .nc .choice[aria-checked="true"] { background: var(--bg); }
+.set-main .choice.in_person[aria-checked="true"], .nc .choice.in_person[aria-checked="true"] { box-shadow: 0 0 0 1.5px var(--green), 0 4px 12px -6px rgba(11, 122, 82, .25); }
+.set-main .choice.online[aria-checked="true"], .nc .choice.online[aria-checked="true"] { box-shadow: 0 0 0 1.5px var(--blue), 0 4px 12px -6px rgba(45, 79, 214, .25); }
+.set-main .choice.both[aria-checked="true"], .nc .choice.both[aria-checked="true"] { box-shadow: 0 0 0 1.5px var(--ink), 0 4px 12px -6px rgba(11, 11, 14, .25); }
+.set-main .choice[aria-checked="true"] .tick, .nc .choice[aria-checked="true"] .tick { box-shadow: none; }
+
+/* ---------------------------------------------------------- New contest */
+.nc { max-width: 860px; }
+.nc-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.nc-step { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; width: 100%; cursor: default; font-size: 13px; font-weight: 500; color: var(--ink-3); }
+button.nc-step:not(:disabled) { cursor: pointer; }
+button.nc-step:not(:disabled):hover { color: var(--ink); }
+.nc-step:focus-visible { box-shadow: var(--focus); border-radius: 4px; }
+.nc-step .bar { position: relative; height: 4px; border-radius: 2px; background: var(--bg-3); overflow: hidden; }
+.nc-step .bar i { position: absolute; inset: 0; border-radius: 2px; background: var(--ink); transform: scaleX(0); transform-origin: left; transition: transform .5s var(--out); }
+.nc-step.done .bar i, .nc-step.now .bar i { transform: none; }
+.nc-step.now .bar i { opacity: .9; }
+.nc-step .lab { display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nc-step .lab .icon { color: var(--green); }
+.nc-step.now { color: var(--ink); font-weight: 600; }
+.nc-step.done { color: var(--ink-2); }
+.nc .form-card h2 { font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
+.nc .form-card { padding: 24px 26px; }
+.nc-summary { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--r-lg); background: var(--bg-2); font-size: 13.5px; color: var(--ink-2); }
+.nc-summary > .icon { color: var(--ink-3); margin-top: 2px; }
+.nc-summary b { color: var(--ink); font-weight: 600; }
+.nc-part { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
 
 @media (max-width: 1000px) {
   .set-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .set-nav { position: static; flex-direction: row; overflow-x: auto; scrollbar-width: none; gap: 4px; margin: 0 -4px; padding: 0 4px 2px; }
+  .set-nav { position: static; flex-direction: row; overflow-x: auto; scrollbar-width: none; gap: 4px; margin: 0 -4px; padding: 2px 4px 4px; }
   .set-nav::-webkit-scrollbar { display: none; }
   .set-nav a { flex: none; height: 32px; }
+  .set-nav a.on { background: var(--bg); box-shadow: var(--card-shadow); }
+  .set-pill { display: none; }
   .set-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .set-slug { grid-template-columns: minmax(0, 1fr); }
   .set-slug-act { padding-top: 0; }
-  .set-pad { padding: 14px; }
+  .set-pad { padding: 16px; }
 }
 @media (max-width: 560px) {
   .set-grid { grid-template-columns: minmax(0, 1fr); }
   .set-grid .span-2 { grid-column: auto; }
   .set-slug-in > span { max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
+  .nc .form-card { padding: 20px 18px; }
+  .nc-step .lab span { display: none; }
+  .nc-step.now .lab span { display: inline; }
 }
-
-/* Each section is a heading on the canvas and its card(s), not a box in a box. */
-.section.set-section { background: none; border: 0; box-shadow: none; padding: 0; }
-.set-section > .section-head { padding: 0 2px; min-height: 30px; align-items: center; }
-.set-section > .section-head .label { text-align: right; }

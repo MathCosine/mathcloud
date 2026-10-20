@@ -875,7 +875,13 @@ export async function setTeamMode(teamId: string, mode: DivisionMode, by: string
 
 // -------------------------------------------------------------- registering
 
-export type NewStudent = { name: string; grade: number | null; guardianName: string; guardianEmail: string };
+export type NewStudent = {
+  name: string; grade: number | null; guardianName: string; guardianEmail: string;
+  /** Their id in the old system, kept for reference. */
+  externalId?: string;
+  /** Set when the waiver was collected elsewhere: how ("Paper copy", "Old sign-up form"). */
+  waiverSignedBy?: string | null;
+};
 export type NewTeam = {
   mode: DivisionMode;
   name: string;
@@ -886,26 +892,38 @@ export type NewTeam = {
   contactName: string;
   contactEmail: string;
   students: NewStudent[];
+  /** Keep the organiser's own team number instead of the next free one. */
+  code?: string;
+  externalId?: string;
+  /** Import even though a team with this name exists. */
+  allowDuplicate?: boolean;
 };
 
 function addTeam(db: DB, c: Contest, input: NewTeam, status: TeamStatus, how: string, coachId?: string): Team {
-  const codes = db.teams.filter((t) => t.contestId === c.id).map((t) => Number(t.code) || 0);
-  const code = String(Math.max(0, ...codes) + 1).padStart(2, '0');
+  // Numbers are unique across both editions, so an ID like 14A means one student on the day.
+  const scope = new Set([c.id, c.linkedId].filter(Boolean));
+  const codes = db.teams.filter((t) => scope.has(t.contestId)).map((t) => Number(t.code) || 0);
+  const code = input.code?.trim() ? input.code.trim().toUpperCase() : String(Math.max(0, ...codes) + 1).padStart(2, '0');
   const prefix = c.slug.split('-')[0];
   const team: Team = {
     id: `${c.id}:t${code}`, contestId: c.id, code, name: input.name.trim(), divisionId: divisionFor(c, input.mode)!.id,
     school: input.school.trim(), city: input.city.trim(), contactName: input.contactName.trim(), contactEmail: input.contactEmail.trim(),
     coachId, status, registeredAt: nowIso(), joinCode: `${prefix.slice(0, 2).toUpperCase()}${code}${Math.random().toString(36).slice(2, 4).toUpperCase()}`,
     timeZone: input.mode === 'online' ? input.timeZone : undefined, notes: input.notes?.trim() || undefined, pledge: null,
+    externalId: input.externalId || undefined,
   };
-  if (c.id === 'sfmo-2027') team.id = `t${code}`;
+  // A coach who already has an account with the contact email sees the team.
+  coachId ??= db.users.find((u) => u.role === 'coach' && u.email.toLowerCase() === team.contactEmail.toLowerCase())?.id;
+  team.coachId = coachId;
+  if (c.id.startsWith('sfmo-2027') && !db.teams.some((t) => t.id === `t${code}`)) team.id = `t${code}`;
   db.teams.push(team);
   input.students.forEach((s, i) => {
     const slot = 'ABCDEFGH'[i];
     const id = `c-${team.id}-${slot}`;
     db.competitors.push({
       id, teamId: team.id, slot, publicId: `${code}${slot}`, name: s.name.trim(), grade: s.grade ?? 0,
-      guardianName: s.guardianName.trim() || 'Parent or guardian', guardianEmail: s.guardianEmail.trim(), waiverSignedAt: null,
+      guardianName: s.guardianName.trim() || 'Parent or guardian', guardianEmail: s.guardianEmail.trim(),
+      waiverSignedAt: s.waiverSignedBy ? nowIso() : null, waiverSignedBy: s.waiverSignedBy || null, externalId: s.externalId || undefined,
     });
     db.users.push({ id: `u-${id}`, email: `${prefix}-${code}${slot}`.toLowerCase(), name: s.name.trim(), role: 'student', password: 'demo', competitorId: id, managed: true });
   });
@@ -936,31 +954,59 @@ export async function registerTeam(contestId: string, input: NewTeam, coachId?: 
   return { team: made, error: made ? null : 'That way of taking part is not offered.' };
 }
 
-/** Teams that signed up somewhere else: a spreadsheet, a Google Form, another site. Resolves to how many came in, or an error. */
-export async function importTeams(teams: NewTeam[], status: TeamStatus, by: string): Promise<{ count: number; error: string | null }> {
-  const c = contestOf(getDB());
-  const usable = teams.filter((t) => divisionFor(c, t.mode));
+/**
+ * Teams that signed up somewhere else: a spreadsheet, a Google Form, another
+ * site. Each goes to the edition that runs its way of taking part (this
+ * contest, or its linked edition). Resolves to how many came in and their
+ * ids (for undo), or an error; on an error, the teams before it are in.
+ */
+export async function importTeams(teams: NewTeam[], status: TeamStatus, by: string): Promise<{ count: number; error: string | null; teamIds: string[] }> {
+  const db0 = getDB();
+  const here = contestOf(db0);
+  const groups = new Map<string, NewTeam[]>();
+  for (const t of teams) {
+    const c = editionFor(db0, here, t.mode);
+    if (!c) continue;
+    groups.set(c.id, [...(groups.get(c.id) ?? []), t]);
+  }
+  const teamIds: string[] = [];
   if (REMOTE) {
     // In batches, so one large file is several modest requests rather than one huge one.
-    let count = 0;
-    for (let i = 0; i < usable.length; i += 50) {
-      const r = await W.importTeams(c.id, usable.slice(i, i + 50), status);
-      if (r.error) return { count, error: r.error };
-      count += r.data ?? 0;
+    for (const [contestId, list] of groups) {
+      for (let i = 0; i < list.length; i += 50) {
+        const r = await W.importTeams(contestId, list.slice(i, i + 50), status);
+        if (r.error) return { count: teamIds.length, error: r.error, teamIds };
+        teamIds.push(...(r.data ?? []));
+      }
     }
     const { reload } = await import('./remote/live');
-    await reload(c.id);
-    return { count, error: null };
+    await reload(here.id);
+    return { count: teamIds.length, error: null, teamIds };
   }
-  let n = 0;
   update((db) => {
-    const k = contestOf(db);
-    for (const t of usable) {
-      addTeam(db, k, t, status, `Imported from a spreadsheet by ${by}`);
-      n++;
+    for (const [contestId, list] of groups) {
+      const k = contestOf(db, contestId);
+      for (const t of list) teamIds.push(addTeam(db, k, t, status, `Imported from a spreadsheet by ${by}`).id);
     }
   });
-  return { count: n, error: null };
+  return { count: teamIds.length, error: null, teamIds };
+}
+
+/** Take an import back: removes the teams it made (and their students). */
+export function undoImport(teamIds: string[], by: string) {
+  for (const id of teamIds) deleteTeam(id, by);
+}
+
+/** The contest that runs this way of taking part: this one, or its linked edition. */
+export function editionFor(db: DB, contest: Contest, mode: DivisionMode): Contest | undefined {
+  if (offers(contest, mode)) return contest;
+  const other = contest.linkedId ? db.contests.find((c) => c.id === contest.linkedId) : undefined;
+  return other && offers(other, mode) ? other : undefined;
+}
+
+/** The other edition of this contest, when it runs both ways at once. */
+export function linkedEdition(db: DB, contest: Contest): Contest | undefined {
+  return contest.linkedId ? db.contests.find((c) => c.id === contest.linkedId) : undefined;
 }
 
 /** Students for teams that already exist (one row per student). Resolves to how many came in, or an error. */
@@ -999,6 +1045,8 @@ export type NewContest = {
   venueAddress: string;
   onlineDetail: string;
   rounds: RoundPlan[];
+  /** False when the organisers enter every team and coaches never need an account. */
+  coaches?: boolean;
 };
 
 const ROUND_PLANS: Record<RoundPlan, { name: string; kind: Round['kind']; minutes: number; count: number; points: (i: number) => number; set?: (i: number) => number; rules: string }> = {
@@ -1025,8 +1073,18 @@ export function wallClock(ymd: string, hhmm: string, timeZone: string) {
   return new Date(guess.getTime() - (shown.getTime() - utc.getTime())).toISOString();
 }
 
-/** Resolves to the new contest's id, or throws with why not. */
+/**
+ * Resolves to the new contest's id, or throws with why not. A contest runs one
+ * way; asked for both, this makes the first and then its linked edition.
+ */
 export async function createContest(input: NewContest): Promise<string> {
+  if (input.modes.length > 1) {
+    const [first, ...others] = input.modes;
+    const id = await createContest({ ...input, modes: [first] });
+    for (const m of others) await createEdition(id, m);
+    setActiveContest(id, { load: REMOTE });
+    return id;
+  }
   const db0 = getDB();
   const orgId = db0.orgs[0]?.id;
   if (!orgId) throw new Error('Set up your organisation first.');
@@ -1071,7 +1129,7 @@ export async function createContest(input: NewContest): Promise<string> {
     agenda,
     resultsPublished: false,
     board: { freezeMinutes: 10, revealed: false },
-    registration: { open: true, closesLabel: 'a week before', teamMin: 1, teamMax: 4 },
+    registration: { open: input.coaches !== false, closesLabel: 'a week before', teamMin: 1, teamMax: 4, coaches: input.coaches !== false },
   };
   if (REMOTE) {
     const error = await W.createContest(contest);
@@ -1082,6 +1140,95 @@ export async function createContest(input: NewContest): Promise<string> {
   });
   setActiveContest(id, { load: REMOTE });
   return id;
+}
+
+/**
+ * The other way of taking part, as its own contest: same name, date, rounds,
+ * problems and answer keys (copied once, then edited separately), its own
+ * teams, rooms and results. The two are linked as editions of each other.
+ */
+export async function createEdition(sourceId: string, mode: DivisionMode): Promise<string> {
+  const db0 = getDB();
+  const src = contestOf(db0, sourceId);
+  if (offers(src, mode)) throw new Error(`${src.short} already runs ${MODE_LABEL[mode].toLowerCase()}.`);
+  if (src.linkedId) throw new Error(`${src.short} already has its other edition.`);
+  const tag = mode === 'online' ? 'online' : 'in-person';
+  const id = REMOTE ? crypto.randomUUID() : `${src.id}-${tag}`;
+  const roundIds = new Map<string, string>();
+  const rounds: Round[] = src.rounds.map((r) => {
+    const rid = REMOTE ? crypto.randomUUID() : `${id}-${r.id}`;
+    roundIds.set(r.id, rid);
+    return {
+      ...r, id: rid, status: 'scheduled', openedAt: undefined,
+      problems: r.problems.map((p) => ({ ...p, id: REMOTE ? crypto.randomUUID() : `${rid}-${p.id}`, answers: [...p.answers] })),
+    };
+  });
+  const firstAt = [...src.agenda.map((a) => a.at), ...rounds.map((r) => r.startsAt)].sort()[0] ?? new Date().toISOString();
+  const opening: AgendaItem = mode === 'in_person'
+    ? { id: uid('ag'), at: firstAt, title: 'Check-in', modes: ['in_person'], where: 'Front desk' }
+    : { id: uid('ag'), at: firstAt, title: 'Join your Zoom room', modes: ['online'] };
+  const agenda: AgendaItem[] = [
+    opening,
+    ...src.agenda
+      .filter((a) => !/^(check-?in|join your zoom room)$/i.test(a.title))
+      .map((a) => ({
+        ...a, id: uid('ag'), modes: [mode], roundId: a.roundId ? roundIds.get(a.roundId) : undefined,
+        where: mode === 'online' ? undefined : a.where ?? (a.roundId ? 'room' : undefined),
+      })),
+  ].sort((a, b) => a.at.localeCompare(b.at));
+  const contest: Contest = {
+    id, orgId: src.orgId, name: src.name, short: src.short, slug: `${src.slug}-${tag}`, dateLabel: src.dateLabel, timeZone: src.timeZone,
+    divisions: [{ id: divisionId(mode), ...DEFAULT_DIVISION[mode] }],
+    rounds,
+    recipe: {
+      ...src.recipe,
+      weights: Object.fromEntries(Object.entries(src.recipe.weights).map(([k, v]) => [roundIds.get(k) ?? k, v])),
+      awards: src.recipe.awards.map((a) => ({ ...a, id: uid('aw') })),
+    },
+    rooms: [],
+    venue: mode === 'in_person' ? { name: '', address: '', hall: 'Main hall', rooms: [{ id: uid('v'), name: 'Room 1', teamIds: [] }], bring: ['Pencils and an eraser'] } : null,
+    agenda,
+    resultsPublished: false,
+    board: { freezeMinutes: src.board.freezeMinutes, revealed: false },
+    registration: { ...src.registration },
+    linkedId: src.id,
+  };
+  if (REMOTE) {
+    const error = await W.createContest(contest);
+    if (error) throw new Error(error);
+    const link = await W.linkEditions(src.id, id);
+    if (link.error) throw new Error(link.error);
+  }
+  update((db) => {
+    db.contests.push(contest);
+    const s0 = db.contests.find((c) => c.id === src.id);
+    if (s0) s0.linkedId = id;
+  });
+  return id;
+}
+
+/**
+ * Replace this contest's problems and answer keys with a copy of the other
+ * edition's, round by round (matched by name, then by order). Returns how many
+ * rounds were copied.
+ */
+export function copyProblemsFrom(otherId: string): number {
+  const db0 = getDB();
+  const here = contestOf(db0);
+  const other = contestOf(db0, otherId);
+  let n = 0;
+  here.rounds.forEach((r, i) => {
+    const from = other.rounds.find((x) => x.name === r.name) ?? other.rounds[i];
+    if (!from) return;
+    saveRound(r.id, { problems: from.problems.map((p) => ({ ...p, id: REMOTE ? crypto.randomUUID() : `${r.id}-${p.number}-${Math.random().toString(36).slice(2, 6)}`, answers: [...p.answers] })) });
+    n++;
+  });
+  return n;
+}
+
+/** Whether coaches use MathCloud (register, manage rosters) or the organisers enter everything. */
+export function setCoachesUseMathCloud(on: boolean) {
+  setRegistration({ coaches: on });
 }
 
 /** A first-time organiser's own organisation. Resolves to an error, or null. */

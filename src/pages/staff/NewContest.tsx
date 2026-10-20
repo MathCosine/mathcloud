@@ -4,6 +4,7 @@ import { createContest, longDate, type NewContest as Plan, type RoundPlan } from
 import type { DivisionMode } from '../../lib/model';
 import { Icon } from '../../components/icons';
 import { Choice, ModeChip, toast } from '../../components/ui';
+import '../../styles/settings.css';
 
 const ZONES: [string, string][] = [
   ['America/Los_Angeles', 'Pacific (Los Angeles)'],
@@ -70,18 +71,23 @@ export function NewContest() {
 
 
   return (
-    <div className="stack-lg" style={{ maxWidth: 860 }}>
+    <div className="stack-lg nc">
       <div>
         <h1 className="page-title">New contest</h1>
         <p className="page-sub">Four short steps. Everything here can be changed later in Settings.</p>
       </div>
 
-      <nav className="steps" aria-label="Steps" style={{ marginBottom: 0 }}>
-        {STEPS.map((s, i) => (
-          <button key={s} type="button" aria-current={i === step ? 'step' : undefined} className={i < step ? 'done' : ''} disabled={i > step} onClick={() => i < step && setStep(i)}>
-            <i>{i < step ? <Icon name="check" size={12} /> : i + 1}</i>{s}
-          </button>
-        ))}
+      <nav aria-label="Steps">
+        <ol className="nc-steps">
+          {STEPS.map((s, i) => (
+            <li key={s}>
+              <button type="button" aria-current={i === step ? 'step' : undefined} className={`nc-step ${i < step ? 'done' : i === step ? 'now' : ''}`} disabled={i >= step} onClick={() => i < step && setStep(i)} title={i < step ? `Back to ${s.toLowerCase()}` : undefined}>
+                <span className="bar"><i /></span>
+                <span className="lab">{i < step ? <Icon name="check" size={13} /> : <span className="mono">{i + 1}</span>}<span>{s}</span></span>
+              </button>
+            </li>
+          ))}
+        </ol>
       </nav>
 
       <section className="card form-card reveal" key={step}>
@@ -126,7 +132,7 @@ export function NewContest() {
               </Choice>
             </div>
             {modes.includes('in_person') && (
-              <div className="stack reveal" style={{ gap: 12 }}>
+              <div className="nc-part reveal">
                 <ModeChip mode="in_person">The venue</ModeChip>
                 <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))' }}>
                   <label className="field"><span>Venue</span><input className="input" value={plan.venueName} placeholder="Lincoln High School" onChange={(e) => set({ venueName: e.target.value })} /></label>
@@ -135,7 +141,7 @@ export function NewContest() {
               </div>
             )}
             {modes.includes('online') && (
-              <div className="stack reveal" style={{ gap: 12 }}>
+              <div className="nc-part reveal">
                 <ModeChip mode="online">Who can take part online</ModeChip>
                 <label className="field">
                   <span>Shown to coaches when they choose</span>
@@ -177,8 +183,9 @@ export function NewContest() {
                 Teams who signed up on your own site or a Google Form. CSV, with any columns.
               </Choice>
             </div>
-            <div className="note">
-              <b>{plan.name || 'Your contest'}</b> on {longDate(plan.date)}, {modes.map((m) => (m === 'online' ? 'online' : `in person at ${plan.venueName || 'the venue'}`)).join(' and ')}, with {plan.rounds.length} {plan.rounds.length === 1 ? 'round' : 'rounds'}: {plan.rounds.map((r) => ROUNDS.find((x) => x.key === r)!.title).join(', ')}.
+            <div className="nc-summary">
+              <Icon name="info" />
+              <span><b>{plan.name || 'Your contest'}</b> on {longDate(plan.date)}, {modes.map((m) => (m === 'online' ? 'online' : `in person at ${plan.venueName || 'the venue'}`)).join(' and ')}, with {plan.rounds.length} {plan.rounds.length === 1 ? 'round' : 'rounds'}: {plan.rounds.map((r) => ROUNDS.find((x) => x.key === r)!.title).join(', ')}.</span>
             </div>
           </>
         )}
@@ -190,7 +197,7 @@ export function NewContest() {
             {step < STEPS.length - 1 ? (
               <button className="btn btn-primary" type="button" onClick={next}>Continue<Icon name="arrow" /></button>
             ) : (
-              <button className="btn btn-primary" type="button" onClick={create}>Create {plan.short || 'contest'}</button>
+              <button className="btn btn-primary" type="button" onClick={create}><Icon name="check" />Create {plan.short || 'contest'}</button>
             )}
           </div>
         </div>

@@ -166,7 +166,7 @@ export function Teams() {
           </p>
         </div>
         <div className="actions">
-          <button className="btn" type="button" disabled={!db.teams.length} onClick={() => exportCsv()}>Export CSV</button>
+          <button className="btn" type="button" disabled={!db.teams.length} onClick={() => exportCsv()} title="Download the roster as a CSV"><Icon name="download" />Export</button>
           <button className="btn" type="button" onClick={() => navigate('/staff/import')}><Icon name="upload" />Import</button>
           <button className="btn btn-primary" type="button" onClick={() => navigate(`/register/${contest.slug}`)}><Icon name="plus" />Add team</button>
         </div>
@@ -175,13 +175,13 @@ export function Teams() {
       {db.teams.length === 0 ? (
         <section className="card pp-empty">
           <ArtEmpty kind="teams" className="pp-art" />
-          <div className="stack" style={{ gap: 8 }}>
+          <div className="stack" style={{ gap: 6 }}>
             <h2>No teams yet</h2>
-            <p className="soft">Teams arrive two ways and both land here: coaches fill in your registration form, or you import the people who signed up somewhere else.</p>
-            <div className="row wrap" style={{ marginTop: 6 }}>
-              <button className="btn btn-primary" type="button" onClick={() => navigate(`/register/${contest.slug}`)}><Icon name="link" />Open the registration form</button>
-              <button className="btn" type="button" onClick={() => navigate('/staff/import')}><Icon name="upload" />Import a spreadsheet</button>
-            </div>
+            <p>Coaches register on your form, or you import the teams who signed up somewhere else. Both land here.</p>
+          </div>
+          <div className="row wrap">
+            <button className="btn btn-primary" type="button" onClick={() => navigate(`/register/${contest.slug}`)}><Icon name="link" />Open the registration form</button>
+            <button className="btn btn-quiet" type="button" onClick={() => navigate('/staff/import')}><Icon name="upload" />Import a spreadsheet</button>
           </div>
         </section>
       ) : (
@@ -191,11 +191,11 @@ export function Teams() {
               <Segmented label="Division" value={div} onChange={(d) => { setDiv(d); setFocus(-1); }} items={[{ key: 'all', label: 'All' }, ...contest.divisions.map((d) => ({ key: d.id, label: d.name }))]} />
             )}
             <SearchBox value={q} onChange={(v) => { setQ(v); setFocus(-1); }} placeholder="Search teams, students, IDs" inputRef={search} />
-            <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}>Waiver missing</button>
-            <button type="button" className="filter" aria-pressed={onlyPending} onClick={() => setOnlyPending((x) => !x)}>Pending</button>
-            <button type="button" className="filter" aria-pressed={hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}>Hide withdrawn</button>
+            <button type="button" className="filter" aria-pressed={onlyMissing} onClick={() => setOnlyMissing((x) => !x)}><Icon name="check" size={13} />Waiver missing</button>
+            <button type="button" className="filter" aria-pressed={onlyPending} onClick={() => setOnlyPending((x) => !x)}><Icon name="check" size={13} />Pending</button>
+            <button type="button" className="filter" aria-pressed={hideWithdrawn} onClick={() => setHideWithdrawn((x) => !x)}><Icon name="check" size={13} />Hide withdrawn</button>
             <span className="grow" />
-            <span className="muted small hide-sm" title="Keyboard: / search, j and k move, x selects, Enter opens">{rows.length} shown</span>
+            <span className="pp-count-label hide-sm" title="Keyboard: / search, j and k move, x selects, Enter opens">{rows.length} shown</span>
           </div>
           <div className="table-scroll">
             <table className="t">
@@ -209,11 +209,12 @@ export function Teams() {
                   <th>Contact</th>
                   <th><Sort k="status">Status</Sort></th>
                   <th className="num"><Sort k="reg">Registered</Sort></th>
+                  <th aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 && (
-                  <tr className="empty"><td colSpan={8}>Nothing matches. <button className="linkbtn" type="button" onClick={() => { setQ(''); setOnlyMissing(false); setOnlyPending(false); setHideWithdrawn(false); setDiv('all'); }}>Clear filters</button></td></tr>
+                  <tr className="empty"><td colSpan={9}>Nothing matches. <button className="linkbtn" type="button" onClick={() => { setQ(''); setOnlyMissing(false); setOnlyPending(false); setHideWithdrawn(false); setDiv('all'); }}>Clear filters</button></td></tr>
                 )}
                 {rows.map((t, i) => {
                   const miss = missing(t);
@@ -229,6 +230,15 @@ export function Teams() {
                       <td className="soft"><span className="ellipsis">{t.contactName}</span></td>
                       <td><State tone={STATUS[t.status][0]}>{STATUS[t.status][1]}</State></td>
                       <td className="num muted">{day(t.registeredAt)}</td>
+                      <td className="num" onClick={(e) => e.stopPropagation()}>
+                        <span className="pp-acts pp-fade">
+                          {t.status === 'pending' && (
+                            <button type="button" className="icon-btn go" aria-label={`Confirm ${t.name}`} title="Confirm team" onClick={() => { setTeamStatus([t.id], 'confirmed', me.name); toast(`${t.name} confirmed`, undefined, 'g'); }}><Icon name="check" size={16} /></button>
+                          )}
+                          {t.contactEmail && <a className="icon-btn" href={`mailto:${t.contactEmail}`} aria-label={`Email ${t.contactName || 'the contact'}`} title={`Email ${t.contactEmail}`}><Icon name="mail" size={16} /></a>}
+                          <button type="button" className="icon-btn" aria-label={`Open ${t.name}`} title="Open" onClick={() => { setFocus(i); setOpen(t.id); }}><Icon name="chevron-right" size={16} /></button>
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}

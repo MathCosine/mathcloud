@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as RKE } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as RKE, type ReactNode } from 'react';
 import { modeOf, offers, savePaperGutsSet, savePaperSheet, setRuling } from '../../lib/actions';
 import { useContest, useLookups, useStandings } from '../../lib/hooks';
 import type { Problem, Round } from '../../lib/model';
@@ -8,11 +8,9 @@ import { useUser } from '../../lib/session';
 import { useDB } from '../../lib/store';
 import { clock, roundState } from '../../lib/time';
 import { Link } from 'react-router-dom';
-import { ArtEmpty } from '../../components/art';
 import { Icon } from '../../components/icons';
-import { MathText, Roll, Segmented, Tabs, toast, Track } from '../../components/ui';
-import '../../styles/people.css';
-import '../../styles/dayof.css';
+import { EmptyState, MathText, Roll, Segmented, Tabs, toast, Track } from '../../components/ui';
+import '../../styles/live.css';
 
 type Tab = 'key' | 'review' | 'progress';
 
@@ -43,14 +41,14 @@ export function Grading() {
     return (
       <>
         <div className="page-head"><div><h1 className="page-title">Grading</h1><p className="page-sub">{director ? 'Key paper answers and rule on unusual ones.' : 'Nothing to grade for you yet.'}</p></div></div>
-        <section className="card pp-empty">
-          <ArtEmpty kind="problems" className="pp-art" />
-          <div className="stack" style={{ gap: 8 }}>
-            <h2>{director ? 'No rounds yet' : me.role === 'proctor' ? 'Grading is done by graders' : 'No rounds assigned to you'}</h2>
-            <p className="soft">{director ? 'Add the contest’s rounds and their answer keys first; then graders key paper sheets here.' : me.role === 'proctor' ? 'As a proctor you watch your Zoom room and answer questions on the Live page.' : 'The contest director chooses which rounds each grader keys. Ask them to add you to a round.'}</p>
-            {director && <div className="row" style={{ marginTop: 6 }}><Link className="btn btn-primary" to="/staff/rounds"><Icon name="plus" />Add rounds</Link></div>}
-            {me.role === 'proctor' && <div className="row" style={{ marginTop: 6 }}><Link className="btn btn-primary" to="/staff/live">Go to Live</Link></div>}
-          </div>
+        <section className="card">
+          <EmptyState
+            icon={me.role === 'proctor' ? 'live' : 'grading'}
+            title={director ? 'No rounds yet' : me.role === 'proctor' ? 'Grading is done by graders' : 'No rounds assigned to you'}
+            action={director ? <Link className="btn btn-primary" to="/staff/rounds"><Icon name="plus" />Add rounds</Link> : me.role === 'proctor' ? <Link className="btn btn-primary" to="/staff/live">Go to Live<Icon name="arrow" /></Link> : undefined}
+          >
+            {director ? 'Add the contest’s rounds and their answer keys first; then graders key paper sheets here.' : me.role === 'proctor' ? 'As a proctor you watch your Zoom room and answer questions on the Live page.' : 'The contest director chooses which rounds each grader keys. Ask them to add you to a round.'}
+          </EmptyState>
         </section>
       </>
     );
@@ -107,7 +105,7 @@ function GradingRounds({ rounds, director }: { rounds: Round[]; director: boolea
           { key: 'progress', label: 'Progress' },
         ]}
       />
-      <section className="card gr" style={{ padding: 22 }}>
+      <section className="card gr">
         {tab === 'key' && (round.kind === 'guts' ? <KeyGuts key={round.id} round={round} onReview={director && toRule ? () => setTab('review') : undefined} /> : <KeySheet key={round.id} round={round} onReview={director && toRule ? () => setTab('review') : undefined} />)}
         {tab === 'review' && <Review key={round.id} round={round} />}
         {tab === 'progress' && <Progress round={round} />}
@@ -125,14 +123,28 @@ function Steps({ items }: { items: string[] }) {
   );
 }
 
+/** A tick that pops in and draws itself. */
+function Tick() {
+  return (
+    <span className="gr-tick" aria-hidden="true">
+      <svg viewBox="0 0 16 16"><path d="M4 8.4l2.6 2.6L12.2 5.4" /></svg>
+    </span>
+  );
+}
+
 function Done({ text, onReview, n }: { text: string; onReview?: () => void; n?: number }) {
   return (
     <div className="gr-done">
-      <span className="ov-tick"><Icon name="check" size={13} /></span>
+      <Tick />
       <span className="grow">{text}</span>
-      {onReview && <button className="btn btn-sm btn-primary" type="button" onClick={onReview}>Review {n ? `${n} ` : ''}answers</button>}
+      {onReview && <button className="btn btn-sm btn-primary" type="button" onClick={onReview}>Review {n ? `${n} ` : ''}answers<Icon name="arrow" size={14} /></button>}
     </div>
   );
+}
+
+/** The sheet just saved, so the grader can look up from the paper and see it went in. */
+function Saved({ text }: { text: ReactNode }) {
+  return <div className="gr-saved" role="status"><Tick /><span>{text}</span></div>;
 }
 
 /** Enter moves on, arrows move around, Backspace on an empty box steps back, a pasted row fills across. */
@@ -172,9 +184,14 @@ function Cells({ problems, values, set, rulings, cells, onKey, label, cols }: {
     <div className="keypad" style={{ ['--cols' as string]: cols }}>
       {problems.map((p, i) => {
         const v = values[p.id] ?? '';
+        const g = v.trim() ? gradeAnswer(p, v, rulings) : '';
         return (
-          <div key={p.id} className={`kcell ${v.trim() ? gradeAnswer(p, v, rulings) : ''}`}>
-            <label htmlFor={`k-${p.id}`}>{label(p)}</label>
+          <div key={p.id} className={`kcell ${g}`}>
+            <label htmlFor={`k-${p.id}`}>
+              {label(p)}
+              {g && <Icon name={g === 'correct' ? 'check' : g === 'incorrect' ? 'close' : 'help'} size={12} />}
+              {g && <span className="sr">{g === 'correct' ? 'right' : g === 'incorrect' ? 'wrong' : 'needs a ruling'}</span>}
+            </label>
             <input
               id={`k-${p.id}`}
               ref={(el) => { cells.current[i] = el; }}
@@ -203,6 +220,7 @@ function KeySheet({ round, onReview }: { round: Round; onReview?: () => void }) 
   const standings = useStandings();
   const [id, setId] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<{ n: number; text: ReactNode } | null>(null);
   const idRef = useRef<HTMLInputElement>(null);
   const rulings = useMemo(() => indexRulings(db.rulings), [db.rulings]);
   const contest = useContest();
@@ -217,7 +235,7 @@ function KeySheet({ round, onReview }: { round: Round; onReview?: () => void }) 
   const save = () => {
     if (!match) return;
     savePaperSheet(round.id, match.id, values, me.id);
-    toast(`Saved ${match.code}`, `${match.name}: ${score} of ${max}`, 'g');
+    setSaved((x) => ({ n: (x?.n ?? 0) + 1, text: <>Saved <b className="mono">{match.code}</b> {match.name} · {score} of {max}</> }));
     setId('');
     setValues({});
     idRef.current?.focus();
@@ -234,14 +252,18 @@ function KeySheet({ round, onReview }: { round: Round; onReview?: () => void }) 
 
   return (
     <div className="split">
-      <div className="stack-lg" style={{ gap: 20 }}>
-        <div className="row wrap" style={{ gap: 16, alignItems: 'flex-end' }}>
+      <div className="stack-lg" style={{ gap: 24 }}>
+        <div className="gr-entry">
           <label className="field" style={{ width: 160 }}>
             <span>{round.kind === 'individual' ? 'Competitor ID' : 'Team number'}</span>
             <input ref={idRef} className="input mono gr-id" autoFocus value={id} onChange={(e) => setId(e.target.value.toUpperCase())} onKeyDown={(e) => { if (e.key === 'Enter' && match) { e.preventDefault(); cells.current[0]?.focus(); } }} />
           </label>
           <div className="grow" style={{ paddingBottom: 8, minWidth: 160 }}>
-            {match ? <div className="gr-who">{match.name}<small>{keyed.has(match.id) ? 'Keyed before. Saving replaces it.' : 'Not keyed yet'}</small></div> : id ? <span className="wait">No in-person {round.kind === 'individual' ? 'competitor' : 'team'} {id}</span> : null}
+            {match
+              ? <div className="gr-who" key={match.id}>{match.name}<small>{keyed.has(match.id) ? 'Keyed before. Saving replaces it.' : 'Not keyed yet'}</small></div>
+              : id
+                ? <span className="gr-miss"><Icon name="alert" size={15} />No in-person {round.kind === 'individual' ? 'competitor' : 'team'} {id}</span>
+                : saved && <Saved key={saved.n} text={saved.text} />}
           </div>
           {match && <div className="gr-score" style={{ paddingBottom: 6 }}><Roll value={score} /><span className="muted"> / {max}</span></div>}
         </div>
@@ -249,21 +271,21 @@ function KeySheet({ round, onReview }: { round: Round; onReview?: () => void }) 
           <>
             <Cells problems={round.problems} values={values} set={(pid, v) => setValues((x) => ({ ...x, [pid]: v }))} rulings={rulings} cells={cells} onKey={onKey} label={(p) => `${p.number}`} cols={5} />
             <div className="gr-save">
-              <button className="btn btn-primary btn-lg" type="button" onClick={save}>Save {match.code}</button>
+              <button className="btn btn-primary btn-lg" type="button" onClick={save} title="Enter on the last box also saves"><Icon name="check" />Save {match.code}</button>
               <button className="btn btn-quiet" type="button" onClick={() => { setId(''); idRef.current?.focus(); }}>Cancel</button>
-              <span className="muted small">Leave a box empty for a blank. Green is right, red wrong, amber needs a ruling.</span>
+              <span className="gr-hint">Leave a box empty for a blank. Green is right, red wrong, amber needs a ruling.</span>
             </div>
           </>
         ) : (
           <Steps items={[`Type the ${what} printed on the sheet, then Enter.`, 'Type each answer. Enter moves to the next box.', 'Enter on the last box saves, and the next sheet is ready.']} />
         )}
       </div>
-      <aside>
+      <aside className="gr-aside">
         <div className="gr-queue-head"><h2>Still to key</h2><span className="label">{pool.length - queue.length} of {pool.length} keyed</span></div>
-        <div className="progress green" style={{ marginBottom: 14 }}><i style={{ width: `${((pool.length - queue.length) / Math.max(1, pool.length)) * 100}%`, transition: 'width .4s' }} /></div>
+        <div className="progress green ease"><i style={{ width: `${((pool.length - queue.length) / Math.max(1, pool.length)) * 100}%` }} /></div>
         {queue.length === 0 ? <Done text={pool.length ? 'Every sheet is keyed.' : 'No in-person sheets for this round.'} onReview={onReview} n={standings.unreviewed[round.id]} /> : (
           <div className="gr-chips">
-            {queue.slice(0, 60).map((p) => <button key={p.id} type="button" className="btn btn-sm mono" title={p.name} onClick={() => jump(p.code)}>{p.code}</button>)}
+            {queue.slice(0, 60).map((p) => <button key={p.id} type="button" className="gr-chip" title={p.name} onClick={() => jump(p.code)}>{p.code}</button>)}
             {queue.length > 60 && <span className="muted small">and {queue.length - 60} more</span>}
           </div>
         )}
@@ -279,6 +301,7 @@ function KeyGuts({ round, onReview }: { round: Round; onReview?: () => void }) {
   const [code, setCode] = useState('');
   const [setNo, setSetNo] = useState(1);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<{ n: number; text: ReactNode } | null>(null);
   const codeRef = useRef<HTMLInputElement>(null);
   const rulings = useMemo(() => indexRulings(db.rulings), [db.rulings]);
   const contest = useContest();
@@ -305,7 +328,7 @@ function KeyGuts({ round, onReview }: { round: Round; onReview?: () => void }) {
     if (!team) return;
     savePaperGutsSet(round.id, team.id, setNo, values, me.id);
     const pts = problems.reduce((n, p) => n + (gradeAnswer(p, values[p.id], rulings) === 'correct' ? p.points : 0), 0);
-    toast(`Set ${setNo} for ${team.code} ${team.name}`, `${pts} points, on the board now.`, 'g');
+    setSaved((x) => ({ n: (x?.n ?? 0) + 1, text: <>Set {setNo} for <b className="mono">{team.code}</b> {team.name} · {pts} {pts === 1 ? 'point' : 'points'}, on the board now</> }));
     setCode('');
     setValues({});
     codeRef.current?.focus();
@@ -316,14 +339,18 @@ function KeyGuts({ round, onReview }: { round: Round; onReview?: () => void }) {
 
   return (
     <div className="split">
-      <div className="stack-lg" style={{ gap: 20 }}>
-        <div className="row wrap" style={{ gap: 16, alignItems: 'flex-end' }}>
+      <div className="stack-lg" style={{ gap: 24 }}>
+        <div className="gr-entry">
           <label className="field" style={{ width: 120 }}>
             <span>Team number</span>
             <input ref={codeRef} className="input mono gr-id" autoFocus value={code} inputMode="numeric" onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 2))} onKeyDown={(e) => { if (e.key === 'Enter' && team) { e.preventDefault(); cells.current[0]?.focus(); } }} />
           </label>
           <div className="grow" style={{ paddingBottom: 8, minWidth: 160 }}>
-            {team ? <div className="gr-who">{team.name}<small>{rekey ? `Set ${setNo} was keyed before. Saving replaces it.` : `Set ${setNo} is next to key`}</small></div> : code ? <span className="wait">No in-person team {code}</span> : null}
+            {team
+              ? <div className="gr-who" key={team.id}>{team.name}<small>{rekey ? `Set ${setNo} was keyed before. Saving replaces it.` : `Set ${setNo} is next to key`}</small></div>
+              : code
+                ? <span className="gr-miss"><Icon name="alert" size={15} />No in-person team {code}</span>
+                : saved && <Saved key={saved.n} text={saved.text} />}
           </div>
           {team && <div className="gr-score" style={{ paddingBottom: 6 }}><Roll value={pts} /><span className="muted"> pts</span></div>}
         </div>
@@ -335,26 +362,26 @@ function KeyGuts({ round, onReview }: { round: Round; onReview?: () => void }) {
             </div>
             <Cells problems={problems} values={values} set={(pid, v) => setValues((x) => ({ ...x, [pid]: v }))} rulings={rulings} cells={cells} onKey={onKey} label={(p) => `${p.set}.${((p.number - 1) % 4) + 1} · ${p.points} pts`} cols={4} />
             <div className="gr-save">
-              <button className="btn btn-primary btn-lg" type="button" onClick={save}>Save set {setNo}</button>
+              <button className="btn btn-primary btn-lg" type="button" onClick={save} title="Enter on the last box also saves"><Icon name="check" />Save set {setNo}</button>
               <button className="btn btn-quiet" type="button" onClick={() => { setCode(''); codeRef.current?.focus(); }}>Cancel</button>
-              <span className="muted small">A saved set goes straight onto the scoreboard.</span>
+              <span className="gr-hint">A saved set goes straight onto the scoreboard.</span>
             </div>
           </>
         ) : (
           <Steps items={['Type the team number written on the set, then Enter.', 'The set number picks itself: the team’s next set. Change it if the sheet says otherwise.', 'Type the four answers. Enter on the last box saves it onto the board.']} />
         )}
       </div>
-      <aside>
+      <aside className="gr-aside">
         <div className="gr-queue-head"><h2>Sets keyed</h2><span className="label">{keyedSets} of {allSets}</span></div>
-        <div className="progress green" style={{ marginBottom: 12 }}><i style={{ width: `${(keyedSets / Math.max(1, allSets)) * 100}%`, transition: 'width .4s' }} /></div>
+        <div className="progress green ease"><i style={{ width: `${(keyedSets / Math.max(1, allSets)) * 100}%` }} /></div>
         {keyedSets >= allSets && <div style={{ marginBottom: 12 }}><Done text={teams.length ? 'Every set is keyed.' : 'No in-person teams.'} onReview={onReview} n={standings.unreviewed[round.id]} /></div>}
         <div className="gr-list">
           {teams.map((t) => {
             const done = doneOf(t.id);
             return (
               <button key={t.id} type="button" className={`list-btn ${team?.id === t.id ? 'on' : ''} ${done >= totalSets ? 'done' : ''}`} onClick={() => { setCode(t.code); setTimeout(() => cells.current[0]?.focus(), 30); }}>
-                <span className="row" style={{ gap: 10, minWidth: 0 }}><span className="mono muted">{t.code}</span><span className="ellipsis">{t.name}</span></span>
-                <Track done={done} total={totalSets} current={done < totalSets ? done + 1 : null} />
+                <span className="row" style={{ gap: 10, minWidth: 0 }}><span className="mono">{t.code}</span><span className="ellipsis">{t.name}</span></span>
+                {done >= totalSets ? <Icon name="check" size={15} className="done-ic" /> : <Track done={done} total={totalSets} current={done < totalSets ? done + 1 : null} />}
               </button>
             );
           })}
@@ -405,23 +432,23 @@ function Review({ round }: { round: Round }) {
           );
         })}
       </aside>
-      <div className="stack-lg" style={{ gap: 20, minWidth: 0 }}>
+      <div className="stack-lg" style={{ gap: 24, minWidth: 0 }}>
         {left === 0 && <Done text={`Every unusual answer in ${round.name} has a ruling.`} />}
         <div className="stack" style={{ gap: 10 }}>
-          <div className="row wrap" style={{ gap: 12 }}>
-            <h2 style={{ fontSize: 17 }}>{name(problem)}</h2>
+          <div className="gr-prob-head">
+            <h2>{name(problem)}</h2>
             <span className="gr-key">Key <b>{problem.answers.map(plainAnswer).join(' or ')}</b></span>
             <span className="grow" />
-            {here > 0 && <span className="wait small">{here} to rule on</span>}
+            {here > 0 && <span className="state wait">{here} to rule on</span>}
           </div>
           <MathText text={problem.text} className="q-text" />
         </div>
         <div>
-          <div className="section-head">
-            <h2 style={{ fontSize: 14 }}>Every different answer given</h2>
+          <div className="gr-answers-head">
+            <h3>Every different answer given <span className="muted" style={{ fontWeight: 450 }}>{groups.length}</span></h3>
             {here > 0 && <button className="btn btn-sm" type="button" onClick={() => { groups.filter((g) => g.status === 'unreviewed').forEach((g) => setRuling(round.id, problem.id, g.normalized, false, me.id)); toast(`Marked ${here} ${here === 1 ? 'answer' : 'answers'} wrong`, 'You can still change each one.'); }}>Mark the other {here} wrong</button>}
           </div>
-          {groups.length === 0 && <p className="muted">No answers yet.</p>}
+          {groups.length === 0 && <p className="muted small" style={{ padding: '12px 0' }}>No answers yet.</p>}
           {groups.map((g) => {
             const r = ruled.get(g.normalized);
             return (
@@ -429,13 +456,13 @@ function Review({ round }: { round: Round }) {
                 <div>{g.samples.map((x) => <code key={x}>{x}</code>)}</div>
                 <span className="num soft" title={`${g.count} gave this answer`}>{g.count}×</span>
                 {g.status === 'correct' && r === undefined ? (
-                  <span className="ok small">Matches the key</span>
+                  <span className="gr-match ok"><Icon name="check" size={15} />Matches the key</span>
                 ) : g.status === 'incorrect' && r === undefined ? (
-                  <span className="muted small">Different value, wrong</span>
+                  <span className="gr-match no">Different value, wrong</span>
                 ) : (
                   <div className="verdict" role="group" aria-label={`Ruling on ${g.samples[0]}`}>
-                    <button type="button" className={r === true ? 'yes' : ''} aria-pressed={r === true} onClick={() => setRuling(round.id, problem.id, g.normalized, r === true ? null : true, me.id)}>Correct</button>
-                    <button type="button" className={r === false ? 'no' : ''} aria-pressed={r === false} onClick={() => setRuling(round.id, problem.id, g.normalized, r === false ? null : false, me.id)}>Wrong</button>
+                    <button type="button" className={r === true ? 'yes' : ''} aria-pressed={r === true} onClick={() => setRuling(round.id, problem.id, g.normalized, r === true ? null : true, me.id)}><Icon name="check" size={14} />Correct</button>
+                    <button type="button" className={r === false ? 'no' : ''} aria-pressed={r === false} onClick={() => setRuling(round.id, problem.id, g.normalized, r === false ? null : false, me.id)}><Icon name="close" size={14} />Wrong</button>
                   </div>
                 )}
               </div>
@@ -462,15 +489,20 @@ function Progress({ round }: { round: Round }) {
     const cur = by.get(who) ?? { n: 0, last: '' };
     by.set(who, { n: cur.n + (round.kind === 'guts' ? a.setsSubmitted ?? 0 : 1), last: (r?.savedAt ?? '') > cur.last ? r!.savedAt : cur.last });
   }
+  if (by.size === 0) return <EmptyState icon="grading" title={`Nothing keyed for ${round.name} yet`}>Each grader’s count shows here as paper {round.kind === 'guts' ? 'sets' : 'sheets'} are keyed.</EmptyState>;
+  const top = Math.max(1, ...[...by.values()].map((v) => v.n));
   return (
     <div className="table-scroll">
       <table className="t">
         <thead><tr><th>Grader</th><th className="num">{round.kind === 'guts' ? 'Sets keyed' : 'Sheets keyed'}</th><th className="num">Last</th></tr></thead>
         <tbody>
-          {[...by.entries()].map(([id, v]) => (
-            <tr key={id}><td className="name">{user.get(id)?.name ?? 'Grader'}</td><td className="num">{v.n}</td><td className="num muted">{v.last ? clock(v.last) : '–'}</td></tr>
+          {[...by.entries()].sort((a, b) => b[1].n - a[1].n).map(([id, v]) => (
+            <tr key={id}>
+              <td className="name">{user.get(id)?.name ?? 'Grader'}</td>
+              <td className="num"><span className="lv-share"><span>{v.n}</span><i aria-hidden="true"><i className="full" style={{ width: `${(v.n / top) * 100}%` }} /></i></span></td>
+              <td className="num muted">{v.last ? clock(v.last) : '–'}</td>
+            </tr>
           ))}
-          {by.size === 0 && <tr className="empty"><td colSpan={3}>Nothing keyed for {round.name} yet.</td></tr>}
         </tbody>
       </table>
     </div>

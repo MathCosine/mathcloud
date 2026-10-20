@@ -7,7 +7,11 @@ import { useStudent } from '../../lib/session';
 import { useDB } from '../../lib/store';
 import { clock, clockSec, duration, roundEnds, roundState } from '../../lib/time';
 import { ScoreList } from '../../components/Scoreboard';
-import { AnswerPreview, MathText, Modal, toast, useNow } from '../../components/ui';
+import { Logo } from '../../components/art';
+import { Icon, type IconName } from '../../components/icons';
+import { AnswerPreview, MathText, Modal, Segmented, toast, useNow } from '../../components/ui';
+import { Tick } from './parts';
+import '../../styles/portal.css';
 
 export function TestPortal() {
   const { roundId } = useParams();
@@ -41,32 +45,40 @@ function Intro({ round, entrantId, name }: { round: Round; entrantId: string; na
     const error = await startAttempt(round.id, entrantId, honor.trim());
     if (error) toast('Could not start', error, 'r');
   };
+  const kind: [IconName, string] = round.kind === 'individual' ? ['user', 'On your own'] : round.kind === 'guts' ? ['roster', 'With your team, one set at a time'] : ['roster', 'With your team, one shared sheet'];
   return (
-    <div className="exam">
-      <div className="exam-bar">
-        <div className="l"><b>{round.name}</b><span>{contest.short}</span></div>
-        <div className={`clock ${state === 'open' ? '' : 'muted'}`}>{state === 'open' && ends ? duration(ends - now) : '--:--'}</div>
-        <div className="r"><Link className="btn btn-sm" to="/me">Back</Link></div>
+    <div className="ex">
+      <div className="ex-bar intro">
+        <div className="ex-l"><Logo size={24} /><span><b>{round.name}</b><small>{contest.short}</small></span></div>
+        <div className={`ex-clock ${state === 'open' ? '' : 'idle'}`} role="timer">{state === 'open' && ends ? duration(ends - now) : '--:--'}</div>
+        <div className="ex-r"><Link className="btn btn-sm btn-quiet" to="/me"><Icon name="back" />Back</Link></div>
       </div>
-      <div style={{ maxWidth: 600, margin: '56px auto', padding: '0 20px' }} className="stack-lg">
-        <div className="stack" style={{ gap: 10 }}>
-          <span className="label">{round.kind === 'individual' ? 'On your own' : round.kind === 'guts' ? 'With your team, one set at a time' : 'With your team, one shared sheet'} · {round.minutes} minutes · {round.problems.length} problems</span>
-          <h1 className="page-title" style={{ fontSize: 32 }}>{round.name}</h1>
+      <div className="ex-intro">
+        <div>
+          <div className="ex-chips">
+            <span className="ex-chip"><Icon name={kind[0]} size={14} />{kind[1]}</span>
+            <span className="ex-chip"><Icon name="timer" size={14} />{round.minutes} minutes</span>
+            <span className="ex-chip"><Icon name="sigma" size={14} />{round.problems.length} problems</span>
+          </div>
+          <h1>{round.name}</h1>
           <p className="lede">{round.rules}</p>
         </div>
-        <ul className="soft" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
-          <li>Stay in your Zoom room with your camera on.</li>
-          <li>The test goes fullscreen. Leaving it is recorded for your proctor{round.integrity.policy === 'warn' ? ', and you will see a warning' : round.integrity.policy === 'lock' ? `, and the test locks after ${round.integrity.lockAfter} times` : ''}.</li>
-          <li>Answers save as you type.</li>
-          {round.kind === 'guts' && <li>A live scoreboard sits beside the problems. It freezes {contest.board.freezeMinutes} minutes before the end.</li>}
+        <ul className="ex-rules">
+          <li><span className="ex-ic"><Icon name="video" /></span>Stay in your Zoom room with your camera on.</li>
+          <li><span className="ex-ic"><Icon name="screen" /></span><span>The test goes fullscreen. Leaving it is recorded for your proctor{round.integrity.policy === 'warn' ? ', and you will see a warning' : round.integrity.policy === 'lock' ? `, and the test locks after ${round.integrity.lockAfter} times` : ''}.</span></li>
+          <li><span className="ex-ic"><Icon name="check-circle" /></span>Answers save as you type.</li>
+          {round.kind === 'guts' && <li><span className="ex-ic"><Icon name="board" /></span>A live scoreboard sits beside the problems. It freezes {contest.board.freezeMinutes} minutes before the end.</li>}
         </ul>
-        <div className="stack">
+        <div className="stack" style={{ gap: 16 }}>
           <label className="field">
             <span>Type your full name to promise the work is {round.kind === 'individual' ? 'your own' : 'your team’s own'}</span>
-            <input className="input" style={{ height: 44 }} value={honor} onChange={(e) => setHonor(e.target.value)} placeholder={name} onKeyDown={(e) => e.key === 'Enter' && ok && state === 'open' && begin()} />
+            <span className="ex-honor">
+              <input className="input" value={honor} onChange={(e) => setHonor(e.target.value)} placeholder={name} autoComplete="off" spellCheck={false} onKeyDown={(e) => e.key === 'Enter' && ok && state === 'open' && begin()} />
+              <Tick on={ok} label={ok ? 'Name matches' : undefined} />
+            </span>
           </label>
-          <div className="row wrap">
-            <button className="btn btn-primary btn-lg" type="button" disabled={!ok || state !== 'open'} onClick={begin}>Start</button>
+          <div className="ex-start">
+            <button className="btn btn-primary btn-lg pt-start" type="button" disabled={!ok || state !== 'open'} onClick={begin}>Start {round.name}<Icon name="arrow" /></button>
             {state !== 'open' && <span className="muted">This round is not open.</span>}
           </div>
         </div>
@@ -150,62 +162,71 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
   const myRow = board?.rows.find((r) => r.team.id === me.team.id);
 
   if (done) {
+    const timeUp = over && !attempt.submittedAt;
     return (
-      <div className="exam">
-        <div className="exam-bar"><div className="l"><b>{round.name}</b><span>{contest.short}</span></div><div /><div className="r" /></div>
-        <div style={{ maxWidth: 560, margin: '80px auto', padding: '0 20px' }} className="stack-lg">
-          <div className="stack" style={{ gap: 8 }}>
-            <h1 className="page-title" style={{ fontSize: 32 }}>{over && !attempt.submittedAt ? 'Time’s up' : 'Handed in'}</h1>
+      <div className="ex">
+        <div className="ex-bar"><div className="ex-l"><Logo size={24} /><span><b>{round.name}</b><small>{contest.short}</small></span></div><div /><div className="ex-r" /></div>
+        <div className="ex-done">
+          <div>
+            <svg className="ex-mark" viewBox="0 0 64 64" aria-hidden="true">
+              <circle cx="32" cy="32" r="32" fill={timeUp ? 'var(--amber)' : 'var(--green)'} />
+              <path d="M20 33.5l8 8 16-17" />
+            </svg>
+            <h1>{timeUp ? 'Time’s up' : 'Handed in'}</h1>
             <p className="lede">{answered} of {round.problems.length} answered{attempt.submittedAt ? `, handed in at ${clock(attempt.submittedAt)}` : ''}. Your results appear on your page when the organisers publish them.</p>
           </div>
           {round.kind === 'guts' && board && (
-            <div>
-              <div className="section-head"><h2 style={{ fontSize: 15 }}>Scoreboard</h2><span className="label">{board.frozen ? 'Frozen' : 'Live'}</span></div>
+            <div className="card pt-card ex-done-board">
+              <div className="ex-panel-head"><b>Scoreboard</b><span className="label">{board.frozen ? 'Frozen' : <span className="state go">Live</span>}</span></div>
               <ScoreList board={board} mine={me.team.id} limit={8} />
             </div>
           )}
-          <div><Link className="btn btn-primary" to="/me">Back to your rounds</Link></div>
+          <div><Link className="btn btn-primary btn-lg" to="/me">Back to your page<Icon name="arrow" /></Link></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="exam">
-      <div className="exam-bar">
-        <div className="l">
-          <b>{round.name}{round.kind === 'guts' ? `, set ${currentSet} of ${totalSets}` : ''}</b>
-          <span>{me.competitor.publicId} {me.competitor.name}{round.kind !== 'individual' ? ` · ${me.team.name}` : ''}</span>
+    <div className="ex">
+      <div className="ex-bar">
+        <div className="ex-l">
+          <span>
+            <b>{round.name}{round.kind === 'guts' ? `, set ${currentSet} of ${totalSets}` : ''}</b>
+            <small>{me.competitor.publicId} {me.competitor.name}{round.kind !== 'individual' ? ` · ${me.team.name}` : ''}</small>
+          </span>
         </div>
-        <div className={`clock ${low ? 'low' : ''} ${left <= 0 ? 'out' : ''}`} role="timer">{duration(Math.max(0, left))}</div>
-        <div className="r">
-          <span key={pulse} className={`saved ${saving ? 'busy' : pulse ? 'pulse' : ''}`}><i />{saving ? 'Saving' : savedAt ? `Saved ${clockSec(savedAt)}` : 'Saves as you type'}</span>
+        <div className={`ex-clock ${low ? 'low' : ''} ${left <= 0 ? 'out' : ''}`} role="timer">{duration(Math.max(0, left))}</div>
+        <div className="ex-r">
+          <span key={pulse} className={`ex-saved ${saving ? 'busy' : pulse ? 'pulse' : ''}`}><i />{saving ? 'Saving' : savedAt ? `Saved ${clockSec(savedAt)}` : 'Saves as you type'}</span>
           <button className="btn btn-primary btn-sm" type="button" onClick={() => setConfirm(true)}>{round.kind === 'guts' ? `Hand in set ${currentSet}` : 'Hand in'}</button>
         </div>
-        <div className={`track-time ${low ? 'low' : ''}`}><i style={{ width: `${Math.max(0, Math.min(100, (left / total) * 100))}%` }} /></div>
+        <div className={`ex-track ${low ? 'low' : ''}`}><i style={{ width: `${Math.max(0, Math.min(100, (left / total) * 100))}%` }} /></div>
       </div>
 
       {fresh && seen !== fresh.id && (
-        <div className="note blue row wrap" style={{ borderRadius: 0, justifyContent: 'center', gap: 16 }}>
+        <div className="ex-banner" role="status">
+          <Icon name="announce" />
           <span><b>From the proctors:</b> {fresh.question ? `${fresh.question} ` : ''}{fresh.answer}</span>
           <button className="btn btn-sm" type="button" onClick={() => setSeen(fresh.id)}>OK</button>
         </div>
       )}
       {notFull && (
-        <div className="note amber row wrap" style={{ borderRadius: 0, justifyContent: 'center', gap: 16 }}>
+        <div className="ex-banner amber" role="status">
+          <Icon name="screen" />
           <span>You left fullscreen.</span>
           <button className="btn btn-sm" type="button" onClick={() => document.documentElement.requestFullscreen?.().then(() => setNotFull(false)).catch(() => setNotFull(false))}>Go back to fullscreen</button>
         </div>
       )}
 
-      <div className="exam-body">
+      <div className="ex-body">
         <div>
           {round.kind === 'guts' && (
             <>
-              <div className="sets" aria-label={`Set ${currentSet} of ${totalSets}`}>
+              <div className="ex-sets" aria-label={`Set ${currentSet} of ${totalSets}`}>
                 {Array.from({ length: totalSets }, (_, i) => <span key={i} className={i + 1 < currentSet ? 'done' : i + 1 === currentSet ? 'now' : ''} />)}
               </div>
-              <div className="row wrap" style={{ justifyContent: 'space-between', marginBottom: 6, rowGap: 2 }}>
+              <div className="ex-setline">
                 <span className="label">Set {currentSet} · {shown[0]?.points} points each · you cannot come back to it</span>
                 {myRow && <span className="label">Your team: {myRow.score} points{myRow.place ? `, ${ordinal(myRow.place)}` : ''}</span>}
               </div>
@@ -216,12 +237,12 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
               const v = valueOf(p);
               const by = attempt.responses[p.id]?.by;
               return (
-                <div key={p.id} className={`q ${v.trim() ? 'answered' : ''}`} style={{ animation: `rise .28s var(--ease) ${i * 40}ms both` }}>
-                  <span className="q-num">{round.kind === 'guts' ? `${p.set}.${((p.number - 1) % 4) + 1}` : p.number}</span>
+                <div key={p.id} className={`ex-q ${v.trim() ? 'answered' : ''}`} style={{ animationDelay: `${i * 40}ms` }}>
+                  <span className="ex-num">{round.kind === 'guts' ? `${p.set}.${((p.number - 1) % 4) + 1}` : p.number}</span>
                   <div>
-                    <MathText text={p.text} className="q-text" />
+                    <MathText text={p.text} className="ex-text" />
                   </div>
-                  <div className="q-answer">
+                  <div className="ex-answer">
                     <input
                       aria-label={`Answer to problem ${p.number}`}
                       value={v}
@@ -234,31 +255,28 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
                       onBlur={() => setFocused((f) => (f === p.id ? null : f))}
                       onChange={(e) => { setDrafts((d) => ({ ...d, [p.id]: e.target.value })); save(p, e.target.value); }}
                     />
-                    <span className="preview"><AnswerPreview value={v} /></span>
-                    {round.kind !== 'individual' && by && by !== me.user.id && focused !== p.id && <span className="by">Typed by {nameOf(by)}</span>}
+                    <span className="ex-preview"><AnswerPreview value={v} /></span>
+                    {round.kind !== 'individual' && by && by !== me.user.id && focused !== p.id && <span className="ex-by">Typed by {nameOf(by)}</span>}
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="row wrap" style={{ justifyContent: 'space-between', paddingTop: 22, borderTop: '1px solid var(--line)' }}>
-            <span className="muted small">{answered} of {round.problems.length} answered</span>
+          <div className="ex-foot">
+            <span className="ex-progress"><i><em style={{ width: `${(answered / Math.max(1, round.problems.length)) * 100}%` }} /></i>{answered} of {round.problems.length} answered</span>
             <button className="btn btn-primary" type="button" onClick={() => setConfirm(true)}>{round.kind === 'guts' ? `Hand in set ${currentSet}` : 'Hand in'}</button>
           </div>
         </div>
 
-        <aside className="aside-sticky">
+        <aside className="ex-aside">
           {round.kind === 'guts' && (
-            <div className="panel-tabs" role="group" aria-label="Side panel">
-              <button type="button" aria-pressed={panel === 'board'} onClick={() => setPanel('board')}>Scoreboard</button>
-              <button type="button" aria-pressed={panel === 'questions'} onClick={() => setPanel('questions')}>Questions{clars.length ? ` (${clars.length})` : ''}</button>
-            </div>
+            <Segmented label="Side panel" value={panel} onChange={setPanel} items={[{ key: 'board', label: 'Scoreboard' }, { key: 'questions', label: 'Questions', count: clars.length || undefined }]} />
           )}
           {panel === 'board' && board ? (
             <div>
-              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+              <div className="ex-panel-head">
                 <span className="label">{contest.divisions.find((d) => d.id === me.team.divisionId)?.name} division</span>
-                <span className="label">{board.frozen ? 'Frozen' : 'Live'}</span>
+                <span className="label">{board.frozen ? 'Frozen' : <span className="state go">Live</span>}</span>
               </div>
               <ScoreList board={board} mine={me.team.id} limit={10} />
               {board.frozen && <p className="muted tiny" style={{ marginTop: 8 }}>Frozen for the last {contest.board.freezeMinutes} minutes. Final standings at the awards.</p>}
@@ -301,11 +319,12 @@ function Running({ round, attemptId }: { round: Round; attemptId: string }) {
         </Modal>
       )}
       {attempt.locked && (
-        <div className="lock" role="alertdialog" aria-label="Test locked">
-          <div className="stack">
+        <div className="ex-lock" role="alertdialog" aria-label="Test locked">
+          <div>
+            <span className="ex-lock-ic"><Icon name="lock" size={22} /></span>
             <h2>Your test is locked</h2>
             <p className="soft">You left the test too many times. Tell your proctor on Zoom; they can unlock it. Your answers are safe and the clock keeps running.</p>
-            <p className="clock" style={{ marginTop: 8 }}>{duration(Math.max(0, left))}</p>
+            <p className="ex-clock" style={{ marginTop: 8 }}>{duration(Math.max(0, left))}</p>
           </div>
         </div>
       )}
@@ -321,18 +340,18 @@ function Questions({ roundId, competitorId, items }: { roundId: string; competit
   });
   return (
     <div>
-      <h2 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Questions</h2>
+      <div className="ex-panel-head"><b>Questions</b>{items.length > 0 && <span className="label">{items.length}</span>}</div>
       {items.length === 0 && <p className="muted small">Ask if a problem is unclear. Answers that help everyone are shown to everyone.</p>}
       {items.map((c) => (
-        <div key={c.id} className={`qa ${seen.current.has(c.id) ? '' : 'new'}`}>
+        <div key={c.id} className={`ex-qa ${seen.current.has(c.id) ? '' : 'new'}`}>
           <small>{clock(c.answeredAt ?? c.at)} · {c.broadcast ? 'to everyone' : 'to you'}</small>
           {c.question && <div className="soft">{c.question}</div>}
           {c.answer ? <div>{c.answer}</div> : <div className="muted">Waiting for a proctor</div>}
         </div>
       ))}
-      <form className="stack" style={{ gap: 8, marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); if (!q.trim()) return; askClarification(roundId, competitorId, q); setQ(''); toast('Question sent'); }}>
-        <textarea className="textarea" style={{ minHeight: 64 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about a problem" />
-        <button className="btn btn-sm" type="submit" disabled={!q.trim()}>Send</button>
+      <form className="ex-ask" onSubmit={(e) => { e.preventDefault(); if (!q.trim()) return; askClarification(roundId, competitorId, q); setQ(''); toast('Question sent', 'A proctor will answer here.', 'g'); }}>
+        <textarea className="textarea" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about a problem" />
+        <button className="btn btn-sm" type="submit" disabled={!q.trim()}><Icon name="send" size={14} />Send</button>
       </form>
     </div>
   );
@@ -373,7 +392,7 @@ function useIntegrity(record: (kind: IntegrityKind, ms?: number) => void, active
       wasFull = full;
     };
     const onPaste = (e: ClipboardEvent) => {
-      if ((e.target as HTMLElement)?.closest?.('.q-answer')) recordRef.current('paste');
+      if ((e.target as HTMLElement)?.closest?.('.ex-answer')) recordRef.current('paste');
     };
     let offlineAt = 0;
     const onOffline = () => (offlineAt = Date.now());

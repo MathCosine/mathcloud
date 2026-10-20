@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { modeOf } from '../../lib/actions';
 import { useContest } from '../../lib/hooks';
 import type { Competitor, Team } from '../../lib/model';
@@ -10,7 +11,7 @@ import { day, stamp } from '../../lib/time';
 import { ArtEmpty } from '../../components/art';
 import { Ring } from '../../components/charts';
 import { Icon } from '../../components/icons';
-import { downloadCsv, ModeChip, SearchBox, toast } from '../../components/ui';
+import { downloadCsv, ModeChip, Roll, SearchBox, toast } from '../../components/ui';
 import { StudentDrawer, TeamDrawer, useConfirm } from './PeopleParts';
 import '../../styles/people.css';
 import '../../styles/dayof.css';
@@ -85,7 +86,7 @@ export function Waivers() {
           <p className="page-sub">{missing.length ? `${missing.length} missing on ${teamsMissing} ${teamsMissing === 1 ? 'team' : 'teams'}. Every student needs one signed by a parent or guardian before the contest.` : rows.length ? `All ${rows.length} signed. Nothing to chase.` : 'Every student needs one signed by a parent or guardian before the contest.'}</p>
         </div>
         <div className="actions">
-          <button className="btn" type="button" disabled={!rows.length} onClick={exportCsv}>Download CSV</button>
+          <button className="btn" type="button" disabled={!rows.length} onClick={exportCsv} title="Download every waiver as a CSV"><Icon name="download" />Export</button>
           {missing.length > 0 && <button className="btn btn-primary" type="button" disabled={!reachable.length || sendingAll} onClick={remindAll} title={reachable.length ? undefined : 'No guardian email for anyone missing'}><Icon name="mail" />{sendingAll ? 'Sending' : `Email ${reachable.length} ${reachable.length === 1 ? 'guardian' : 'guardians'}`}</button>}
         </div>
       </div>
@@ -93,7 +94,8 @@ export function Waivers() {
       {!rows.length ? (
         <section className="card pp-empty">
           <ArtEmpty kind="waivers" className="pp-art" />
-          <div className="stack" style={{ gap: 6 }}><h2>No students yet</h2><p className="soft">Each student’s guardian gets a waiver link when the team registers. Their progress shows here.</p></div>
+          <div className="stack" style={{ gap: 6 }}><h2>No students yet</h2><p>Each student’s guardian gets a waiver link when the team registers. Their progress shows here.</p></div>
+          <div className="row"><Link className="btn btn-primary" to="/staff/teams">Go to Teams</Link></div>
         </section>
       ) : (
         <div className="stack-lg">
@@ -102,8 +104,8 @@ export function Waivers() {
               <Ring value={signed.length} total={rows.length} size={104} tone={missing.length ? 'amber' : 'green'} label={`${signed.length} of ${rows.length} waivers signed`} />
               <div className="stack" style={{ gap: 4 }}>
                 <span className="label">Signed</span>
-                <b className="pp-big">{signed.length} <span className="muted">of {rows.length}</span></b>
-                <span className="soft small">{missing.length ? `${missing.length} missing · ${reminded} reminded` : 'All in.'}</span>
+                <b className="pp-big"><Roll value={signed.length} /> <span className="muted">of {rows.length}</span></b>
+                <span className="soft small">{missing.length ? `${missing.length} missing · ${reminded} reminded` : 'All in. Nothing to chase.'}</span>
                 {missing.length - reachable.length > 0 && <span className="wait small">{missing.length - reachable.length} with no guardian email</span>}
               </div>
             </section>
@@ -125,7 +127,7 @@ export function Waivers() {
 
           <section className="card">
             <div className="section-head">
-              <h2>By team</h2>
+              <h2 className="row" style={{ gap: 8 }}><Icon name="roster" size={16} className="muted" />By team</h2>
               <span className="muted small hide-sm">One mark per student, most missing first. Click a team to open it.</span>
             </div>
             <div className="pp-teams">
@@ -138,7 +140,7 @@ export function Waivers() {
                     <span className="pp-pips" aria-hidden="true">
                       {list.map((c) => <i key={c.id} className={c.waiverSignedAt ? 'ok' : 'wait'} title={`${c.publicId} ${c.name}: ${c.waiverSignedAt ? 'signed' : 'missing'}`} />)}
                     </span>
-                    <span className={`small ${miss ? 'wait' : 'muted'}`}>{miss ? `${miss} missing` : 'Done'}</span>
+                    {miss ? <span className="small wait">{miss} missing</span> : <span className="small pp-done"><Icon name="check" size={13} />Done</span>}
                   </button>
                 );
               })}
@@ -147,7 +149,7 @@ export function Waivers() {
 
           {missing.length > 0 && <section className="card flush">
             <div className="card-head">
-              <h2>Missing <span className="muted">{missing.length}</span></h2>
+              <h2 className="row" style={{ gap: 8 }}><Icon name="alert" size={16} className="wait" />Missing <span className="muted">{missing.length}</span></h2>
               <SearchBox value={q} onChange={setQ} placeholder="Student, team, guardian" />
             </div>
             <div className="table-scroll">
@@ -157,15 +159,15 @@ export function Waivers() {
                   {!missing.filter(match).length && <tr className="empty"><td colSpan={6}>Nobody matches.</td></tr>}
                   {missing.filter(match).map(({ c, t }) => (
                     <tr key={c.id}>
-                      <td><button type="button" className="linkbtn pp-plain" onClick={() => setStudent(c.id)}><span className="mono muted">{c.publicId}</span> <b>{c.name}</b></button></td>
+                      <td><button type="button" className="linkbtn pp-plain" onClick={() => setStudent(c.id)}><span className="mono muted">{c.publicId}</span> <b style={{ fontWeight: 550 }}>{c.name}</b></button></td>
                       <td className="soft"><span className="ellipsis">{t.name}</span></td>
                       <td className="soft">{c.guardianName || <span className="muted">–</span>}</td>
                       <td>{c.guardianEmail ? <span className="soft">{c.guardianEmail}</span> : <button type="button" className="linkbtn" onClick={() => setStudent(c.id)}>Add email</button>}</td>
                       <td className="muted">{c.reminderSentAt ? stamp(c.reminderSentAt) : 'Never'}</td>
                       <td className="num">
-                        <span className="row pp-acts">
-                          <button className="btn btn-sm" type="button" disabled={!c.guardianEmail || busy.has(c.id)} onClick={() => void remindOne(c.id)}>{busy.has(c.id) ? 'Sending' : 'Remind'}</button>
-                          <button className="btn btn-quiet btn-sm" type="button" onClick={() => { markPaper(c.id, me.name); toast(`Paper waiver recorded for ${c.publicId}`, undefined, 'g'); }}>Paper copy</button>
+                        <span className="pp-acts" style={{ gap: 6 }}>
+                          <span className="pp-acts pp-fade"><button className="icon-btn" type="button" aria-label={`Record a paper waiver for ${c.name}`} title="Record a signed paper copy" onClick={() => { markPaper(c.id, me.name); toast(`Paper waiver recorded for ${c.publicId}`, undefined, 'g'); }}><Icon name="file" size={15} /></button></span>
+                          <button className="btn btn-sm" type="button" disabled={!c.guardianEmail || busy.has(c.id)} onClick={() => void remindOne(c.id)}><Icon name="send" size={13} />{busy.has(c.id) ? 'Sending' : 'Remind'}</button>
                         </span>
                       </td>
                     </tr>
@@ -176,26 +178,26 @@ export function Waivers() {
           </section>}
 
           <section className="card flush wv-signed">
-            <div className="card-head"><h2>Signed <span className="muted">{signed.length}</span></h2>{!missing.length && <SearchBox value={q} onChange={setQ} placeholder="Student, team, guardian" />}</div>
+            <div className="card-head"><h2 className="row" style={{ gap: 8 }}><Icon name="check-circle" size={16} className="ok" />Signed <span className="muted">{signed.length}</span></h2>{!missing.length && <SearchBox value={q} onChange={setQ} placeholder="Student, team, guardian" />}</div>
             <div className="table-scroll">
               <table className="t">
                 <thead><tr><th>Student</th><th>Team</th><th>Signed by</th><th>When</th><th>How</th><th /></tr></thead>
                 <tbody>
                   {!signed.length && <tr className="empty"><td colSpan={6}>None yet.</td></tr>}
-                  {signed.filter(match).slice(0, allSigned || needle ? undefined : 12).map(({ c, t }) => {
+                  {signed.filter(match).slice(0, allSigned || needle ? undefined : 12).map(({ c, t }, i) => {
                     const h = waiverHow(c);
                     return (
-                      <tr key={c.id}>
-                        <td><button type="button" className="linkbtn pp-plain" onClick={() => setStudent(c.id)}><span className="mono muted">{c.publicId}</span> <b>{c.name}</b></button></td>
+                      <tr key={c.id} className={i >= 12 && !needle ? 'pp-more' : ''}>
+                        <td><button type="button" className="linkbtn pp-plain" onClick={() => setStudent(c.id)}><span className="mono muted">{c.publicId}</span> <b style={{ fontWeight: 550 }}>{c.name}</b></button></td>
                         <td className="soft"><span className="ellipsis">{t.name}</span></td>
                         <td>{h.who}</td>
                         <td className="muted">{day(c.waiverSignedAt!)}</td>
                         <td className="soft">{h.how}</td>
-                        <td className="num"><button className="btn btn-quiet btn-sm wv-undo" type="button" onClick={() => ask({
+                        <td className="num"><span className="pp-acts pp-fade"><button className="icon-btn" type="button" aria-label={`Take back the waiver for ${c.name}`} title="Take the waiver back" onClick={() => ask({
                           title: `Take back the waiver for ${c.name}?`, label: 'Take it back', danger: true,
                           body: <p>The record that {h.who} signed on {day(c.waiverSignedAt!)} is cleared and {c.name} shows as missing again. Their guardian would need to sign again.</p>,
                           run: () => { undoWaiver(c.id, me.name); toast(`Waiver for ${c.publicId} taken back`, 'It shows as missing again.'); },
-                        })}>Undo</button></td>
+                        })}><Icon name="undo" size={15} /></button></span></td>
                       </tr>
                     );
                   })}
@@ -203,7 +205,7 @@ export function Waivers() {
               </table>
             </div>
             {!needle && signed.length > 12 && (
-              <div className="card-foot"><span className="muted small">{allSigned ? `All ${signed.length}` : `First 12 of ${signed.length}; search finds anyone`}</span><button className="btn btn-sm" type="button" onClick={() => setAllSigned((x) => !x)}>{allSigned ? 'Show fewer' : `Show all ${signed.length}`}</button></div>
+              <div className="card-foot"><span className="muted small">{allSigned ? `All ${signed.length}` : `First 12 of ${signed.length}; search finds anyone`}</span><button className="btn btn-sm" type="button" onClick={() => setAllSigned((x) => !x)}><Icon name="chevron" size={14} className={allSigned ? 'pp-chev open' : 'pp-chev'} />{allSigned ? 'Show fewer' : `Show all ${signed.length}`}</button></div>
             )}
           </section>
         </div>

@@ -48,8 +48,8 @@ export function Source({
       <b>{title}</b>
       <span className="soft small">{hint}</span>
       <div className="row wrap" style={{ justifyContent: 'center', marginTop: 6 }}>
-        <button className="btn btn-primary" type="button" onClick={() => fileRef.current?.click()}>Choose a file</button>
-        <button className="btn" type="button" onClick={() => setPaste(true)}>Paste instead</button>
+        <button className="btn btn-primary" type="button" onClick={() => fileRef.current?.click()}><Icon name="file" />Choose a file</button>
+        <button className="btn" type="button" onClick={() => setPaste(true)}><Icon name="copy" />Paste instead</button>
         {samples?.map((s) => (
           <button key={s.label} className="btn btn-quiet" type="button" onClick={() => onLoad(s.text, s.name)}>{s.label}</button>
         ))}
@@ -65,8 +65,8 @@ export function ColumnSelect({ label, required, value, headers, sample, onChange
 }) {
   return (
     <label className="field">
-      <span>{label}{required && <em className="muted" style={{ fontStyle: 'normal', fontWeight: 500 }}>needed</em>}</span>
-      <select className="select" value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))} style={required && value === undefined ? { borderColor: 'var(--amber)' } : undefined}>
+      <span>{label}{required && <em className="muted" style={{ fontStyle: 'normal', fontWeight: 400 }}>needed</em>}</span>
+      <select className={`select ${required && value === undefined ? 'imp-need' : ''}`} value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}>
         <option value="">Not in the file</option>
         {headers.map((h, i) => <option key={i} value={i}>{h || `Column ${i + 1}`}</option>)}
       </select>
@@ -104,7 +104,7 @@ export function Steps({ at, onGo, skip = [], onRestart }: { at: Step; onGo?: (s:
           );
         })}
       </ol>
-      {onRestart && at !== 4 && <button className="btn btn-sm btn-quiet" type="button" onClick={onRestart}>Start over</button>}
+      {onRestart && at !== 4 && <button className="btn btn-sm btn-quiet" type="button" onClick={onRestart}><Icon name="refresh" size={14} />Start over</button>}
     </div>
   );
 }
@@ -162,7 +162,7 @@ export function Duplicates<K extends string>({ title, note, items, options, onCh
 export function Done({ title, body, children }: { title: ReactNode; body?: ReactNode; children: ReactNode }) {
   return (
     <section className="card imp-done">
-      <span className="imp-done-ic"><Icon name="check" size={22} /></span>
+      <span className="imp-done-ic"><Icon name="check" size={24} /></span>
       <h2>{title}</h2>
       {body && <p className="soft">{body}</p>}
       <div className="row wrap" style={{ justifyContent: 'center' }}>{children}</div>
