@@ -101,15 +101,28 @@ Open the site and sign in with any of these (password `mathcloud-demo` unless yo
 
 | Sign in as | Login | Sees |
 |---|---|---|
-| Organiser | `director@mathcloud.test` | everything in SFMO 2027 |
+| Organiser | `director@mathcloud.test` | everything: SFMO 2027 in person and its online edition (switch in the contest menu, top left) |
 | Grader | `grader@mathcloud.test` | keys paper sheets, rules on answers |
 | Proctor | `proctor@mathcloud.test` | one Zoom room on the day |
-| Coach | `coach@mathcloud.test` | their two teams |
+| Coach (optional) | `coach@mathcloud.test` | SFMO is run by the organisers, so coaches need nothing; a coach who signs up anyway sees their teams |
 | Online student | `student@mathcloud.test` | Carter Hughes, team 16, online |
 | Online student (username) | `sfmo-16b` | Valeria Ruiz, no email of her own |
 | In-person student (username) | `sfmo-05a` | Hannah Kim, team 05, in person |
 
 Anyone can also **Create an account** and start their own organisation and contest; the demo is untouched.
+
+How SFMO is set up in the demo, and how you would set up the real one:
+
+- **Two linked contests.** A contest is either in person or online. SFMO runs both at the same moment, so it is two
+  contests, linked as editions: *New contest → Both, at the same time* makes the pair, with the rounds and problems
+  copied once. Teams, rooms and results stay separate. *Settings → How teams take part* opens the other edition,
+  creates it later, or copies problems across again.
+- **Organisers enter every team.** Coaches never need an account (*Settings → Teams*). Bring teams in under
+  **Import**: CSV or Excel straight from your old sign-up. You can keep your own team numbers and old IDs, mark
+  waivers you already collected (all of them, or per student from a column), and have in-person and online rows
+  go to the right edition. Duplicates are found across both editions, and **Undo this import** takes it all back.
+- **Students only sign in to take tests.** For the online edition: *People → Sign-ins → Make sign-ins*, then
+  print the slips or email them to each team's contact or each guardian.
 
 Testing a live round: sign in as the organiser in one window and a student in another (a private window keeps
 the sessions apart). Open the round in **Rounds**, take it as the student, watch it arrive in **Live** and **Grading**.

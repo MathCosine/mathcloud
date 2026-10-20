@@ -105,7 +105,11 @@ export async function loadContest(r: Rows, contestId: string, uid: string, orgId
     rows(sb.from('results').select('*').eq('contest_id', contestId)),
     rows(sb.from('contest_roles').select('*').eq('contest_id', contestId)),
   ]);
-  r.divisions = divisions;
+  // Every contest's way of taking part (a row or two each), so the contest menu and
+  // linked editions know which is in person and which online without loading them.
+  const others = r.contests.filter((c) => c.id !== contestId).map((c) => c.id);
+  const otherDivisions = others.length ? await rows(sb.from('divisions').select('*').in('contest_id', others)) : [];
+  r.divisions = [...divisions, ...otherDivisions];
   r.rounds = rounds;
   r.teams = teams.map(({ competitors, ...t }) => t);
   r.competitors = teams.flatMap((t) => t.competitors ?? []);

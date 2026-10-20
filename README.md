@@ -26,10 +26,10 @@ menu (top right) switches people and jumps between four moments of the contest: 
 
 | Account | What to try |
 | --- | --- |
-| **Organiser** Jordan Lee | *Teams*: open a team and edit anything. *People → ID check*: duplicates and broken IDs, with fixes. *Import*: teams, students, problems or paper answers from a CSV, with duplicate handling. *Waivers*: remind everyone missing. *Reports*: score reports, printed or emailed |
+| **Organiser** Jordan Lee | The contest menu (top left) switches between SFMO in person and its online edition. *Import*: CSV or Excel from your old sign-up, keeping team numbers and waivers. *People → Sign-ins* (online edition): every student's login, printed or emailed. *Teams*: open a team and edit anything. *People → ID check*: duplicates and broken IDs, with fixes. *Import*: teams, students, problems or paper answers from a CSV, with duplicate handling. *Waivers*: remind everyone missing. *Reports*: score reports, printed or emailed |
 | **Grader** Sam Ortega | Key a Guts set: Guts, type `05`, Enter, then the four answers. It lands on the board |
 | **Proctor** Priya Nand | Watch Zoom Room 1 live, answer questions, unlock a locked test |
-| **Coach** Megan Hughes | Edit the roster, chase waivers, make student logins, switch in person or online |
+| **Coach** Megan Hughes | Optional: SFMO's organisers do everything, but a coach who signs up sees their teams |
 | **Student** Carter Hughes | Online: device check, the day in his own time zone, tests in the browser, Guts with the live board |
 | **Student** Hannah Kim | In person: a pass with her ID and room, the day with a place for every line |
 
@@ -42,7 +42,7 @@ menu (top right) switches people and jumps between four moments of the contest: 
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run build:demo` | Self-contained sandbox build in `dist-demo/` |
 | `npm run seed` | Loads the demo and demo accounts into a Supabase project (see docs/DEPLOY.md) |
-| `./scripts/test-db.sh` | Runs the Supabase schema and its 98 rule checks on a throwaway Postgres |
+| `./scripts/test-db.sh` | Runs the Supabase schema and its 112 rule checks on a throwaway Postgres |
 
 ## Where things live
 

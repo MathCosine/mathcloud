@@ -1019,7 +1019,10 @@ export function undoImport(teamIds: string[], by: string) {
 export function editionFor(db: DB, contest: Contest, mode: DivisionMode): Contest | undefined {
   if (offers(contest, mode)) return contest;
   const other = contest.linkedId ? db.contests.find((c) => c.id === contest.linkedId) : undefined;
-  return other && offers(other, mode) ? other : undefined;
+  if (!other) return undefined;
+  if (other.divisions.length) return offers(other, mode) ? other : undefined;
+  // Not loaded: a linked edition runs the other way.
+  return contest.divisions.length === 1 && contest.divisions[0].mode !== mode ? other : undefined;
 }
 
 /** The other edition of this contest, when it runs both ways at once. */
