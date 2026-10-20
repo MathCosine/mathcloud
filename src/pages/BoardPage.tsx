@@ -257,7 +257,7 @@ function Rows({ board, split, slots }: { board: Board; split: boolean; slots: nu
   const gap = Math.max(24, box.w * 0.04);
   const colW = (box.w - gap * (cols - 1)) / cols;
   const rowH = Math.max(38, Math.min(88, box.h / Math.max(perCol, 1)));
-  const font = Math.round(Math.max(14, Math.min(rowH * 0.42, 36, colW / 17)));
+  const font = Math.round(Math.max(14, Math.min(rowH * 0.47, 38, colW / 17)));
   const lead = board.rows[0]?.score ?? 0;
   return (
     <div ref={ref} className="board-list" style={{ height: perCol * rowH, fontSize: font }}>

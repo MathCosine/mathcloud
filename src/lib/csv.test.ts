@@ -85,3 +85,25 @@ describe('one row per student', () => {
     ]);
   });
 });
+
+import { readYes } from './csv';
+
+describe('carrying data over from an old sign-up', () => {
+  it('reads waiver columns the way people fill them in', () => {
+    for (const v of ['Yes', 'signed', 'TRUE', 'x', '✓', '12/03/2026', 'Signed by mom', 'received']) expect(readYes(v)).toBe(true);
+    for (const v of ['', 'No', 'pending', 'false', 'not yet', '-']) expect(readYes(v)).toBe(false);
+  });
+
+  it('keeps team numbers, old IDs and waiver answers from the file', () => {
+    const rows = parseCsv([
+      'Team #,Team name,Contact email,Student 1 name,Student 1 waiver,Student 1 ID,Student 2 name,Student 2 waiver',
+      '7,Angle Fish,a@example.com,Iris,Yes,S-001,Leo,',
+    ].join('\n'));
+    const map = guessMapping(rows[0]);
+    expect(map.team.code).toBe(0);
+    const [t] = buildPlan(rows, map, { defaultMode: 'in_person', offered: ['in_person'], teamMax: 4 });
+    expect(t.code).toBe('7');
+    expect(t.students[0]).toMatchObject({ name: 'Iris', fileWaiver: true, externalId: 'S-001' });
+    expect(t.students[1]).toMatchObject({ name: 'Leo', fileWaiver: false });
+  });
+});

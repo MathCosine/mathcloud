@@ -881,6 +881,8 @@ export type NewStudent = {
   externalId?: string;
   /** Set when the waiver was collected elsewhere: how ("Paper copy", "Old sign-up form"). */
   waiverSignedBy?: string | null;
+  /** From an import: what the file's waiver column said. */
+  fileWaiver?: boolean;
 };
 export type NewTeam = {
   mode: DivisionMode;

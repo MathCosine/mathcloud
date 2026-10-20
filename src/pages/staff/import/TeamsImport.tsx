@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { importStudents, importTeams, offers, saveTeam, type NewTeam } from '../../../lib/actions';
+import { importStudents, importTeams, linkedEdition, offers, saveTeam, undoImport, type NewTeam } from '../../../lib/actions';
 import { buildPlan, guessMapping, parseCsv, SAMPLE_CSV, STUDENT_FIELDS, TEAM_FIELDS, type Mapping, type StudentField, type TeamField } from '../../../lib/csv';
 import { dedupeTeams, defaultTeamAction, isDuplicate, summarizeTeams, type TeamAction, type TeamRow } from '../../../lib/importers';
 import { useContest } from '../../../lib/hooks';
 import type { DivisionMode, TeamStatus } from '../../../lib/model';
 import { useUser } from '../../../lib/session';
-import { useDB } from '../../../lib/store';
+import { useAllDB } from '../../../lib/store';
 import { Icon } from '../../../components/icons';
 import { ModeChip, Segmented, toast } from '../../../components/ui';
 import { ColumnSelect, Done, Duplicates, Issues, missingNote, sampleOf, Source, StepFoot, Steps, Tally, type Step } from './shared';
@@ -15,14 +15,19 @@ const FIELD_WORD: Record<string, string> = { school: 'school', city: 'city', con
 
 export function TeamsImport() {
   const contest = useContest();
-  const db = useDB();
   const user = useUser()!;
   const [step, setStep] = useState<Step>(1);
-  const [result, setResult] = useState<{ made: number; updated: number; added: number; skipped: number; blocked: number } | null>(null);
+  const [result, setResult] = useState<{ made: number; updated: number; added: number; skipped: number; blocked: number; teamIds: string[] } | null>(null);
   const [text, setText] = useState('');
   const [source, setSource] = useState('');
   const [mapping, setMapping] = useState<Mapping | null>(null);
-  const offered = contest.divisions.map((d) => d.mode);
+  const all = useAllDB();
+  const other = linkedEdition(all, contest);
+  // Rows for the other way of taking part go to the linked edition.
+  const offered = [...new Set([...contest.divisions, ...(other?.divisions ?? [])].map((d) => d.mode))];
+  const [waivers, setWaivers] = useState<'none' | 'all' | 'file'>('none');
+  const [waiverNote, setWaiverNote] = useState('Collected before MathCloud');
+  const [numbering, setNumbering] = useState<'ours' | 'file'>('file');
   const [defaultMode, setDefaultMode] = useState<DivisionMode | null>(offered.length === 1 ? offered[0] : null);
   const [status, setStatus] = useState<TeamStatus>('confirmed');
   const [actions, setActions] = useState<Record<string, TeamAction>>({});
@@ -36,8 +41,11 @@ export function TeamsImport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, mapping, defaultMode, offered.join(), teamMax],
   );
-  const live = useMemo(() => db.teams.filter((t) => t.status !== 'withdrawn'), [db.teams]);
-  const dd = useMemo(() => dedupeTeams(plan, live, db.competitors, teamMax), [plan, live, db.competitors, teamMax]);
+  // Duplicates and team numbers are checked across both editions: a team may already be in the other one.
+  const scope = useMemo(() => new Set([contest.id, other?.id].filter(Boolean) as string[]), [contest.id, other?.id]);
+  const live = useMemo(() => all.teams.filter((t) => scope.has(t.contestId) && t.status !== 'withdrawn'), [all.teams, scope]);
+  const takenCodes = useMemo(() => new Set(all.teams.filter((t) => scope.has(t.contestId)).map((t) => t.code.toUpperCase())), [all.teams, scope]);
+  const dd = useMemo(() => dedupeTeams(plan, live, all.competitors, teamMax), [plan, live, all.competitors, teamMax]);
   const sum = summarizeTeams(dd.rows, actions);
   const dups = dd.rows.filter((r) => isDuplicate(r) && !r.errors.length);
   const actionOf = (r: TeamRow) => actions[r.key] ?? defaultTeamAction(r);
@@ -47,7 +55,9 @@ export function TeamsImport() {
     if (r.length < 2) return toast('Nothing to import', 'The file needs a header row and at least one team.', 'r');
     setText(csv);
     setSource(name);
-    setMapping(guessMapping(r[0]));
+    const m = guessMapping(r[0]);
+    setMapping(m);
+    setWaivers(m.students.some((x) => x.waiver !== undefined) ? 'file' : 'none');
     setActions({});
     setStep(2);
   };
@@ -57,11 +67,19 @@ export function TeamsImport() {
 
   const go = async () => {
     setBusy(true);
-    const asNew = (t: TeamRow): NewTeam => ({ mode: t.mode, name: t.name, school: t.school, city: t.city, contactName: t.contactName, contactEmail: t.contactEmail, students: t.students });
+    const asNew = (t: TeamRow): NewTeam => ({
+      mode: t.mode, name: t.name, school: t.school, city: t.city, contactName: t.contactName, contactEmail: t.contactEmail,
+      code: numbering === 'file' && t.code && !takenCodes.has(t.code.toUpperCase()) ? t.code : undefined,
+      externalId: t.externalId,
+      allowDuplicate: !!(t.existing || t.fileDupOf),
+      students: t.students.map(({ fileWaiver, ...s }) => ({ ...s, waiverSignedBy: waivers === 'all' || (waivers === 'file' && fileWaiver) ? waiverNote.trim() || 'Collected before MathCloud' : null })),
+    });
     let made = 0;
+    let teamIds: string[] = [];
     if (sum.create.length) {
       const r = await importTeams(sum.create.map(asNew), status, user.name);
       made = r.count;
+      teamIds = r.teamIds;
       if (r.error) {
         setBusy(false);
         return toast('Import stopped', r.error, 'r');
@@ -70,7 +88,7 @@ export function TeamsImport() {
     let added = 0;
     const adds: Parameters<typeof importStudents>[0] = [];
     for (const r of sum.update) {
-      const team = db.teams.find((t) => t.id === r.existing!.id);
+      const team = all.teams.find((t) => t.id === r.existing!.id);
       if (!team) continue;
       if (r.changes.length) saveTeam({ ...team, ...Object.fromEntries(r.changes.map((c) => [c.field, c.to])) }, user.name);
       for (const s of r.newStudents) adds.push({ teamId: team.id, ...s });
@@ -86,7 +104,7 @@ export function TeamsImport() {
       sum.update.length && `${sum.update.length} updated${added ? ` (${added} ${added === 1 ? 'student' : 'students'} added)` : ''}`,
     ].filter(Boolean);
     toast(parts.length ? `Imported: ${parts.join(', ')}` : 'Nothing imported', undefined, 'g');
-    setResult({ made, updated: sum.update.length, added, skipped: sum.skipped, blocked: sum.blocked });
+    setResult({ made, updated: sum.update.length, added, skipped: sum.skipped, blocked: sum.blocked, teamIds });
     setStep(4);
   };
 
@@ -99,7 +117,15 @@ export function TeamsImport() {
           body={<>{result.added ? `${result.added} ${result.added === 1 ? 'student' : 'students'} added to existing teams. ` : ''}Every student has a competitor ID.{[result.skipped && ` ${result.skipped} skipped as duplicates`, result.blocked && ` ${result.blocked} left out with problems`].filter(Boolean).join(',')}{result.skipped || result.blocked ? '.' : ''}</>}
         >
           <Link className="btn btn-primary" to="/staff/teams">Go to Teams</Link>
+          {waivers === 'none' && result.made > 0 && <Link className="btn" to="/staff/waivers"><Icon name="send" />Ask guardians for waivers</Link>}
           <button className="btn" type="button" onClick={restart}>Import another file</button>
+          {result.teamIds.length > 0 && (
+            <button className="btn btn-quiet" type="button" onClick={() => {
+              undoImport(result.teamIds, user.name);
+              toast(`Removed the ${result.teamIds.length} imported ${result.teamIds.length === 1 ? 'team' : 'teams'}`, 'Updates to teams that were already here stay.', '');
+              restart();
+            }}><Icon name="undo" />Undo this import</button>
+          )}
         </Done>
       </>
     );
@@ -116,7 +142,7 @@ export function TeamsImport() {
             pastePlaceholder="Team name,School,In person or online,Contact email,Student 1 name,..."
             samples={[{ label: 'Try a sample', text: SAMPLE_CSV, name: 'Google Form sample' }]}
           />
-          <p className="muted small">From Google Sheets or Excel: File, Download, Comma-separated values. Teams already registered are found by name, or by contact email and school, and you choose what happens to each.</p>
+          <p className="muted small">CSV or Excel (.xlsx) straight from your old sign-up, a Google Form or a coach's spreadsheet. Teams already registered are found by name, or by contact email and school, and you choose what happens to each.</p>
         </section>
       </>
     );
@@ -171,6 +197,11 @@ export function TeamsImport() {
     );
   }
 
+  const hasCodes = mapping.team.code !== undefined;
+  const hasWaiverCol = mapping.students.some((x) => x.waiver !== undefined);
+  const fileSigned = dd.rows.reduce((n, t) => n + t.students.filter((x) => x.fileWaiver).length, 0);
+  const newStudents = sum.create.reduce((n, t) => n + t.students.length, 0);
+
   const dupItems = dups.map((t) => t.existing
     ? {
       key: t.key,
@@ -190,6 +221,41 @@ export function TeamsImport() {
   return (
     <>
       <Steps at={3} onGo={setStep} onRestart={restart} />
+      <section className="card imp-options">
+        <div className="imp-opt">
+          <div className="imp-opt-label"><Icon name="waivers" /><span><b>Waivers</b><small>{newStudents} students in new teams</small></span></div>
+          <div className="stack" style={{ gap: 8 }}>
+            <Segmented label="Waivers" value={waivers} onChange={setWaivers}
+              items={[
+                { key: 'none', label: 'Not signed yet' },
+                { key: 'all', label: 'All already signed' },
+                ...(hasWaiverCol ? [{ key: 'file' as const, label: `From the file (${fileSigned} signed)` }] : []),
+              ]} />
+            {waivers === 'none' && <small className="muted">Guardians can sign online, or you mark paper copies. Send the requests from Waivers whenever you are ready.</small>}
+            {waivers !== 'none' && (
+              <label className="row small" style={{ gap: 8 }}>
+                <span className="soft">Recorded as</span>
+                <input className="input input-sm" style={{ maxWidth: 280 }} value={waiverNote} onChange={(e) => setWaiverNote(e.target.value)} />
+              </label>
+            )}
+          </div>
+        </div>
+        {hasCodes && (
+          <div className="imp-opt">
+            <div className="imp-opt-label"><Icon name="ticket" /><span><b>Team numbers</b><small>Student IDs follow them: 07A, 07B…</small></span></div>
+            <Segmented label="Team numbers" value={numbering} onChange={setNumbering}
+              items={[{ key: 'file', label: 'Keep the file’s numbers' }, { key: 'ours', label: 'Number them in MathCloud' }]} />
+          </div>
+        )}
+        {other && (
+          <div className="imp-opt">
+            <div className="imp-opt-label"><Icon name="both" /><span><b>Two editions</b><small>{contest.short} runs in person and online as linked contests</small></span></div>
+            <p className="soft small" style={{ margin: 0 }}>
+              <b>{sum.create.filter((t) => offers(contest, t.mode)).length}</b> new teams go to this contest and <b>{sum.create.filter((t) => !offers(contest, t.mode)).length}</b> to the {other.divisions[0]?.mode === 'online' ? 'online' : 'in-person'} edition, by the file’s in person or online column.
+            </p>
+          </div>
+        )}
+      </section>
       <Duplicates<TeamAction>
         title={dups.length === 1 ? 'row looks like a team you already have' : 'rows look like teams you already have'}
         note="Nothing is merged without you. Skip a row, update the team that is there, or add it anyway."
@@ -244,6 +310,9 @@ export function TeamsImport() {
                         warnings={t.warnings}
                         notes={[
                           ...t.info,
+                          ...(numbering === 'file' && hasCodes && t.code && !t.existing
+                            ? [takenCodes.has(t.code.toUpperCase()) ? `Number ${t.code} is taken; gets the next free one` : `Keeps number ${t.code.toUpperCase()}`]
+                            : []),
                           ...(a === 'update' && t.existing
                             ? [
                               t.changes.length ? `Changes ${t.changes.map((c) => `${FIELD_WORD[c.field]} to “${c.to}”`).join(', ')}` : 'Details already match',

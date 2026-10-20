@@ -3,8 +3,19 @@ import { Icon } from '../../../components/icons';
 import { Segmented, toast } from '../../../components/ui';
 
 /** Where the text comes from: a dropped or chosen file, pasted rows, or a sample. */
+/** The first sheet of an Excel file, as CSV text, so it goes through the same importer. */
+async function xlsxToCsv(file: File): Promise<string> {
+  const { readSheet } = await import('read-excel-file/browser');
+  const rows = await readSheet(file);
+  const cell = (v: unknown) => {
+    const t = v == null ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
+    return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  return rows.map((r) => r.map(cell).join(',')).join('\n');
+}
+
 export function Source({
-  onLoad, samples, hint, pasteLabel, pastePlaceholder, accept = /\.(csv|tsv|txt)$/i, title = 'Drop a CSV here',
+  onLoad, samples, hint, pasteLabel, pastePlaceholder, accept = /\.(csv|tsv|txt)$/i, title = 'Drop a spreadsheet here',
 }: {
   onLoad: (text: string, name: string) => void;
   samples?: { label: string; text: string; name: string }[];
@@ -18,9 +29,19 @@ export function Source({
   const [over, setOver] = useState(false);
   const [paste, setPaste] = useState(false);
   const [text, setText] = useState('');
-  const readFile = (f: File | undefined) => {
+  const readFile = async (f: File | undefined) => {
     if (!f) return;
-    if (!accept.test(f.name)) return toast('That is not a CSV', 'In Google Sheets or Excel: File, Download, Comma-separated values.', 'r');
+    if (/\.xlsx$/i.test(f.name)) {
+      // Excel files straight from the old sign-up: read in the browser, nothing is uploaded.
+      try {
+        onLoad(await xlsxToCsv(f), f.name);
+      } catch (e) {
+        toast('That spreadsheet could not be read', e instanceof Error ? e.message : 'Save it as .xlsx or CSV and try again.', 'r');
+      }
+      return;
+    }
+    if (/\.xls$/i.test(f.name)) return toast('That is an old Excel file', 'Open it in Excel or Google Sheets and save it as .xlsx or CSV.', 'r');
+    if (!accept.test(f.name)) return toast('That is not a spreadsheet', 'Use CSV or Excel (.xlsx). From Google Sheets: File, Download, CSV.', 'r');
     f.text().then((t) => onLoad(t, f.name));
   };
   if (paste) {
@@ -42,7 +63,7 @@ export function Source({
       className={`drop ${over ? 'over' : ''}`}
       onDragOver={(e) => { e.preventDefault(); setOver(true); }}
       onDragLeave={() => setOver(false)}
-      onDrop={(e) => { e.preventDefault(); setOver(false); readFile(e.dataTransfer.files[0]); }}
+      onDrop={(e) => { e.preventDefault(); setOver(false); void readFile(e.dataTransfer.files[0]); }}
     >
       <span className="ic"><Icon name="upload" size={22} /></span>
       <b>{title}</b>
@@ -54,7 +75,7 @@ export function Source({
           <button key={s.label} className="btn btn-quiet" type="button" onClick={() => onLoad(s.text, s.name)}>{s.label}</button>
         ))}
       </div>
-      <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,text/csv" hidden onChange={(e) => { readFile(e.target.files?.[0]); e.target.value = ''; }} />
+      <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => { void readFile(e.target.files?.[0]); e.target.value = ''; }} />
     </div>
   );
 }

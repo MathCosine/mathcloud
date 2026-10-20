@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import katex from 'katex';
 import type { DivisionMode } from '../lib/model';
 import { Icon, type IconName } from './icons';
@@ -323,14 +324,16 @@ export function Modal({ title, children, actions, onClose }: { title: string; ch
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  return (
+  // On <body>, so nothing on the page (a transform, an overflow) can clip or move it.
+  return createPortal(
     <div className="scrim" onClick={onClose} role="presentation">
       <div ref={box} tabIndex={-1} className="modal" role="dialog" aria-modal="true" aria-labelledby={id} onClick={(e) => e.stopPropagation()}>
         <h2 id={id}>{title}</h2>
         {children}
         <div className="modal-actions">{actions}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -364,7 +367,7 @@ export function Drawer({ open, onClose, kicker, title, children, foot }: { open:
   }, [open, onClose]);
   if (!mounted) return null;
   const c = last.current;
-  return (
+  return createPortal(
     <aside ref={box} className={`drawer ${shown ? 'open' : ''}`} aria-hidden={!open} role="dialog" aria-label={typeof c.title === 'string' ? c.title : undefined}>
       <div className="drawer-head">
         <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -375,7 +378,8 @@ export function Drawer({ open, onClose, kicker, title, children, foot }: { open:
       </div>
       <div className="drawer-body">{c.children}</div>
       {c.foot && <div className="drawer-foot">{c.foot}</div>}
-    </aside>
+    </aside>,
+    document.body,
   );
 }
 

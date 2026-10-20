@@ -52,8 +52,8 @@ export function parseCsv(text: string): string[][] {
 
 // ------------------------------------------------------------------ columns
 
-export type TeamField = 'team' | 'school' | 'city' | 'mode' | 'contactName' | 'contactEmail';
-export type StudentField = 'student' | 'grade' | 'guardianName' | 'guardianEmail';
+export type TeamField = 'team' | 'school' | 'city' | 'mode' | 'contactName' | 'contactEmail' | 'code' | 'externalId';
+export type StudentField = 'student' | 'grade' | 'guardianName' | 'guardianEmail' | 'waiver' | 'studentId';
 
 export const TEAM_FIELDS: { key: TeamField; label: string; required?: boolean }[] = [
   { key: 'team', label: 'Team name', required: true },
@@ -62,12 +62,16 @@ export const TEAM_FIELDS: { key: TeamField; label: string; required?: boolean }[
   { key: 'city', label: 'City' },
   { key: 'contactName', label: 'Coach or contact' },
   { key: 'contactEmail', label: 'Contact email', required: true },
+  { key: 'code', label: 'Team number (keep yours)' },
+  { key: 'externalId', label: 'Team ID in your old system' },
 ];
 export const STUDENT_FIELDS: { key: StudentField; label: string; required?: boolean }[] = [
   { key: 'student', label: 'Student name', required: true },
   { key: 'grade', label: 'Grade' },
   { key: 'guardianName', label: 'Guardian name' },
   { key: 'guardianEmail', label: 'Guardian email' },
+  { key: 'waiver', label: 'Waiver signed?' },
+  { key: 'studentId', label: 'Student ID in your old system' },
 ];
 
 const GUESS: Record<TeamField | StudentField, RegExp> = {
@@ -81,6 +85,10 @@ const GUESS: Record<TeamField | StudentField, RegExp> = {
   grade: /grade|year|class of/i,
   guardianName: /(parent|guardian).*name|name.*(parent|guardian)/i,
   guardianEmail: /(parent|guardian).*e-?mail|e-?mail.*(parent|guardian)/i,
+  code: /^team ?(number|no\.?|#|code)$|^(code|number|#|no\.?)$/i,
+  externalId: /^(team )?(id|ref(erence)?|registration (id|number))$/i,
+  waiver: /waiver|consent|release|permission slip/i,
+  studentId: /^(student |competitor )?id$|student (id|number)|competitor (id|number)/i,
 };
 
 /** Columns like "Student 2 grade" or "Member #3 - Parent email". */
@@ -95,6 +103,8 @@ export type Mapping = {
 
 function studentFieldOf(header: string): StudentField | null {
   const rest = header.replace(NUMBERED, ' ');
+  if (GUESS.waiver.test(rest)) return 'waiver';
+  if (/\b(id|number)\b/i.test(rest) && !/phone/i.test(rest)) return 'studentId';
   if (GUESS.guardianEmail.test(rest) || (/parent|guardian/i.test(rest) && /e-?mail/i.test(rest))) return 'guardianEmail';
   if (GUESS.guardianName.test(rest) || /parent|guardian/i.test(rest)) return 'guardianName';
   if (/e-?mail/i.test(rest)) return null;
@@ -120,6 +130,8 @@ export function guessMapping(headers: string[]): Mapping {
   take('contactName', (h) => GUESS.contactName.test(h) && !/e-?mail/i.test(h));
   take('school', (h) => GUESS.school.test(h));
   take('city', (h) => GUESS.city.test(h) && !GUESS.mode.test(h));
+  take('code', (h) => GUESS.code.test(h.trim()));
+  take('externalId', (h) => GUESS.externalId.test(h.trim()));
 
   if (numbered.some(Boolean)) {
     const byNo = new Map<number, Partial<Record<StudentField, number>>>();
@@ -145,11 +157,20 @@ export function guessMapping(headers: string[]): Mapping {
   pickS('guardianEmail', (h) => GUESS.guardianEmail.test(h) || (/parent|guardian/i.test(h) && /e-?mail/i.test(h)));
   pickS('guardianName', (h) => GUESS.guardianName.test(h) || (/parent|guardian/i.test(h) && !/e-?mail/i.test(h)));
   pickS('grade', (h) => GUESS.grade.test(h));
+  pickS('waiver', (h) => GUESS.waiver.test(h));
+  pickS('studentId', (h) => GUESS.studentId.test(h.trim()));
   pickS('student', (h) => GUESS.student.test(h) && !/e-?mail|parent|guardian/i.test(h));
   return { shape: 'long', team, students: [s] };
 }
 
 // --------------------------------------------------------------------- plan
+
+/** "Yes", "signed", "TRUE", "x", "✓", a date: the waiver is in. Blank, "no", "pending": it is not. */
+export function readYes(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (!v || /^(no|n|false|0|pending|missing|not yet|unsigned|-)$/.test(v)) return false;
+  return /^(yes|y|true|1|x|✓|✔|signed|received|done|complete|completed|on file)$/.test(v) || /\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}/.test(v) || /signed|received/.test(v);
+}
 
 /** "Online (Zoom)", "virtual", "In-person in SF", "on site" → a mode; anything else → null. */
 export function readMode(value: string): DivisionMode | null {
@@ -200,6 +221,8 @@ export function buildPlan(rows: string[][], map: Mapping, opts: PlanOptions): Pl
         mode: only ?? (rawMode ? readMode(rawMode) : null) ?? opts.defaultMode ?? 'in_person',
         name, school: cell(r, map.team.school), city: cell(r, map.team.city),
         contactName: cell(r, map.team.contactName), contactEmail: cell(r, map.team.contactEmail),
+        code: cell(r, map.team.code).replace(/[^A-Za-z0-9]/g, '').slice(0, 6) || undefined,
+        externalId: cell(r, map.team.externalId) || undefined,
         students: [], rows: [], errors: [], warnings: [],
       };
       if (!name) t.errors.push('No team name');
@@ -220,7 +243,11 @@ export function buildPlan(rows: string[][], map: Mapping, opts: PlanOptions): Pl
       const sname = cell(r, s.student);
       if (!sname) continue;
       const g = parseInt(cell(r, s.grade).replace(/\D+/g, ''), 10);
-      t.students.push({ name: sname, grade: Number.isFinite(g) ? g : null, guardianName: cell(r, s.guardianName), guardianEmail: cell(r, s.guardianEmail) });
+      t.students.push({
+        name: sname, grade: Number.isFinite(g) ? g : null, guardianName: cell(r, s.guardianName), guardianEmail: cell(r, s.guardianEmail),
+        externalId: cell(r, s.studentId) || undefined,
+        ...(s.waiver !== undefined ? { fileWaiver: readYes(cell(r, s.waiver)) } : {}),
+      });
     }
   });
 

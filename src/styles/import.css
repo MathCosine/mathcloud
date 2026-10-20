@@ -137,3 +137,17 @@ button.imp-step-btn:focus-visible { box-shadow: var(--focus); }
 .imp .card > .drop { background: var(--bg-2); border-color: var(--line-2); }
 .imp .card > .drop .ic { background: var(--bg); box-shadow: var(--ring); }
 .imp .card > .drop.over { background: var(--blue-soft); border-color: var(--blue); }
+
+/* Options for bringing data over: waivers, team numbers, editions. */
+.imp-options { display: flex; flex-direction: column; gap: 0; padding: 4px 22px; }
+.imp-opt { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
+.imp-opt:first-child { border-top: 0; }
+.imp-opt-label { display: flex; gap: 10px; align-items: flex-start; }
+.imp-opt-label > .icon { margin-top: 2px; color: var(--ink-3); }
+.imp-opt-label b { display: block; font-weight: 600; }
+.imp-opt-label small { display: block; color: var(--ink-3); font-size: 12.5px; }
+.imp-opt .seg { flex-wrap: wrap; max-width: 100%; }
+@media (max-width: 760px) {
+  .imp-opt { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .imp-opt .seg { display: flex; }
+}
